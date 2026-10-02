@@ -146,3 +146,106 @@ test('clipKey is stable, language-scoped and ignores stage directions', async ()
   assert.notEqual(clipKey('zh', '下一位！'), clipKey('en', '下一位！'));
   assert.equal(clipKey('zh', '下一位！'), clipKey('zh', '下一位！'));
 });
+
+// ---- first-minute additions (spec 8.5) ----
+import {
+  splitPunch, unpipe, ttsText, zhNumber, enNumber, estimateSpeechMs, timingsFromManifest, clipKey as ck,
+} from '../src/audio.js';
+
+test('splitPunch: "|" splits setup and punch; no "|" means the whole line is the punch', () => {
+  assert.deepEqual(splitPunch('（盯他三秒）还在想？|滚！'), ['（盯他三秒）还在想？', '滚！']);
+  assert.deepEqual(splitPunch('调你妈！'), ['', '调你妈！']);
+  assert.deepEqual(splitPunch(''), ['', '']);
+  assert.equal(unpipe('15杯？|太少，滚！'), '15杯？太少，滚！');
+  // each half has its own clip key, stage directions ignored
+  assert.equal(ck('zh', splitPunch('（盯他三秒）还在想？|滚！')[0]), ck('zh', '还在想？'));
+});
+
+test('zhNumber / ttsText (zh): 250 is read 二百五十, never digit by digit', () => {
+  assert.equal(zhNumber(250), '二百五十');
+  assert.equal(zhNumber(15), '十五');
+  assert.equal(zhNumber(1), '一');
+  assert.equal(zhNumber(100), '一百');
+  assert.equal(zhNumber(105), '一百零五');
+  assert.equal(zhNumber(251), '二百五十一');
+  assert.equal(zhNumber(520), '五百二十');
+  assert.equal(zhNumber(2000), '两千');
+  assert.equal(zhNumber(10000), '一万');
+  assert.equal(zhNumber(100000), '十万');
+  assert.equal(zhNumber(10010), '一万零一十');
+  assert.equal(ttsText('250杯！', 'zh'), '二百五十杯！');
+  assert.equal(ttsText('15杯？|太少，滚！', 'zh'), '十五杯？太少，滚！');
+  assert.equal(ttsText('251杯！甜度可以37%吗？', 'zh'), '二百五十一杯！甜度可以百分之三十七吗？');
+  assert.equal(ttsText('绕过101，上新闻了。', 'zh'), '绕过一零一，上新闻了。');
+  assert.equal(ttsText('没有数字', 'zh'), '没有数字');
+});
+
+test('enNumber / ttsText (en): the clerk says "two-fifty" (voice-bible 6.1)', () => {
+  assert.equal(enNumber(250), 'two-fifty');
+  assert.equal(enNumber(251), 'two-fifty-one');
+  assert.equal(enNumber(249), 'two-forty-nine');
+  assert.equal(enNumber(520), 'five-twenty');
+  assert.equal(enNumber(100), 'a hundred');
+  assert.equal(enNumber(101), 'one-oh-one');
+  assert.equal(enNumber(15), 'fifteen');
+  assert.equal(enNumber(1000), 'a thousand');
+  assert.equal(ttsText('250 cups!', 'en'), 'two-fifty cups!');
+  assert.equal(ttsText('15 cups?|Too small. SCRAM!', 'en'), 'fifteen cups?Too small. SCRAM!');
+  assert.equal(ttsText('37% sugar', 'en'), 'thirty-seven percent sugar');
+});
+
+test('estimateSpeechMs: grows with length, ignores stage directions, 0 for nothing speakable', () => {
+  assert.equal(estimateSpeechMs('（沉默）'), 0);
+  assert.ok(estimateSpeechMs('你要几杯？') > estimateSpeechMs('滚！'));
+  assert.equal(estimateSpeechMs('（拍桌）滚！'), estimateSpeechMs('滚！'));
+  assert.ok(estimateSpeechMs('How many cups?', 'en') > 500);
+  // digits are counted as their spoken form
+  assert.ok(estimateSpeechMs('250杯') > estimateSpeechMs('二杯'));
+});
+
+test('timingsFromManifest: clip lengths, punch gap only between two halves, mega slows the punch', () => {
+  const man = { langs: { zh: { clips: { [ck('zh', '还在想？')]: { c: 0, o: 0, d: 0.65 }, [ck('zh', '滚！')]: { c: 0, o: 1, d: 0.4, b: { c: 0, o: 2, d: 0.5 } } } } } };
+  const t = timingsFromManifest(man, 'zh', '（盯他）还在想？|滚！', { punchGapMs: 200 });
+  assert.deepEqual(t, { setupMs: 650, gapMs: 200, punchStartMs: 850, punchMs: 400, totalMs: 1250, clips: { setup: true, punch: true } });
+  const whole = timingsFromManifest(man, 'zh', '滚！');
+  assert.equal(whole.setupMs, 0);
+  assert.equal(whole.gapMs, 0);
+  assert.equal(whole.punchStartMs, 0);
+  assert.equal(whole.punchMs, 400);
+  assert.equal(timingsFromManifest(man, 'zh', '滚！', { punchFx: 'mega' }).punchMs, Math.round(400 / 0.94));
+  assert.equal(timingsFromManifest(man, 'zh', '滚！', { bleep: true }).punchMs, 500);
+  const est = timingsFromManifest(null, 'zh', '15杯？|太少，滚！', { punchGapMs: 630 });
+  assert.equal(est.clips.setup, false);
+  assert.equal(est.punchStartMs, est.setupMs + 630);
+  assert.equal(timingsFromManifest(man, 'zh', '滚！', { rate: 2 }).punchMs, 200);
+});
+
+test('createAudio: first-minute methods exist and degrade silently; playClerk carries timing synchronously', async () => {
+  const a = createAudio();
+  for (const k of ['playClerk', 'playCustomer', 'voiceTimings', 'cut', 'hush', 'duck', 'restore', 'bed', 'loop', 'stopLoop', 'stopLoops']) {
+    assert.equal(typeof a[k], 'function', k);
+  }
+  const p = a.playClerk('还在想？|滚！', { punchGapMs: 200 });
+  assert.equal(typeof p.then, 'function');
+  assert.ok(p.setupMs > 0 && p.punchMs > 0);
+  assert.equal(p.punchStartMs, p.setupMs + 200);
+  const r = await p;
+  assert.equal(r.punchMs, p.punchMs);
+  const c = a.playCustomer('250杯！', { rate: 1.08 });
+  assert.ok(c.ms > 0);
+  a.unlock();
+  for (const n of ['gate', 'boom', 'press', 'card', 'tick', 'tap', 'coin', 'bell', 'dingdong', 'stamp', 'clock', 'sigh',
+    'scratch', 'feedback', 'sparkle', 'drumroll', 'crowdOh', 'huh']) {
+    assert.equal(a.sfx(n), 0, n); // no AudioContext in node → 0, no throw
+  }
+  const h = a.loop('musicbox');
+  h.detune(-50);
+  h.stop(20);
+  a.cut();
+  a.hush();
+  a.duck(-60, 30);
+  a.restore(200);
+  a.bed(true);
+  await a.playClerk('调你妈！', { punchFx: 'mega' });
+  await a.speak('还在想？|滚！', { style: 'curse' });
+});

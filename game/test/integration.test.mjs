@@ -6,6 +6,7 @@ import { createGame, MILESTONES } from '../src/engine.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clipKey } from '../src/audio.js';
+import { configForDay, poolForDay, dayInfo } from '../src/days.js';
 
 const STYLES = ['real', 'curse', 'disdain', 'cold', 'deadpan', 'chuuni', 'math', '250', 'twist'];
 const KEYS = ['gun', 'shut', 'take'];
@@ -20,7 +21,7 @@ for (const lang of ['zh', 'en']) {
       assert.ok(STYLES.includes(c.style), `#${c.id} style ${c.style}`);
       assert.ok(KEYS.includes(c.key), `#${c.id} key ${c.key}`);
     }
-    for (const f of ['next', 'polite', 'boo', 'rageStart', 'rageLines', 'closing', 'signature250']) {
+    for (const f of ['next', 'polite', 'boo', 'rageStart', 'rageLines', 'closing']) {
       assert.ok(Array.isArray(system[f]) && system[f].length, `${lang} SYSTEM.${f}`);
     }
     for (const lv of MILESTONES) assert.ok(system.milestones[lv], `${lang} milestone ${lv}`);
@@ -49,8 +50,9 @@ test('a full 90s round with real content ends with a summary whose bestLineId re
   while (game.state.phase !== 'over' && t < 120000) {
     game.tick(50); t += 50;
     const cur = game.state.current;
+    if (cur && cur.speaking && cur.sinceArriveMs >= 900) game.speechDone(); // main.js: t0 at the voice end
     if (game.state.phase === 'rage' && rng() < 0.3) game.press('gun');
-    else if (cur && cur.patienceMaxMs - cur.patienceMs > 400) {
+    else if (cur && !cur.speaking && cur.patienceMaxMs - cur.patienceMs > 400) {
       // UI model: resolve on key-down, then upgrade while the key stays held
       const r = game.press(rng() < 0.8 ? cur.customer.key : 'gun', 0);
       const held = rng() * 1000;
@@ -62,47 +64,98 @@ test('a full 90s round with real content ends with a summary whose bestLineId re
   assert.ok(customers.some((c) => c.id === summary.bestLineId));
 });
 
-test('the 250 signature scene can trigger: a cups===250 customer answered with take', () => {
-  for (const lang of ['zh', 'en']) {
-    const { customers, system } = getContent(lang);
-    assert.ok(customers.some((c) => c.cups === 250 && c.key === 'take'), lang);
-    assert.ok(system.signature250.every((l) => (l.who === 'clerk' || l.who === 'cust') && l.text), lang);
+// Plays day n the way main.js does: t0 at a fixed talk length, answers after reactMs, delayNext(punch + L).
+function playDay(n, { reactMs = 600, correctRate = 0.85, seed = 3, extra = {}, onEvent } = {}) {
+  let s = seed;
+  const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const { customers, system } = getContent('zh');
+  const info = dayInfo(n);
+  const o = system.originalCustomer;
+  const special = info.original && o ? { customer: { ...o, key: o.steps[0], reply: o.reply2 }, atMs: info.original.atMs } : null;
+  const game = createGame({ customers: poolForDay(n, customers), rng, config: configForDay(n, special ? { special, ...extra } : extra) });
+  const log = [];
+  for (const ev of ['arrive', 'ready', 'step', 'resolve', 'polite', 'rageStart', 'over']) {
+    game.on(ev, (p) => { log.push({ ev, t: game.state.elapsedMs, ...p }); onEvent?.(ev, p, game); });
   }
-  // main.js flow: resolve → pause → (scene) → resume + bonus(25)
-  const { customers } = getContent('zh');
-  const c250 = customers.find((c) => c.cups === 250 && c.key === 'take');
-  const other = customers.find((c) => c.style !== c250.style);
-  const game = createGame({ customers: [c250, other], rng: () => 0, config: { gapMs: 250 } });
-  game.on('resolve', (e) => { if (e.customer.cups === 250 && e.correct && e.key === 'take') game.pause(); });
+  game.on('resolve', () => game.delayNext(1200)); // a clerk line of ~550 ms + L
   game.start();
-  while (game.state.current.customer !== c250) {
-    game.press(game.state.current.customer.key);
-    game.tick(300);
-  }
-  const t0 = game.state.timeLeftMs;
-  game.press('take');
-  assert.equal(game.state.paused, true);
-  game.tick(20000);
-  assert.equal(game.state.timeLeftMs, t0);
-  const q = game.state.queue;
-  game.resume();
-  game.bonus(25);
-  assert.equal(game.state.queue, q + 25);
-});
-
-test('export-lines includes every signature250 line (clerk deadpan, customer first pool voice)', () => {
-  const out = execFileSync(process.execPath, ['tools/voice/export-lines.mjs'], {
-    cwd: fileURLToPath(new URL('..', import.meta.url)), maxBuffer: 16 * 1024 * 1024,
-  });
-  const jobs = new Map(JSON.parse(out).map((j) => [j.key, j]));
-  for (const lang of ['zh', 'en']) {
-    for (const { who, text } of getContent(lang).system.signature250) {
-      const job = jobs.get(clipKey(lang, text));
-      assert.ok(job, `${lang}: ${text}`);
-      // a line shared with a customer/clerk line elsewhere keeps that job's casting (deduped by key)
-      if (job.role === (who === 'cust' ? 'customer' : 'clerk') && job.voice) {
-        assert.ok(who === 'cust' ? job.style === 'cust' : typeof job.style === 'string', text);
-      }
+  let t = 0;
+  while (game.state.phase !== 'over' && t < 200000) {
+    game.tick(20); t += 20;
+    const cur = game.state.current;
+    if (!cur) continue;
+    if (game.state.phase === 'rage') { if (rng() < 0.1) game.press('gun'); continue; }
+    if (cur.speaking && cur.sinceArriveMs >= info.enterMs + 280 + 800) game.speechDone();
+    else if (!cur.speaking && cur.patienceMaxMs - cur.patienceMs >= reactMs) {
+      const want = cur.customer.steps ? cur.customer.steps[cur.step] : cur.customer.key;
+      game.press(rng() < correctRate ? want : 'gun');
     }
   }
+  return { game, log, of: (name) => log.filter((e) => e.ev === name) };
+}
+
+test('day 1 free play: fixed trio, about 13 customers in 45 s, star 1 (30) reachable with the opening carry-over', () => {
+  const { game, of } = playDay(1, { correctRate: 1 });
+  const ids = of('arrive').map((e) => e.customer.id);
+  assert.deepEqual(ids.slice(0, 3), [41, 46, 12]);
+  assert.ok(ids.length >= 10 && ids.length <= 18, `customers: ${ids.length}`);
+  assert.ok(ids.every((id) => poolForDay(1, getContent('zh').customers).some((c) => c.id === id)));
+  assert.equal(game.state.fury, 0, 'no fury on day 1');
+  assert.ok(game.state.queue + 12 >= dayInfo(1).star1, `queue ${game.state.queue} + 12`);
+});
+
+test('A6/A7 with real content: patience frozen arrive→ready; next arrive ≥ L after a correct answer', () => {
+  const frozen = [];
+  const { of } = playDay(2, {
+    onEvent(ev, p, game) {
+      if (ev === 'arrive') frozen.push(game.state.current.patienceMs);
+      if (ev === 'ready') assert.equal(p.patienceMs, frozen.at(-1));
+    },
+  });
+  const log = [...of('resolve'), ...of('arrive')].sort((a, b) => a.t - b.t);
+  for (let i = 0; i < log.length - 1; i++) {
+    if (log[i].ev === 'resolve' && log[i + 1].ev === 'arrive') {
+      const r = log[i];
+      const L = r.land === 'wrong' ? 450 : r.land === 'big' ? 950 : 550;
+      assert.ok(log[i + 1].t - r.t >= Math.min(L, 1200) - 20, `gap ${log[i + 1].t - r.t} after ${r.land}`);
+    }
+  }
+});
+
+test('day 3: the original customer comes once (take → step → shut), and the first rage comes within the first half', () => {
+  const { of } = playDay(3, { correctRate: 1 });
+  const origArrivals = of('arrive').filter((e) => e.customer.id === 'orig');
+  assert.equal(origArrivals.length, 1);
+  assert.equal(of('step').length, 1);
+  const fin = of('resolve').find((e) => e.customer.id === 'orig');
+  assert.equal(fin.correct, true);
+  assert.equal(fin.land, 'step');
+  assert.match(fin.line, /\|/, 'reply2 has a cut point');
+  const rage = of('rageStart')[0];
+  // 12/8 fury (spec 7): five customers fill it; the real cadence (voice + delayNext) is about 3–3.8 s each
+  assert.ok(rage && rage.t > 9000 && rage.t < 45000, `first rage at ${rage && rage.t}`);
+});
+
+test('day 2: timeouts cost aura, no rage; day 1: timeouts are free', () => {
+  const d2 = playDay(2, { reactMs: 99999 });
+  assert.ok(d2.of('polite').length > 1);
+  assert.ok(d2.of('polite').slice(1).some((p) => !p.free));
+  assert.equal(d2.of('rageStart').length, 0);
+  const d1 = playDay(1, { reactMs: 99999 });
+  assert.ok(d1.of('polite').every((p) => p.free));
+});
+
+test('SYSTEM.opening / originalCustomer shapes match what main.js and opening.js read', () => {
+  for (const lang of ['zh', 'en']) {
+    const { system } = getContent(lang);
+    const op = system.opening;
+    assert.ok(op, `${lang} opening`);
+    assert.ok(op.closing && op.closing.title && op.closing.lines.length === 3, `${lang} closing`);
+    const o = system.originalCustomer;
+    assert.ok(o && o.says && o.says2 && o.reply1 && o.reply2, `${lang} originalCustomer`);
+    assert.equal((o.reply2.match(/\|/g) || []).length, 1, `${lang} reply2 cut point`);
+  }
+  const o = getContent('zh').system.originalCustomer;
+  assert.deepEqual(o.steps, ['take', 'shut']);
+  assert.ok(!getContent('zh').customers.some((c) => c.id === o.id), 'not in the 100');
 });

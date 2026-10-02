@@ -228,6 +228,83 @@
 
 ---
 
+## Day 1 opening routine (in game: `SYSTEM_EN.opening`, docs/first-minute-spec.md section 3)
+
+- This is the text the game plays, identical to `src/content.en.js`; beat numbers follow spec 3.3–3.7.
+- **Game cut point `|`** is not the `｜` of this script: before `|` is the setup, after it the punch; each half is its own clip and the program inserts the silence (200 ms by default). Kokoro renders the setup at `speed 1.10` and the punch at `0.90` (`tools/voice/export-lines.mjs`). For a studio session, record the halves separately and leave a 40 ms tail on the setup.
+- On screen the number stays "250" / "15"; it is always read "two-fifty" / "fifteen" (rewritten for TTS by `audio.ttsText`). OP07 is the one place the full quarter-wit slip is spoken (the opening is the signature routine, voice-bible 5.4).
+
+| ID | Beat | Speaker | Line | Delivery |
+|---|---|---|---|---|
+| OP01 | A4 | Clerk | How many cups? | L3, looking down |
+| OP02 | B3 | Customer 1 (hesitator) | Ummm… | eyes drifting |
+| OP03 | B6–B8 | Clerk | Still thinking? **\|** SCRAM! | slow squint → 200 ms silence → L4 punch |
+| OP04 | C3 | Customer 2 (15 cups) | 15 cups! | chin up, proud |
+| OP05 | C6–C9 | Clerk | 15 cups? **\|** Too small. SCRAM! | glance at the sign → sigh 450 ms + silence 180 ms → punch |
+| OP06 | D4 | Customer 3 (250 cups) | 250 cups! | hero entrance, stress "250" |
+| OP07 | D8 | Clerk | Okay. 250. A quarter-wit— (cough) a quarter… of a thousand. Of what? | suddenly calm, professional, L1 |
+| OP08 | D9 | Customer 3 | The signature Jade Lemon! | proud |
+| OP09 | D10 | Clerk | Want me to adjust the sugar or ice? | dangerous smile, trick question |
+| OP10 | D11 | Customer 3 | Yeah, adjust it! Less sugar, less ice! | entitled |
+| OP11 | E4 | Clerk | ADJUST your MOM! | after 220 ms of total silence, L5 (mega: echo, 0.94 speed) |
+| OP12 | E6 | Clerk | The golden ratio is PERFECT! | anime announcer, points at the sign |
+| OP13 | E7 | Clerk | Everything's made fresh to order. | instantly back to service voice, L1 |
+| OP14 | E8 | Clerk | 250 cups, | L1, then 250 ms silence |
+| OP15 | E10 | Clerk | pick up in two months. | L1, clock ticks |
+| OP16 | E11 | Clerk | Here's your pickup number. | sincerely helpful |
+| OP17 | F1 | Clerk | NEXT! | L3 |
+
+Wrong-key quips and timeouts (clerk, ≤ 2.0 s; customers are "they"):
+
+| ID | When | Line |
+|---|---|---|
+| OPW01 | W1 Zip it | Zip it? They haven't said a word. |
+| OPW02 | W1 Booked | Booked? They never said how many. |
+| OPW03 | W2 Zip it | They said 15 cups. That's not noise. |
+| OPW04 | W2 Booked | (picks up the ticket, puts it back) …15 cups? Too small. |
+| OPW05 | W3 Scram (brake: only the first 150 ms play) | SCRAM— |
+| OPW06 | after the W3 Scram brake | …Wait. How many cups? |
+| OPW07 | W3 Zip it (brake) | ZIP— |
+| OPW08 | after the W3 Zip it brake | …250 cups? That gets booked. |
+| OPW09 | W4 Scram | Order's booked. Now they need to zip it. |
+| OPW10 | W4 Booked | Already booked! Now they're making demands— |
+| OPW11 | second wrong key on the same beat | Fine. I'll do it myself. |
+| OPT01 | W1 timeout (service voice) | Hiii~ Take all the time you need~ |
+| OPT02 | W2 timeout (service voice) | 15 cups~? Coming right up~ |
+| OPT03 | W3 timeout (service voice) | 250 cups~ Thank you so much~ |
+| OPT04 | W4 timeout (service voice) | Of course~ Less sugar, less ice~ I'll adjust it for you~ |
+| OPT05 | after the first timeout (flat) | …That wasn't me. |
+| OPT06 | after the second timeout (flat) | …That was work-mode me. |
+| OPT07 | after the third timeout (flat) | …That one doesn't count. |
+| OPT08 | after the fourth timeout (flat) | …You heard nothing. |
+
+Day 1 free-play pool, game cut points (R10; reply / alt; a line without `|` plays whole as the punch):
+
+| # | Main | Alt |
+|---|---|---|
+| 1 | (stares for three seconds, deep breath) Still thinking? **\|** SCRAM! | (checks watch) Your one second's up. **\|** Out. |
+| 5 | (taps the register twice) Both. A hundred each. **\|** Two months. You're welcome. | Thinking's ten bucks a second. **\|** You're at fifty. |
+| 6 | (snatches the phone) Hello? … Uh-huh. Your friend passes. (hangs up) **\|** Scram. | Your friend can get in line. **\|** You? Out. |
+| 7 | Nope. Your turn's over. **\|** Next. | Huh? Thirty minutes in line… **\|** for the vibes? |
+| 8 | Generous. **\|** Be generous… from the back. | Sure. Next one's up. You go back. **\|** Keep going. Keep going. |
+| 11 | Sure. Your options: golden ratio. **\|** …Great choice. | (rips up the sugar chart) …Chart's gone. **\|** No more picking. |
+| 12 | Less ice? The ice showed up to work. **\|** You want me to do layoffs? | LESS your MOM! Full ice tastes better! |
+| 13 | (hand over face) Ice… is the SOUL. You want me to… ERASE it?! **\|** NEVER! | Hold the ice? **\|** Hold your spot. In the back. |
+| 14 | Light ice? (turns, yells to the back) **\|** FULL ICE! Customer's OVERHEATING! | (nods) Light ice. Heard. **\|** Regular ice. |
+| 15 | Life's bitter enough. **\|** Full sugar. You're welcome. | (eyes soften) …Rough week, huh? (instantly mean) **\|** FULL SUGAR! NEXT! |
+| 16 | No sugar? That's twenty extra. (customer blinks) **\|** …Sugar-removal fee. | (clutches chest, staggers back) You've wounded… **\|** the GOLDEN RATIO… FULL SUGAR! |
+| 18 | Sore throat? Doctor's orders: **\|** zip it. | (cups an ear) …Huh? Can't hear you. **\|** Regular ice. |
+| 41 | One cup? You stood in line for ONE? **\|** Scram. | One cup? Two months. Two-fifty? Also two months. **\|** Your call. |
+| 42 | Three cups… (turns, looks at the line) …They're writing a one-star review. **\|** About you. | Three cups. Two months. Twenty days a cup. **\|** Worth it? |
+| 43 | (doesn't even look) Too small. **\|** SCRAM! | (doesn't look) Fifteen. **\|** Next. |
+| 44 | Twenty-five? You're missing a zero. **\|** Go find it. | (lip twitches) …Twenty-five. **\|** One zero away from your real number. |
+| 45 | (doesn't look) Fifty. Failed. **\|** Next. | Fifty… (sighs, audible) So close. **\|** Bye. |
+| 46 | A hundred… (ticks a box in a tiny notebook) First passing grade today. **\|** Booked. | (almost smiles) …Ahem. It's fine. **\|** Booked. |
+| 47 | (suddenly calm, professional) Okay. Two-fifty. A quarter-wit— (cough) a quarter… of a thousand. **\|** Of what? | (eyes well up) Finally… (instantly cold) **\|** Two-fifty of WHAT? Spit it out! |
+| 49 | Two-fifty-one? (crosses one out) **\|** Two-fifty. Booked. | Thought one extra cup would save you? **\|** …Two-fifty. Booked. |
+| 50 | (blushes, one sec) Your crush can wait. **\|** Two months. | Confessions? Different shop. **\|** Booked. |
+
+---
 ## Trailer & audition top 12
 
 | # | ID | Line (marked) | 中文意思 | 为什么选 |

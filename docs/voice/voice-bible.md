@@ -80,7 +80,7 @@
 
 | 项目 | 台词 | 要求 |
 |---|---|---|
-| 服务腔 | 您好～／请问需要什么呢😊 | 甜到自己起鸡皮疙瘩，〈1.2s〉 |
+| 服务腔 | 您好～／请问需要什么呢～ | 甜到自己起鸡皮疙瘩，〈1.2s〉 |
 | 服务腔恢复 | （用力擦嘴）……刚刚那不是我。 | 嫌恶、小声、快，〈1.0s〉 |
 | 连珠炮5连 | 滚！／收！／闭嘴！／号码牌！／下一位！ | 每个0.3–0.5秒，像打鼓，〈2.2s〉 |
 | 下一位 | **下一位！** | 干脆、往下砸，〈0.5s〉 |
@@ -105,7 +105,7 @@
 
 | 项目 | Line | 要求 |
 |---|---|---|
-| 服务腔 | Hiii~! ／What can I get started for you today? 😊 | Sickly sweet, 〈1.6s〉 |
+| 服务腔 | Hiii~! ／What can I get started for you today~? | Sickly sweet, 〈1.6s〉 |
 | 服务腔恢复 | (wipes mouth hard) …That wasn't me. | Disgusted, quick, 〈1.0s〉 |
 | 连珠炮5连 | SCRAM! ／BOOKED! ／ZIP IT! ／NUMBER! ／NEXT! | 0.3–0.5 s each, like drum hits, 〈2.2s〉 |
 | NEXT | **NEXT!** | Crisp hard K, released T, pitch drops, 〈0.4s〉 |
@@ -296,10 +296,10 @@
 
 | ID | 中文 | English |
 |---|---|---|
-| SSV01 | 您好～／请问需要什么呢😊 | Hiii~! ／What can I get started for you today? 😊 |
+| SSV01 | 您好～／请问需要什么呢～ | Hiii~! ／What can I get started for you today~? |
 | SSV02 | 欢迎光临～／今天想喝点什么呢？ | Welcome in~! ／What are we feeling today? |
 | SSV03 | 需要帮您推荐吗～ | Can I recommend something? I'd *love* to~ |
-| SSV04 | 慢慢想没关系喔💕 | No rush! Take *all* the time you need~ 💕 |
+| SSV04 | 慢慢想没关系喔～ | No rush! Take *all* the time you need~ |
 | SSV05 | 甜度冰块都可以帮您调喔～／您说了算～ | Any sugar, any ice~ ／You're the boss! |
 | SSV06 | 要帮您加珍珠吗？／免费的喔～ | Extra boba? ／On the house~! |
 | SSV07 | 让您久等了，／真的非常非常抱歉～ | I'm *so* sorry for the wait. ／Truly. From the bottom of my heart~ |

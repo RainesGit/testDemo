@@ -1,8 +1,10 @@
 # 来250杯！ / 250 Cups!
 
-A playable web prototype of a vertical (portrait) phone game about stress relief. You play a cocky bubble-tea clerk sitting on a very high counter in a Taiwanese tea shop. Customers peek up from below and order. Answer each one fast with **滚 / 闭嘴 / 收** (Scram! / Zip it! / Booked!). The ruder you are, the longer the line gets. The only way to lose is being too slow: then the clerk is forced into a sugary service voice and the whole shop boos.
+A playable web prototype of a vertical (portrait) phone comedy game. You play a cocky bubble-tea clerk on a very high counter in a Taiwanese night-market tea stand. Customers peek up from below, hold up an order sign and say their order. Answer each one with **滚 / 闭嘴 / 收** (Scram! / Zip it! / Booked!). The sign's colour is the key's colour. The ruder you are, the longer the line gets. The only way to lose is being too slow: then the clerk is forced into a sugary service voice and the shop boos.
 
-The prototype uses plain HTML, CSS and native ES modules, with no dependencies and no build step. All sound effects are synthesized with WebAudio. Voice lines play from the generated AI voice pack in `voice/` (Kokoro-82M, see `tools/voice/README.md`); lines without a clip fall back to the browser's Web Speech API.
+The first minute follows [`docs/first-minute-spec.md`](../docs/first-minute-spec.md) (art, the day 1 opening script, pace, 花字 captions, days 1–7). Where it conflicts with `docs/game-design.md`, the spec wins.
+
+The prototype uses plain HTML, CSS and native ES modules, with no dependencies and no build step. All art is inline SVG/CSS (`src/art.js`, `style.css`; no images, no emoji, no filters). All sound effects are synthesized with WebAudio. Voice lines play from the generated AI voice pack in `voice/` (Kokoro-82M, see `tools/voice/README.md`); lines without a clip fall back to the browser's Web Speech API.
 
 ## Run
 
@@ -18,188 +20,134 @@ URL parameters:
 
 | Param | Effect |
 |---|---|
-| `?lang=zh` / `?lang=en` | Starting language. Otherwise the game uses the saved choice, then `navigator.language`. |
-| `?bleep=1` | Starts with bleep mode on. |
-| `?debug` | Exposes `window.__250 = { game, audio, ui, getContent }` for automated tests. |
+| `?lang=zh` / `?lang=en` | Starting language. Otherwise the saved choice, then `navigator.language`. |
+| `?lang=zh-TW` / `zh-HK` / `zh-Hant` | Chinese in Traditional characters (also the default for a zh-TW / zh-HK / zh-MO browser); `?lang=zh-CN` / `zh-SG` forces Simplified. Display only (`src/hant.js`). |
+| `?bleep=1` | Starts with bleep mode on (调你妈 → 调你哔). |
+| `?day=N` | Start on day N (1–7) instead of the saved day. |
+| `?skipOpening=1` | Day 1 starts free play directly (QA). |
+| `?seed=N` | Seeded randomness (QA). |
+| `?lite=1` / `?lite=0` | Force the K4 lite mode (camera cuts, no idle loops) on or off; otherwise it switches on by itself on slow devices. |
+| `?debug` | Exposes `window.__250` for automated tests: getters `game`, `opening`, `day`, `info`, `lang`, plus `audio`, `ui`, `getContent`, `DAYS`, `startDay(n)` and a `durationMs` setter that shortens the next rounds. |
 
-Controls:
-- Tap the three buttons, or use **J / K / L** on a keyboard.
-- **Press to curse, hold to curse harder.** The answer resolves the moment the button (or key) goes down, so the clerk curses immediately. Keeping it held upgrades that same answer: level 1 at 300 ms (bigger shake), level 2 at 800 ms (bigger shake, flash, bigger slam word and a short shouted rage line). Releasing does nothing. A charge only applies to a correct answer resolved by that same press within `chargeWindowMs` (1 s).
-- **Beginner protection.** Customers who arrive in the first 10 s get a fixed 4.5 s of patience, and the first timeout of each round costs no aura (it still plays the polite scene, resets the combo and counts as polite).
-- **250 signature scene.** The first correct 收 on a 250-cup customer in a round pauses the game and plays the scripted `signature250` routine line by line (clerk lines as subtitles, customer lines in the bubble, each voiced, at most 4 s per line). Input is locked while it plays; tap the stage or press Enter / Space / Esc to skip (taps in the first 600 ms are ignored). When it ends the line grows by a further 25 and play resumes.
-- **One big effect at a time.** The PERFECT, 250 and rage banners and the milestone card play one after another (at most 900 ms each, at most 4 waiting).
-- Enter or Space starts the game from the start card and the report card.
-- The **中/EN** and **消音 / Bleep** toggles work during play and on the start and report cards.
+Saved in `localStorage` (every access is wrapped in try/catch): `250cups.day` (only goes up), `250cups.openingDone`, `250cups.lang`, `250cups.bleep`.
 
-Audio starts only after you press 开店 / Open Shop, because browsers require a user gesture before playing sound.
+## The flow
+
+1. **Start card** (3.2): the title slams down, the tagline fades in, from 1200 ms the big button "点一下 开店" (later "开店（第 N 天）") breathes; a tap before that starts the shop too. That tap also unlocks audio; the game waits at most 300 ms for the fonts.
+2. **Day 1 opening script** (section 3, `src/opening.js`, about 33 s): the shutter rolls up, "你要几杯？", customer 1 "嗯……" (teaches 滚), customer 2 "15杯！" (滚 again), customer 3 "250杯！" (teaches 收: "好，250杯什么？"… "冰块甜度要不要调？" "少甜少冰！" teaches 闭嘴) → "调你妈！" → "黄金比例最好喝！" → "我们都是现点现做，250杯，两个月后过来拿。这是你的取餐号码牌。" → "下一位！", logo, a three-key recap. The engine stays `idle` the whole time; there is no timer. Each wait point escalates hints (glow → counter taps → finger and dashed line), a first wrong key gets a quip, a second wrong key makes the clerk do it himself ("算了，我自己来。"), a 5 s timeout plays the service voice once. Nothing costs points. The 12 people in line carry into day 1.
+   Once the script was completed, a later day 1 (for example after quitting mid-day) replays it with "跳过 ▸" after 1200 ms, which jumps to the recap.
+3. **Day 1 free play** (45 s): fixed first three customers (1 杯 → 100 杯 → 可以少冰吗？), then a weighted mix. The HUD shows only the queue (no bars, no clock, combo only from 5).
+4. **Closing card** (3.8): the day's last line is read first, then the verdict, then the card: the ticket "No.001 / 250杯 / 两个月后取餐" with today's savagest line, "第一天 打烊" / "门口排了 N 人" on two lines, the three sign types with their keys, stars, and a centered button "开第二天 ▸" that works from 1000 ms on (taps elsewhere and J/K/L do nothing, so a player still mashing cannot skip it).
+5. **Days 2–7** (90 s each, one new system per day, section 7): day 2 timeouts and the swagger bar, day 3 fury/rage and the two-step original-film customer, day 4 hold-to-charge, and so on. The report card shows the ★1 goal; reaching it opens the next day, otherwise the day is replayed.
+
+Per customer (4.1): head pops up → sign rises (signUp) → the customer talks once the clerk is quiet and the clerk's subtitle has been read → the answer window starts when they finish (t0, clamped to signUp + 250…1600 ms) and shows as a bar on the sign → press → the sign leaves at once, the clerk's line plays as setup | silence | punch with the three-beat face, 花字, "+N" flying into the door monitor and the customer flying out on the punch → a landing pause before the next one: at least L, the punch 花字 and the subtitle's reading time (max(1500 ms, 140 ms per character)). A new customer clears whatever 花字 and clerk pose is left.
+
+Controls: tap the three keys, or **J / K / L**. A press resolves at once; holding on to 300 / 800 ms upgrades that same answer (charge level 1 / 2). Enter or Space taps the visible card. **中/EN** and **消音 / Bleep** work everywhere.
 
 ## Test
 
 ```bash
 cd game
-node --test test/*.test.mjs        # engine + audio + ui + integration (62 tests)
-node tools/check-content.mjs       # content + design-rule checks (B/C/V items of the acceptance checklist)
+node --test test/*.test.mjs        # 154 tests: engine 60, audio 21, art 16, opening 16, huazi 13, integration 9, days 8, ui 8, hant 3
+node tools/check-content.mjs       # 23 content / design-rule checks (V2 needs a rebuilt voice pack after line changes)
 ```
 
 `node --test test/` with a bare directory fails on Node 22, so use the glob above.
 
-Browser checks use Playwright with the preinstalled Chromium. Start the server on port 8765 first.
+Browser checks use Playwright (found by `tools/pw.mjs`) with the preinstalled Chromium. Serve `game/` first and pass the base URL (default `http://127.0.0.1:8765`):
 
 ```bash
-node tools/play-integrate.mjs   # opens index.html at 390x844, starts the game, plays ~20 s with J/K/L,
-                                # forces a polite timeout, rage and a milestone, switches to EN + bleep,
-                                # reaches the report card and plays again. Fails on any console/page error.
-                                # Screenshots: tools/shots/integrate-*.png
-node tools/shot-ui.mjs          # UI states from ui-demo.html at 3 viewports + overflow checks
-node tools/qa.mjs               # QA matrix: 7 scenarios (all correct, all wrong, idle, hold-to-charge,
-                                # rage, English, bleep) x 3 viewports (390x844, 360x640, 1280x800), each a
-                                # full 90 s round fast-forwarded with game.tick(). Checks console errors,
-                                # horizontal overflow, hit areas, clipped text, report card, leftover CJK in
-                                # English mode. Add --only=<scenario> to run one. Screenshots: tools/shots/qa-*.png
-                                # The 250 signature scene pauses the round; qa.mjs and play-integrate.mjs skip it
-                                # with a tap, and the charge scenario reads levels from the 'charge' event.
-node tools/check-signature.mjs  # plays until a 250-cup customer, presses 收 and checks the signature scene:
-                                # engine paused + skip layer + first line shown, J/K/L and buttons ignored,
-                                # queue +25 afterwards, once per round. Runs once to the end, once skipped.
+node tools/play-integrate.mjs [url] [--lang=en]
+    # start → opening (each wait point answered after 800 ms) → day 1 → closing card → day 2 (25 s) →
+    # report → next round (day 3 on ★1, else day 2 again); a tap on the closing card in its first 1000 ms must not
+    # skip it. Fails on any console/page error, an engine
+    # leaving 'idle' or a sign timer during the opening, overflow, or a wrong day after the report.
+    # Screenshots: tools/shots/integrate-<lang>-*.png
+node tools/qa.mjs [url] [--only=correct|mash|timeout] [--vp=360x640]
+    # spec 1.2: A1–A3, A6–A11 at 360x640 and 390x844 (all correct), A4 (random key every 300 ms),
+    # A5 (every wait point timed out). Screenshots: tools/shots/qa-*.png
+node tools/check-opening.mjs [url] [--vp=360x640] [--only=play|skip|perf] [--no-perf] [--cpu=4]
+    # the opening with one wrong press at W1 and a double wrong press at W3 (auto-advance), the skip run
+    # for a returning player, and a 4x-CPU run at 360x640 (A13). Checks A1–A4, A8–A13 and the hint rules.
+    # Screenshots: tools/shots/opening-<viewport>-<beat>.png
+node tools/check-signature.mjs [url]
+    # the "250" signature: the opening's 250 customer (S2 250, 调你妈, 黄金比例, ticket No.001 / 250杯 /
+    # 两个月后取餐, +10), a 250-cup customer in free play (+bonus250, no long scene), and the two-step
+    # original customer on day 3 (收 → purple sign → 闭嘴 → 调你妈).
+node tools/shot-ui.mjs [url]       # legacy ui-demo.html states (fake data) + overflow checks
 ```
 
-The scripts load `playwright` from `tools/node_modules` if it is installed there. Otherwise they use the global install at `/opt/node22/lib/node_modules/playwright`.
+Stop the server with `pkill -f "m http.server 876[5]"`.
 
-Demo pages:
-- `ui-demo.html` shows every UI state with fake data.
-- `audio-demo.html` has buttons for every sound effect and voice style.
+Demo pages: `art-demo.html` (every clerk mood, customer, sign and monitor scene), `audio-demo.html` (every sound and voice style), `ui-demo.html` (older fake-data UI states).
 
 ## Layout
 
 ```
 game/
-  index.html            entry page (empty #app + src/main.js)
-  style.css             all styling; stage scales with container units (cqw)
+  index.html            entry page (fonts, empty #app, src/main.js)
+  style.css             all styling: palette (2.2), 9:16 stage, camera, clerk moods, customer, signs, 花字 layer,
+                        keys, HUD, cards; sizes in cqw (1cqw = 1% stage width)
   src/
-    main.js             integration: wires content + engine + ui + audio, main loop, speech scheduling
+    main.js             integration: start card → opening → days, engine events → ui / audio, main loop
     engine.js           pure game logic (no DOM), deterministic with injected rng
-    ui.js               DOM, input (hold-to-charge, J/K/L), effects, start/report cards
-    audio.js            WebAudio SFX synth, crowd ambience, speechSynthesis, bleep splitting
+    days.js             days 1–7 tuning, pools, unlock order (pure)
+    opening.js          day 1 opening script director (beat list, injected clock)
+    art.js              SVG / HTML string templates for all art (pure)
+    huazi.js            花字 picking and rate limits (pure)
+    hant.js             Simplified → Traditional display conversion (generated with OpenCC s2tw; pure)
+    ui.js               DOM, input, camera, 花字 rendering, guidance, cards
+    audio.js            WebAudio SFX synth, bed, voice pack playback with "|" cut points, Web Speech, bleep
     content.js          getContent(lang) → { customers, system }, merges en over zh by id
-    content.zh.js       100 customers + SYSTEM_ZH (Simplified Chinese)
-    content.en.js       100 customers + SYSTEM_EN (US English; 250 = "quarter-wit" slip / "out of a thousand")
-  test/
-    engine.test.mjs     engine rules incl. intro patience, free first timeout, charge, pause/bonus (38)
-    audio.test.mjs      bleep splitting, stage-direction stripping, voice styles (15)
-    ui.test.mjs         effect queue, charge levels (3)
-    integration.test.mjs content shape, zh/en gameplay-field parity, full round, signature flow (4)
+    content.zh.js       100 customers + SYSTEM_ZH (incl. opening, originalCustomer, tips, unlock, start)
+    content.en.js       100 customers + SYSTEM_EN (US English; 250 = "quarter-wit" slip)
+  test/                 node:test files (see Test)
   tools/
-    check-content.mjs   content and design-rule checks
-    play-integrate.mjs  end-to-end Playwright run
-    shot-ui.mjs         UI screenshot / overflow check
-    qa.mjs              full-round QA matrix (scenarios x viewports)
-    check-signature.mjs 250 signature scene browser check
+    check-content.mjs   content and design-rule checks (B, C, H, V items)
+    play-integrate.mjs  end-to-end smoke
+    qa.mjs              first-minute QA (spec 1.2)
+    check-opening.mjs   opening acceptance (A1–A13, wrong press, skip, perf)
+    check-signature.mjs the "250" signature checks
+    shot-ui.mjs         ui-demo.html screenshots
+    pw.mjs              Playwright locator
     voice/              offline AI voice-pack builder (export-lines.mjs, build_voice.py)
     shots/              screenshots (git-ignored)
-  ui-demo.html, audio-demo.html
+  voice/                generated voice pack (manifest.json + mp3 sprites)
+  art-demo.html, audio-demo.html, ui-demo.html
 ```
 
 ## Module contracts
 
-### content
+Each module's full contract is in the comment at the top of its file. In short:
 
-- `content.zh.js` exports `CUSTOMERS_ZH`, an array of 100 entries shaped `{ id, cat, name, tag, cups, says, reply, alt, style, key }`, and `SYSTEM_ZH`, shaped `{ next, polite, boo, rageStart, rageLines, milestones, closing, ui, signature250 }`.
-- `content.en.js` has the same shape: `CUSTOMERS_EN` uses the same ids, and `SYSTEM_EN` mirrors `SYSTEM_ZH`.
-- `style` is one of `real | curse | disdain | cold | deadpan | chuuni | math | 250 | twist`.
-- `key` is one of `gun | shut | take`.
-- Text inside `（…）` or `(…)` is a stage direction. It is shown small and is never spoken.
-- `content.js` provides `getContent(lang)`. It merges English over Chinese by id, field by field, and falls back to Chinese for anything missing.
-
-### engine
-
-`createGame({ customers, rng = Math.random, config = {} })` returns a game object with these members:
-- `start()`
-- `tick(dtMs)`
-- `press(key, holdMs)`: resolves the current customer (the UI always passes `holdMs = 0`; force comes from `charge`)
-- `charge(level)`: upgrades the last answer to charge level 1 or 2 if it was correct and resolved within `chargeWindowMs`; adds only the difference in `chargeBonus` to queue and score. Wrong answers, late charges, repeats and downgrades are ignored.
-- `pause()` / `resume()`: freeze the round for a cutscene; `tick`, `press` and `charge` do nothing while paused
-- `bonus(n)`: queue +n, score +100n (used after the signature scene)
-- `on(event, fn)`, which returns an unsubscribe function
-- `off()`
-- `state`, a frozen snapshot shaped `{ phase, paused, timeLeftMs, queue, aura, fury, combo, maxCombo, score, rageLeftMs, current, stats }`
-
-Events:
-- `start`
-- `arrive {customer}`
-- `resolve {customer, key, correct, perfect, charge, queueDelta, scoreDelta, line, reactionMs}`
-- `polite {customer, free}` (`free: true` for the round's first timeout, which costs no aura)
-- `charge {level, queueDelta, customer}`
-- `bonus {queueDelta}`
-- `rageStart`
-- `rageHit {queueDelta, key}`
-- `rageEnd`
-- `milestone {level}`
-- `over {summary}`
-
-Rules:
-- A round lasts 90 s.
-- Aura starts at 60.
-- A correct answer gives +8 aura, or +12 for a perfect answer (reaction under 600 ms).
-- A wrong answer leaves aura and combo unchanged and still counts as a curse, with a smaller reward.
-- A timeout gives -20 aura and resets the combo. The first timeout of a round is free (`firstTimeoutFree`): no aura loss, combo still resets.
-- When aura reaches 0, the game is over.
-- Each correct answer adds `1 + floor(combo/5) + 10 (style 250 or cups 250)` people to the line; a later `charge(1|2)` adds 1 or 3 more.
-- Fury rises by 6 per customer and by 4 per correct answer. At 100, rage mode runs for 8 s. During rage every press is a hit worth `2 + floor(combo/10)`, and nobody times out.
-- Patience shrinks linearly from 3000 ms to 1200 ms over the round. Customers arriving in the first `introMs` (10 s) get a fixed `introPatienceMs` (4500 ms).
-- Two customers in a row never share the same style.
-
-The tunables are in `DEFAULT_CONFIG`; new in this version: `chargeWindowMs: 1000`, `introMs: 10000`, `introPatienceMs: 4500`, `firstTimeoutFree: true`. `main.js` adds `SIGNATURE_BONUS = 25` and `SIGNATURE_LINE_MAX_MS = 4000`.
-
-### ui
-
-`createUI(root, { onPress(key, holdMs), onCharge(key, level), onStart(), onToggleLang(lang), onToggleBleep(on) })` returns these methods. `onPress` fires on pointerdown / keydown; `onCharge` fires while the same press is still held (level 1 at 300 ms, level 2 at 800 ms).
-- `render(state)`
-- `showCustomer(c)`, `relabelCustomer(c)` (language switch, no animation)
-- `showLine(text, {style, who})`
-- `effect(name, payload)`, where `name` is one of `hit | miss | perfect | 250 | polite | rageStart | rageEnd | fly | charge`
-- `showMilestone(level, text)`: `text` may be a getter so a queued or visible card follows a language switch; `relabelMilestone()` re-renders the visible card
-- `beginSignature(onSkip, hint?)` / `endSignature()`: show / hide the tap-to-skip layer and lock the buttons
-- `showStart(texts)`
-- `showSummary(summary, texts)`
-- `setTexts(ui)`
-
-Long customer lines shrink the bubble font, and long clerk subtitles step down in size until they fit. The module also exports `createFxQueue` (the one-big-effect-at-a-time queue) and `chargeLevel(ms)`.
-
-### audio
-
-`createAudio({ bleepWords?, volume? })` returns these members:
-- `unlock()`
-- `setLang()`
-- `setBleep()`
-- `setBleepWords()`
-- `setVolume()`
-- `speak(text, {style, rate, pitch})`, which returns a Promise
-- `sfx(name, opts)`, where `name` is one of `slam | whoosh | boo | cheer | ding | pop | rage | shake | milestone | bleep`
-- `crowd(0..1)`
-- `stopSpeech()`
-- the getters `canSpeak`, `canPlay` and `unlocked`
+- **engine** `createGame({ customers, rng, config })` → `{ start, tick, press, charge, speechDone, delayNext, pause, resume, bonus, on, off, state, config }`. Events: `start`, `arrive`, `ready {customer, patienceMs, step}` (t0: the window starts), `step` (first step of a two-step customer), `resolve {…, cutIn, land, step}`, `polite`, `charge`, `bonus`, `rageStart`, `rageHit`, `rageEnd`, `milestone`, `over`. While `current.speaking` patience does not run; a press then is a cut-in (reaction 0). Landing pauses: `landMs` / `landBigMs` (curse, 250, charge 2) / `landWrongMs` / `landPoliteMs`; `delayNext(ms)` lengthens one. `auraWrong: 0`: a wrong key never costs swagger.
+- **days** `DAYS`, `dayInfo(n)`, `configForDay(n, extra)`, `poolForDay(n, customers)`, `clampDay(n)`.
+- **opening** `runOpening({ ui, audio, content, lang, onDone, now, schedule, cancel, storage, skippable })` → `{ press(key), skip(), stop(), active, waiting, beat, elapsed }`. Beat times may also be `['max', a, b]` and `['beat', id, ms]`; "调你妈！" holds `CLIMAX_HZ_MS` (1400 ms) before "黄金比例最好喝！". A first wrong press plays its quip with the keys live: after `quipCutMs` (250 ms) the right key cuts it and answers, a wrong one gives "算了，我自己来。" at once. Later timeouts rotate `timeout.notMeAlt`. `content` / `lang` may be getters (a language switch applies from the next line). `onDone({ skipped, queue: 12 })` at F4. It never touches the engine.
+- **art** `CLERK_SVG`, `SHOP_SVG`, `COUNTER_SVG`, `customerSVG()`, `signSVG()`, `signText()`, `miniSign()`, `KEY_ICONS`, `FINGER_SVG`, `DOOR_GATE_SVG`, `STAR_SVG`, `ticketHTML()`, `monitorHTML()`, `queueCapText()`; the CSS hooks (classes / data attributes) are listed in its header.
+- **huazi** `pickHuazi(line, ctx)`, `createHuaziTracker({ mode, lang })` (one S1 per 3 customers, no keyword twice within 5).
+- **hant** `toHant(text)` (idempotent), `PHRASES`, `HANT_CHARS`, `HANT_SAME`. Regenerate after adding text with new characters: `pip install opencc-python-reimplemented`, convert every Han character in `src/*.js` with `OpenCC('s2tw')`, keep pairs that differ, add two-character phrases where the character map disagrees with OpenCC (`test/hant.test.mjs` lists unknown characters).
+- **ui** `createUI(root, { onPress, onCharge, onStart, onToggleLang, onToggleBleep })`: HUD (`render`, `setHud`, `setQueue`, `setTicket`, `setTexts` (also relabels the scene props), `setScript('hans'|'hant')`, `queueGain(n)`), clerk (`setClerk`, `setClerkFlags`, `clerkBeat`, `clerkTap`, `resetClerk`), customer and sign (`showCustomer`, `showSign`, `signExit`, `signFx`, `startSignTimer`, `customerReact`, `customerPose`, `showPlate`), camera and fx (`camera`, `flash(ms)`, `speedLines(ms)`, `shake`, `freeze` (hit-stop: 花字 keep playing), `letterbox`, `gate`, `goldsign`), 花字 (`huazi(list, timing)`, `clearHuazi`), subtitles (`showLine`, `emphasize`), guidance (`guide`, `clearGuide`, `hintCorrect`, `tip`, `breathKey`, `coverKey`, `lockInput`, `unlockInput`, `inputLocked`), screens (`showStart`, `fontsReady`, `showClosing`, `showRecap`, `showSkip`, `showSummary`, `showMilestone`). Pure exports for tests: `createFxQueue`, `chargeLevel`, `FOCUS`, `camTransform`, `rectsOverlap`, `placeHuazi`, `hzFontSize`, `hzMaxScale`.
+- **audio** `createAudio()`: `unlock`, `setLang`, `setBleep`, `loadVoicePack`, `playClerk(text, { punchGapMs, punchFx, bedBackMs, style })` (returns a Promise carrying `{ setupMs, punchStartMs, punchMs, totalMs }`), `playCustomer(text, { rate })` (`{ ms }`), `voiceTimings`, `cut`, `hush`, `duck` / `restore`, `bed`, `loop` / `stopLoop(s)`, `sfx(name, opts)`, `crowd`, `speak`, `stopSpeech`, `announce`.
+- **content** 100 customers `{ id, cat, name, tag, cups, says, reply, alt, style, key }` per language; `reply` / `alt` of the day 1 pool carry one `|` cut point (setup | punch). Text inside `（…）` / `(…)` is a stage direction: shown small, never spoken.
 
 ### main.js integration rules
 
-- **Language.** The engine always runs on the Chinese customer list, since `id`, `style`, `key` and `cups` are identical in both languages. Every displayed or spoken line is looked up by id in the current language, so switching language mid-round takes effect on the next line.
-- **Speech never holds up the game.** The engine runs on its own clock.
-  - Every clerk line (reply, polite, rage, next, closing) calls `stopSpeech()` first, so a new line cuts off the old one.
-  - A customer's order is spoken only once the clerk has finished, and only if that customer is still waiting. Customers speak a little faster than normal (`rate 1.3`, style `cust`).
-- **Charge.** A charge only goes through if the press that started the hold resolved a correct answer, so holding during the gap between customers cannot upgrade the previous one. A level-2 charge speaks a short line from the shorter half of `rageLines` and shows it as a subtitle.
-- **250 signature scene.** Triggered once per round by a correct 收 on a `cups === 250` customer. It replaces that customer's normal reply, re-reads the content each line (so a language switch mid-scene applies), and if fury fills meanwhile, rage starts after the scene.
-- **Rage.** The rage opening line plays first. Then `rageLines` are chanted one after another until rage ends. Every hit also stacks a subtitle.
-- **Best line.** For "最狠一句", main.js remembers whether the best-scoring resolve used `reply` or `alt`, and shows that same line in the current language.
-- **Crowd sound.** The crowd ambience scales with log10 of the line length.
+- The engine always runs on the Chinese customer list (`id`, `style`, `key`, `cups` match in both languages); every shown or spoken line is looked up by id in the current language.
+- Each day builds a fresh engine from `configForDay(day)` / `poolForDay(day)`. During the opening the day 1 engine exists but is never started (A2); afterwards a new one starts with `bonus(12)` (the opening's line, no milestone popup).
+- Input goes to `opening.press` while the script runs, otherwise to `game.press` after the engine clock is advanced to the press time (landing pauses are measured from the real press).
+- On a correct answer the sign leaves on the press (5.2) and the customer flies on the punch; on a wrong one the sign shows the 4.4 hint for 350 ms first, and that line's 花字 wait until it is gone. A new sign removes any 花字 still showing where it rises, and an S1 slam never starts larger than the room it has next to a sign.
+- `game.delayNext(max(punch end + L, setup end + 80, 花字 end − 250, subtitle reading time − signUp))` keeps the next customer from stepping on the laugh. The engine keeps a longer pause asked for inside the `resolve` / `polite` handlers (it used to reset it to L right after them, so 花字 landed on the next sign).
+- Clerk subtitles drop stage directions (the face and 花字 act them out); customers show their own line when they start talking (`showCustomer(…, { line: false })`).
+- The day 1 draw does not repeat a customer while that key still has unseen ones, and "今天第一个" (#46) is only used for the round's first booked order.
 
 ## Known limitations
 
-- **Voices.** Lines play from the AI voice pack; after any line change in `src/content.*.js` the pack must be rebuilt (`tools/voice/README.md`), otherwise `check-content.mjs` V2 fails and those lines fall back to Web Speech, whose quality depends on the device. iOS needs the silent switch off. Headless tests cannot judge how anything sounds, so a listening pass on real phones is still needed. Some engines ignore `pitch`.
-- **Speech can lag behind fast play.** At fast play the clerk's line is often cut off by the next press. This is by design, because tempo matters more than finishing the sentence.
-- **The signature scene is long when played out.** With voices it runs about 25 s; most players will skip it after the first time.
-- **Strike-through subtitles are not implemented.** The English "quarter-wit" slip (#47 and the signature scene) shows as plain text.
-- **Chinese is Simplified throughout.** Content, UI labels and scene decor (menu board, 点餐处, 店长, slam words) all use Simplified Chinese; the scene decor also switches to English in EN mode.
-- **Rants vs. Served.** The report's "Rants / 开骂" (`stats.cursed`) includes rage hits, so it is usually much larger than "Served / 接客".
-- **The best line is chosen by score.** "Savagest line" is the line with the highest single `scoreDelta`. That is usually a 250 or charged hit, not necessarily the funniest line.
-- **The tab must be visible.** `dt` is capped at 100 ms per frame, and a backgrounded tab effectively pauses the game. There is no explicit pause button.
-- **Half-width parentheses are always stage directions.** `audio.js` and `ui.js` treat any `(...)` as a stage direction, so ordinary English parentheses in content are hidden from speech too.
-- **Audio sourcing for a release build.** For licensing and sourcing options for real voice-over and SFX, see [audio sourcing notes](../docs/audio-sourcing.md).
+- **Voice pack.** Lines changed for the first-minute redesign (the opening, the `|` halves of the day 1 pool, number readings) need a full rebuild (`tools/voice/README.md`, not `--incremental`); until then `check-content.mjs` V2 fails and those lines use Web Speech with estimated timings. After the rebuild, listen to the opening once (K1: "250" must be read as 二百五十).
+- **Performance on low-end devices (A13).** Camera glides on the SVG scene were most of the cost (about 16% long frames at 4x CPU in headless Chromium). A K4 lite mode now switches itself on when a 30-frame window has 6+ frames over 32 ms (camera cuts instead of glides, no idle loops, no spinning rays); with it the 4x-CPU opening measures 4.5–5.7% long frames (target ≤ 5%), so A13 is borderline here and needs a real-phone check. Headless runs that take many screenshots can trip lite mode too; add `?lite=0` for visual QA (`?lite=1` forces it).
+- **Google Fonts** may be blocked (the sandbox proxy here); the game falls back to system fonts.
+- **Rage may swallow the original customer** on day 3+: during rage every press is a hit, so a two-step customer standing at the counter then is resolved as a rage hit.
+- **Traditional Chinese is display-only**: characters are converted (OpenCC s2tw table), wording is not localized for Taiwan; voice lines are generated from the Simplified text.
+- **Day 1 pace**: with readable subtitles a day 1 customer takes about 4–5 s (about 9–10 customers in 45 s with estimated speech lengths; the spec estimated about 13). Re-check after the voice pack rebuild.
+- **The tab must be visible.** `dt` is capped at 100 ms per frame, so a backgrounded tab effectively pauses the game.
+- **Half-width parentheses are always stage directions**, so ordinary English parentheses in content are hidden from speech too.
+- **Audio sourcing for a release build:** see [audio sourcing notes](../docs/audio-sourcing.md).

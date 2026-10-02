@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1B1311">
+  <title>Art Demo — 来250杯！</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700;900&family=Noto+Sans+SC:wght@700;900&family=LXGW+WenKai+TC:wght@700&family=Bangers&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* demo-only chrome */
+    body.sheet { overflow: auto; height: auto; }
+    body.sheet .wrap { padding: 16px; display: grid; gap: 24px; }
+    h2 { margin: 0 0 8px; font: 900 18px var(--font-zh); color: var(--lemon); }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .cell { position: relative; text-align: center; font: 700 12px var(--font-zh); color: var(--text-dim); }
+    .mini-stage { position: relative; width: 170px; height: calc(170px * 16 / 9); container-type: size; overflow: hidden; background: var(--ink); border-radius: 8px; }
+    .mini-stage .stage { width: 100%; height: 100%; }
+    .mini-stage .app { position: absolute; }
+    .cust-box { position: relative; width: 120px; height: 120px; container-type: size; background: var(--wood); }
+    .cust-box .cust-wrap { left: 0; top: 0; width: 100cqw; height: 65cqw; }
+    .cust-box .cust { width: 100cqw; height: 100cqw; }
+    .sign-box { position: relative; width: 170px; height: 120px; container-type: inline-size; }
+    .sign-box .sign { scale: .9; }
+    .sign-box .sign { left: 30%; top: 50%; }
+    .mon-box { position: relative; width: 172px; height: 128px; container-type: inline-size; }
+    .mon-box .monitor { left: 0; top: 0; width: 100%; height: 100%; rotate: 0deg; border-width: 3.4cqw; }
+    .pad-demo { position: relative; width: 360px; height: 128px; container-type: inline-size; }
+    .pad-demo .pad { top: 0; }
+    .tiny { position: relative; width: 120px; height: 120px; container-type: inline-size; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import {
+  CLERK_SVG, SHOP_SVG, COUNTER_SVG, customerSVG, signSVG, miniSign, KEY_ICONS, FINGER_SVG, DOOR_GATE_SVG,
+  STAR_SVG, ticketHTML, MONITOR_SCENES, monitorHTML, queueCapText,
+} from './src/art.js';
+import { getContent } from './src/content.js';
+
+const P = new URLSearchParams(location.search);
+const lang = P.get('lang') === 'en' ? 'en' : 'zh';
+const CUSTOMERS = getContent(lang).customers;
+const byId = (id) => CUSTOMERS.find((c) => c.id === Number(id)) || CUSTOMERS[0];
+const root = document.getElementById('root');
+document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hans';
+
+const LABELS = lang === 'en' ? { gun: 'SCRAM', shut: 'SHUT IT', take: 'DEAL' } : { gun: '滚', shut: '闭嘴', take: '收' };
+const padHTML = (opts = {}) => `<footer class="pad">${['gun', 'shut', 'take'].map((k, i) =>
+  `<button class="btn btn-${k}"${opts.dim && opts.dim !== k ? ' data-dim' : ''}${opts.glow === k ? ' data-glow' : ''}${opts.covered && k === 'shut' ? ' data-covered' : ''}>` +
+  `<span class="ring"></span>${KEY_ICONS[k]}<span class="btn-label">${LABELS[k]}</span><span class="btn-hint">${'JKL'[i]}</span></button>`).join('')}</footer>`;
+
+function stageHTML(o) {
+  const FIXED_SRC = { hesitant: 1, fifteen: 43, c250: 47 };
+  const cust = o.fixed ? byId(FIXED_SRC[o.fixed]) : byId(o.cust);
+  const q = Number(o.q ?? 12);
+  const signOpts = o.signText ? { text: o.signText, kind: o.kind } : (o.kind ? { kind: o.kind } : {});
+  const sign = o.sign === 'none' ? '' : signSVG(cust, lang, signOpts)
+    .replace('data-state="down"', `data-state="${o.state || 'up'}"`);
+  return `<div class="stage${o.stageCls ? ' ' + o.stageCls : ''}"><div class="shaker">
+    <div class="cam" style="${o.cam || ''}">
+      <div class="shop"${o.gold ? ' data-gold' : ''}>${SHOP_SVG}</div>
+      ${monitorHTML(q, lang).replace('class="monitor"', `class="monitor"${o.zoom ? ' data-zoom' : ''}`)}
+      ${CLERK_SVG.replace('data-mood="idle"', `data-mood="${o.mood || 'idle'}"`).replace('class="clerk"', `class="clerk ${o.flags || ''}"`)}
+      <div class="counter${q > 3 ? ' cap' : ''}" data-q="${Math.min(3, q)}">${COUNTER_SVG.replace('<text class="q-num" x="300" y="463"></text>', `<text class="q-num" x="300" y="463">${queueCapText(q)}</text>`)}</div>
+      <div class="cust-wrap${o.custCls ? ' ' + o.custCls : ''}" data-face="${o.face || ''}"><div class="cust-clip">${customerSVG(cust, 0, { fixed: o.fixed, gray: !!o.gray })}</div></div>
+      ${sign}
+    </div>
+    <header class="hud"><div class="hud-row"><div class="hud-queue"><span class="hud-label">${lang === 'en' ? 'Line' : '排队'}</span><span class="hud-qnum">${q.toLocaleString()}</span></div>
+      <div class="hud-toggles"><button class="tog">中/<b>EN</b></button><button class="tog">${lang === 'en' ? 'Bleep' : '消音'}</button></div></div>
+      <div class="hud-bars"><div class="bar bar-aura${o.day1 ? ' off' : ''}"><span class="bar-label">${lang === 'en' ? 'Aura' : '气势'}</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div></div>
+      <div class="bar bar-fury${o.day1 ? ' off' : ''}"><span class="bar-label">${lang === 'en' ? 'Fury' : '火气'}</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div></div></div></header>
+    <div class="hz-layer">${o.hz || ''}</div>
+    <section class="subs">${o.sub || `<div class="sub sub-cust" style="--bar:var(--gun)">${lang === 'en' ? 'Ummm…' : '嗯……'}</div>`}</section>
+    ${padHTML(o.pad || {})}
+    ${o.extra || ''}
+  </div></div>`;
+}
+
+const S1 = (t) => `<svg class="hz s1 placed" viewBox="0 0 100 177.8"><g class="hz-anim" transform="rotate(-7 50 76)" font-family="Noto Sans TC, Noto Sans SC, sans-serif" font-weight="900" text-anchor="middle" paint-order="stroke" stroke-linejoin="round"><text x="50" y="76" font-size="24" stroke="#1B1311" stroke-width="4.6" fill="#1B1311">${t}</text><text x="50" y="76" font-size="24" stroke="#E8402F" stroke-width="2.6" fill="#FFE14D">${t}</text></g></svg>`;
+
+const PRESETS = {
+  idle: { mood: 'idle', flags: 'squint', cust: 1, fixed: 'hesitant', day1: true, pad: { glow: 'gun', dim: 'gun', covered: true } },
+  hit: { mood: 'hit', fixed: 'fifteen', face: '', q: 1, hz: S1('滚！'), sub: '<div class="sub">太少，滚！</div>', extra: '<div class="flash"></div>' },
+  perfect: { mood: 'perfect', fixed: 'c250', q: 2, sub: '<div class="sub">好，250杯什么？</div>' },
+  polite: { mood: 'polite', flags: 'crack', cust: 12, q: 2, stageCls: 'polite', sub: '<div class="sub">好的～少甜少冰～帮您调～</div>', kind: 'shut', signText: '少甜少冰' },
+  rage: { mood: 'rage', cust: 46, q: 480, stageCls: 'rage', sub: '<div class="sub">100杯！两个月后来拿！</div>' },
+  zoom: { mood: 'idle', cust: 43, q: 1281, zoom: true },
+  gold: { mood: 'hit', flags: 'point-sign', fixed: 'c250', gold: true, q: 2, sign: 'none', sub: '<div class="sub">黄金比例最好喝！</div>' },
+  guide: { mood: 'idle', fixed: 'hesitant', q: 0, day1: true, pad: { glow: 'gun', dim: 'gun', covered: true },
+    extra: `<svg class="guide-line" viewBox="0 0 100 177.8" preserveAspectRatio="none" style="--c:var(--gun)"><path d="M30 104 Q24 128 18 150"/></svg><div class="finger" style="left:18cqw;top:150cqw">${FINGER_SVG}</div>` },
+};
+
+function renderStage() {
+  const name = P.get('preset') || 'idle';
+  const o = { ...(PRESETS[name] || PRESETS.idle) };
+  for (const k of ['mood', 'flags', 'cust', 'fixed', 'face', 'q', 'state', 'kind', 'gold', 'zoom']) if (P.has(k)) o[k] = P.get(k);
+  root.innerHTML = `<div class="app">${stageHTML(o)}</div>`;
+}
+
+function renderSheet() {
+  document.body.classList.add('sheet');
+  const moods = ['idle', 'hit', 'perfect', 'polite', 'rage', 'over'];
+  const flags = [['squint', 'idle'], ['crack', 'polite'], ['brow', 'idle'], ['look-down', 'idle'], ['point-sign', 'hit'], ['reach', 'idle']];
+  const mini = (o, label) => `<div class="cell"><div class="mini-stage">${stageHTML({ day1: true, ...o })}</div>${label}</div>`;
+  const custIds = [1, 6, 12, 41, 43, 46, 47, 48, 72, 85, 93, 100];
+  const faces = ['', 'gun', 'shut', 'take'];
+  const custBox = (html, label, face = '') => `<div class="cell"><div class="cust-box"><div class="cust-wrap" data-face="${face}" style="${face ? '' : ''}"><div class="cust-clip">${html}</div></div></div>${label}</div>`;
+  const signSamples = [1, 43, 12, 18, 30, 46, 47, 48, 10, 72].map((id) => byId(id));
+  root.innerHTML = `<div class="wrap">
+    <section class="sec"><h2>Clerk moods (data-mood)</h2><div class="row">${moods.map((m) => mini({ mood: m, cust: 41, q: 5 }, m)).join('')}</div></section>
+    <section class="sec"><h2>Clerk overlay flags</h2><div class="row">${flags.map(([f, m]) => mini({ mood: m, flags: f, cust: 41, q: 5 }, `${m}+${f}`)).join('')}</div></section>
+    <section class="sec"><h2>Opening customers (fixed)</h2><div class="row">${['hesitant', 'fifteen', 'c250'].map((f) => custBox(customerSVG(null, 0, { fixed: f }), f)).join('')}
+      ${custBox(customerSVG(null, 0, { fixed: 'c250', gray: true }), 'c250 gray (E12)')}</div></section>
+    <section class="sec"><h2>Random customers (clip view)</h2><div class="row">${custIds.map((id) => custBox(customerSVG(byId(id), 0), '#' + id)).join('')}
+      ${[1, 2, 3].map((v) => custBox(customerSVG(byId(41), v), '#41 visit ' + v)).join('')}</div></section>
+    <section class="sec"><h2>Faces (data-face, full head, fly animation off)</h2>
+      <div class="row" id="faces-full"></div></section>
+    <section class="sec"><h2>Order signs (3 shapes + 250 + 249 trap)</h2><div class="row">${signSamples.map((c) => `<div class="cell"><div class="sign-box">${signSVG(c, lang).replace('data-state="down"', 'data-state="up"')}</div>#${c.id}</div>`).join('')}
+      <div class="cell"><div class="sign-box">${signSVG(null, lang, { kind: 'shut', text: '少甜少冰', scribble: '去冰……微糖……' }).replace('data-state="down"', 'data-state="up"')}</div>D11 scribble</div>
+      <div class="cell"><div class="sign-box">${signSVG(null, lang, { kind: 'take', text: '招牌翡翠柠檬' }).replace('data-state="down"', 'data-state="up"')}</div>D9 jade</div>
+      <div class="cell"><div class="sign-box" id="timer-sign">${signSVG(byId(43), lang).replace('data-state="down"', 'data-state="up"')}</div>timer 60%</div>
+      <div class="cell"><div class="sign-box">${signSVG(byId(46), lang).replace('data-state="down"', 'data-state="out-take"')}</div>out-take (stamp)</div>
+      <div class="cell"><div class="sign-box">${signSVG(byId(46), lang, { back: true }).replace('data-state="down"', 'data-state="up"')}</div>back face</div>
+    </div></section>
+    <section class="sec"><h2>Mini signs (recap / closing card)</h2><div class="row" style="gap:24px;padding:12px;container-type:inline-size;width:360px">
+      ${miniSign('gun', '嗯……')}${miniSign('gun', '15杯')}${miniSign('take', '250杯')}${miniSign('shut', '少甜少冰')}</div></section>
+    <section class="sec"><h2>Monitor scenes</h2><div class="row">${MONITOR_SCENES.map((s) => `<div class="cell"><div class="mon-box">${monitorHTML(Math.max(s.min, 1) * 1.5 + 10, lang)}</div>${s.id} (≥${s.min})</div>`).join('')}</div></section>
+    <section class="sec"><h2>Keys (normal / dim+glow / covered)</h2>
+      <div class="pad-demo">${padHTML()}</div><div class="pad-demo">${padHTML({ dim: 'take', glow: 'take' })}</div><div class="pad-demo">${padHTML({ covered: true })}</div></section>
+    <section class="sec"><h2>Props</h2><div class="row">
+      <div class="cell"><div class="tiny">${KEY_ICONS.gun}</div>gun</div><div class="cell"><div class="tiny">${KEY_ICONS.shut}</div>shut</div><div class="cell"><div class="tiny">${KEY_ICONS.take}</div>take</div>
+      <div class="cell"><div class="tiny">${FINGER_SVG}</div>finger</div><div class="cell"><div class="tiny">${STAR_SVG}</div>star</div>
+      <div class="cell"><div class="tiny" style="width:90px;height:160px;overflow:hidden">${DOOR_GATE_SVG}</div>gate</div>
+      <div class="cell" style="container-type:inline-size;width:360px;height:140px"><div style="position:relative;left:20px;top:10px">${ticketHTML()}</div>ticket</div>
+    </div></section>
+  </div>`;
+  const t = document.querySelector('#timer-sign .sign-card');
+  t.insertAdjacentHTML('beforeend', '<i class="sign-timer" style="transform:scaleX(.6)"></i>');
+  // Faces: show the full head with the expression layer (no clip, no fly animation).
+  document.getElementById('faces-full').innerHTML = faces.map((f) => `<div class="cell"><div class="cust-box demo-face" data-f="${f}"><div class="cust-wrap" data-face="${f}"><div class="cust-clip" style="overflow:visible">${customerSVG(byId(46), 0)}</div></div></div>${f || 'neutral'}</div>`).join('');
+  document.querySelectorAll('.demo-face .cust').forEach((n) => { n.style.animation = 'none'; });
+}
+
+if (P.get('view') === 'sheet') renderSheet(); else renderStage();
+window.__artReady = document.fonts ? document.fonts.ready : Promise.resolve();
+</script>
+</body>
+</html>

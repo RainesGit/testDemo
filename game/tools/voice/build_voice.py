@@ -6,11 +6,12 @@ Usage (see tools/voice/README.md for setup):
 
 Output:
   <out>/manifest.json      { version, sampleRate, langs: { zh|en: { chunks: [...], clips: { key: clip } } } }
-  <out>/<lang>-<n>.mp3     audio sprites; clip = { c: chunk, o: offset s, d: duration s, b?: bleeped clip }
+  <out>/<lang>-<n>.mp3     audio sprites; clip = { c: chunk, o: offset s, d: duration s, h: job hash, b?: bleeped clip }
 Clips are packed into ~60 s sprites so the game loads a handful of files instead of hundreds.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -63,7 +64,7 @@ class Synth:
             self.k = Kokoro(model, voices)
         self.zh = None
 
-    def say(self, lang, text, voice, speed):
+    def say(self, lang, text, voice, speed, keep=None):
         text = text.strip()
         if not text:
             return np.zeros(0, dtype=np.float32)
@@ -78,11 +79,26 @@ class Synth:
         else:
             audio, sr = self.k.create(text, voice=voice, speed=speed, lang='en-us')
         assert sr == SR, sr
-        return trim(np.asarray(audio, dtype=np.float32))
+        audio = np.asarray(audio, dtype=np.float32)
+        return trim(audio) if keep is None else trim(audio, keep=keep)
+
+
+# Setup halves of '|' lines keep a 40 ms tail so the program-inserted silence does not clip the last
+# syllable (spec K2); everything else keeps the default 30 ms.
+def _keep(job):
+    return int(0.04 * SR) if job.get('part') == 'setup' else None
+
+
+def job_hash(job):
+    # What was rendered: changes to the TTS text (e.g. 250 -> 二百五十), speed or voice re-render the clip
+    # in --incremental mode even though the key (display text) stays the same.
+    src = '|'.join(str(job.get(k, '')) for k in ('text', 'speed', 'voice', 'part'))
+    return hashlib.sha1(src.encode('utf-8')).hexdigest()[:8]
 
 
 def render(synth, job):
-    main = normalize(synth.say(job['lang'], job['text'], job['voice'], job['speed']))
+    keep = _keep(job)
+    main = normalize(synth.say(job['lang'], job['text'], job['voice'], job['speed'], keep))
     bleeped = None
     if job.get('segments'):
         parts = []
@@ -90,7 +106,7 @@ def render(synth, job):
             if seg['type'] == 'bleep':
                 parts.append(bleep(len(seg['value'])))
             else:
-                parts.append(normalize(synth.say(job['lang'], seg['value'], job['voice'], job['speed'])))
+                parts.append(normalize(synth.say(job['lang'], seg['value'], job['voice'], job['speed'], keep)))
         bleeped = np.concatenate(parts) if parts else None
     return main, bleeped
 
@@ -167,8 +183,10 @@ def main():
     for lang in ('zh', 'en'):
         prev = old.get(lang, {'chunks': [], 'clips': {}})
         wanted = [j for j in jobs if j['lang'] == lang]
-        # Keep clips whose line is unchanged; lines that no longer exist drop out of the manifest.
-        clips = {j['key']: prev['clips'][j['key']] for j in wanted if j['key'] in prev['clips']}
+        # Keep clips whose line and rendering inputs are unchanged (same key and same job hash 'h');
+        # lines that no longer exist drop out of the manifest.
+        clips = {j['key']: prev['clips'][j['key']] for j in wanted
+                 if j['key'] in prev['clips'] and prev['clips'][j['key']].get('h') == job_hash(j)}
         todo = [j for j in wanted if j['key'] not in clips]
         packer = Packer(args.out, lang, base=len(prev['chunks']))
         print(f'{lang}: {len(clips)} kept, {len(todo)} to render', file=sys.stderr, flush=True)
@@ -178,6 +196,7 @@ def main():
                 print(f'[skip] {lang} {job["key"]} empty: {job["text"]!r}', file=sys.stderr)
                 continue
             clip = packer.add(main_audio)
+            clip['h'] = job_hash(job)
             if bleeped is not None and bleeped.size:
                 clip['b'] = packer.add(bleeped)
             clips[job['key']] = clip

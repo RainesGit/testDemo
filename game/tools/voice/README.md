@@ -28,7 +28,24 @@ Set in `export-lines.mjs` (`CAST`, `SPEED`):
 | Milestone announcer | `zf_xiaoxiao` | `af_nova` |
 
 Delivery style only changes speaking speed (and, at runtime, a small playback-rate shift for the
-forced-polite voice). Kokoro has no emotion control, so this pack is a stand-in until a voice
+forced-polite voice).
+
+Opening routine customers (`SYSTEM.opening.c*`): zh `zm_yunxi` / `zm_yunyang` / `zf_xiaoni`, en `am_puck` /
+`am_echo` / `af_bella` (customer 3 and the day-3 original customer share one voice).
+
+## Cut points, numbers, what gets exported
+
+- **`|` cut points** (docs/first-minute-spec.md 3.1, R10). A line such as `还在想？|滚！` is exported as two jobs,
+  `part: 'setup'` (speed 1.10) and `part: 'punch'` (speed 0.90), keyed `clipKey(lang, half)`; the whole line is not
+  exported. At runtime `audio.playClerk()` plays setup → silence (`punchGapMs`, 200 ms by default) → punch. Setup
+  halves keep a 40 ms tail when trimmed. Used by the opening routine and the 21 Day 1 pool customers.
+- **Numbers.** The TTS text goes through `audio.ttsText()`: zh `250杯` → `二百五十杯`, `15` → `十五`, `37%` →
+  `百分之三十七`; en `250` → `two-fifty`, `15` → `fifteen`. Keys still come from the displayed text.
+- **Order.** Opening routine first, then customers, then system lines; when two lines share a key the first job's
+  voice and speed win (e.g. the punch `滚！` is shared by many lines and the rage chant).
+- `SYSTEM.opening` is exported except its display-only parts (`dayCard`, `signs`, `cue`, `hz`, `recap`, `plate`,
+  `closing`); `SYSTEM.originalCustomer` is exported; `signature250` no longer exists.
+- `node tools/check-content.mjs` V2 compares the manifest against exactly this job list. Kokoro has no emotion control, so this pack is a stand-in until a voice
 actor records `docs/voice/voice-script-*.md`.
 
 ## Regenerate (after changing any line in `src/content.*.js`)
@@ -53,9 +70,11 @@ python tools/voice/build_voice.py /tmp/voice-jobs.json \
   --model ~/kokoro/kokoro-q8.onnx --voices ~/kokoro/voices.npz --out voice
 ```
 
-For a few edited lines, add `--incremental`: clips for unchanged lines are kept and only new or
-changed lines are rendered into new sprites (seconds instead of ~25 minutes). Run a full build now
-and then to drop audio for deleted lines from the sprites.
+For a few edited lines, add `--incremental`: clips whose key **and** rendering inputs (TTS text,
+speed, voice, part; stored as the clip's `h` hash) are unchanged are kept, and only new or changed lines
+are rendered into new sprites (seconds instead of ~25 minutes). Clips from packs built before the hash
+existed have no `h`, so the first incremental run re-renders everything; run a full build instead. Run a
+full build now and then to drop audio for deleted lines from the sprites.
 
 `clipKey()` in `src/audio.js` names each clip from the language and the line with stage
 directions removed, so editing a line's wording requires a rebuild; editing only a stage

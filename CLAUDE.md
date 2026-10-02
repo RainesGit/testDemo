@@ -13,6 +13,8 @@ playable **web prototype** plus design and voice documents.
 AGENTS.md               Entry point for Codex and other agents; points here and to the acceptance checklist
 docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
+  first-minute-spec.md  First-minute redesign spec (art, day-1 opening script, pace, 花字, days 1–7); wins
+                        over game-design.md where they conflict
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
   audio-sourcing.md     Royalty-free SFX/music/voice sources and licensing notes
@@ -21,14 +23,20 @@ docs/
     voice-script-zh.md  Chinese recording script (100 customers)
     voice-script-en.md  English transcreated recording script (100 customers)
 game/                   Web prototype (plain HTML/CSS/ES modules, zero dependencies, no build)
-  index.html, style.css
-  src/engine.js         Pure game logic (no DOM); rules + events
-  src/ui.js             DOM rendering and effects
-  src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback, Web Speech fallback, bleep
-  src/content.zh.js / content.en.js / content.js   Customer + system lines per language
-  src/main.js           Wires everything together
-  test/*.test.mjs       node:test unit tests (engine, audio bleep splitter, ui fx queue, integration)
+  index.html, style.css (all art CSS: palette, clerk moods, signs, 花字 layer, keys, cards)
+  src/engine.js         Pure game logic (no DOM); rules + events (talking phase, landing pauses, two-step customer)
+  src/days.js           Days 1–7 tuning, pools and unlock order (pure data)
+  src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
+  src/art.js            All SVG art as pure string templates (clerk, shop, customers, signs, monitor)
+  src/huazi.js          花字 (caption) picking and rate limits (pure)
+  src/hant.js           Simplified → Traditional display conversion (zh-TW / zh-HK / zh-MO), generated with OpenCC
+  src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
+  src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, Web Speech fallback, bleep
+  src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
+  src/main.js           Wires everything together (start → opening → days)
+  test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration)
   tools/                Playwright smoke/QA scripts (screenshots and node_modules are gitignored)
+  art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
   voice/                Generated voice pack: manifest.json + mp3 sprites per language
   README.md             Prototype details, module contracts, known limits
@@ -42,13 +50,19 @@ Run from `game/`:
 - **Content and design-rule checks:** `node tools/check-content.mjs` (exits 1 on any failure).
 - **Run locally:** `python3 -m http.server 8765`, then open `http://localhost:8765/`.
   ES modules do not load from `file://`.
-- **Browser smoke test:** with the server running, `node tools/play-integrate.mjs`;
-  full QA matrix: `node tools/qa.mjs`; 250 signature scene check:
-  `node tools/check-signature.mjs`. These use the globally installed Playwright
+- **Browser checks:** with the server running, `node tools/play-integrate.mjs` (start →
+  opening → day 1 → closing card → day 2 → report); first-minute QA (spec 1.2 A1–A11):
+  `node tools/qa.mjs`; opening acceptance with a wrong press, a skip and the 4x-CPU run
+  (A1–A13, screenshots `tools/shots/opening-*.png`): `node tools/check-opening.mjs`;
+  the "250" signature (opening, free play, day-3 original customer):
+  `node tools/check-signature.mjs`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 
 ## Design rules (from the producer — do not violate)
+
+- The day 1 opening script, the key colours (滚 red, 闭嘴 purple, 收 gold; sign colour = key
+  colour) and the pace of days 1–7 follow `docs/first-minute-spec.md`.
 
 - Core contrast is three beats: polite service → sudden swearing → instantly professional again.
 - **Everyone at the counter can be cursed.** No "protected" customers, no
@@ -65,7 +79,8 @@ Run from `game/`:
   `src/content.*.js`, rebuild the pack (`game/tools/voice/README.md`); `tools/check-content.mjs`
   fails if a spoken line has no clip.
 - Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore, then English.
-  Not mainland China or the EU. Release builds need Traditional Chinese.
+  Not mainland China or the EU. Release builds need Traditional Chinese: zh-TW / zh-HK / zh-MO browsers
+  (or `?lang=zh-TW`) get it through `src/hant.js` (display only); regenerate its table when text adds new characters.
 
 ## Development workflow
 

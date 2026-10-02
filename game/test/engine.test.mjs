@@ -32,13 +32,18 @@ function makeCustomers(n = 30) {
 }
 
 // no fury-triggered rage unless asked; instant next customer; beginner protection off
-// (the intro patience and free first timeout have their own tests below)
-const BASE = { gapMs: 0, furyPerCustomer: 0, furyCorrect: 0, introMs: 0, firstTimeoutFree: false };
+// (the intro bonus and free first timeout have their own tests below). The classic tests run without the
+// talking phase (speakMaxMs 0 → ready right at arrive) and with the old key names (aliases: patienceStartMs/EndMs
+// → windowStartMs/EndMs, gapMs → every land*), so they also cover the one-version alias mapping.
+const BASE = {
+  gapMs: 0, furyPerCustomer: 0, furyCorrect: 0, introMs: 0, firstTimeoutFree: false,
+  speakMaxMs: 0, minAnswerMs: 0, patienceStartMs: 3000, patienceEndMs: 1200, comboTightenAt: Infinity,
+};
 
 function setup({ customers = makeCustomers(), config = {}, seed = 1 } = {}) {
   const game = createGame({ customers, rng: seeded(seed), config: { ...BASE, ...config } });
   const log = [];
-  for (const ev of ['start', 'arrive', 'resolve', 'polite', 'rageStart', 'rageHit', 'rageEnd', 'milestone', 'over', 'charge', 'bonus']) {
+  for (const ev of ['start', 'arrive', 'ready', 'step', 'resolve', 'polite', 'rageStart', 'rageHit', 'rageEnd', 'milestone', 'over', 'charge', 'bonus']) {
     game.on(ev, p => log.push({ ev, ...p }));
   }
   return { game, log, of: name => log.filter(e => e.ev === name) };
@@ -439,26 +444,40 @@ test('restart resets everything', () => {
 
 // ---------------------------------------------------------------- beginner protection
 
-test('intro: customers arriving in the first 10s get a fixed 4500ms patience', () => {
-  const { game } = setup({ config: { introMs: 10000, introPatienceMs: 4500 } });
+test('intro: customers arriving in the first 10s get introBonusMs on top of W', () => {
+  const { game } = setup({ config: { introMs: 10000, introBonusMs: 300 } });
   game.start();
-  assert.equal(game.state.current.patienceMaxMs, 4500);
+  assert.equal(game.state.current.patienceMaxMs, 3300);
   game.tick(9000);
   game.press(rightKey(game)); // spawn at 9s: still intro
-  assert.equal(game.state.current.patienceMaxMs, 4500);
+  assert.equal(game.state.current.patienceMaxMs, Math.round(3000 - 1800 * (9000 / 90000)) + 300);
   game.tick(1500);
-  game.press(rightKey(game)); // spawn at 10.5s: normal linear curve
-  const expected = Math.round(3000 + (1200 - 3000) * (10500 / 90000));
-  assert.equal(game.state.current.patienceMaxMs, expected);
+  game.press(rightKey(game)); // spawn at 10.5s: no bonus
+  assert.equal(game.state.current.patienceMaxMs, Math.round(3000 + (1200 - 3000) * (10500 / 90000)));
 });
 
-test('intro patience is the default config', () => {
-  const game = createGame({ customers: makeCustomers(), rng: seeded(3) });
-  assert.equal(game.config.introMs, 10000);
-  assert.equal(game.config.introPatienceMs, 4500);
-  assert.equal(game.config.firstTimeoutFree, true);
+test('old introPatienceMs maps to introBonusMs = introPatienceMs - windowStartMs', () => {
+  const { game } = setup({ config: { introMs: 10000, introPatienceMs: 4500 } });
+  assert.equal(game.config.introBonusMs, 1500);
+  assert.equal(game.config.windowStartMs, 3000);
+  assert.equal(game.config.landMs, 0);
   game.start();
   assert.equal(game.state.current.patienceMaxMs, 4500);
+});
+
+test('defaults follow the spec (8.1)', () => {
+  const game = createGame({ customers: makeCustomers(), rng: seeded(3) });
+  const c = game.config;
+  assert.deepEqual(
+    [c.speakMaxMs, c.minAnswerMs, c.windowStartMs, c.windowEndMs, c.introBonusMs, c.comboTightenAt, c.comboTightenMs,
+      c.windowFloorMs, c.landMs, c.landBigMs, c.landWrongMs, c.landPoliteMs, c.timeoutCostsAura, c.furyEnabled, c.auraWrong],
+    [1880, 280, 2400, 2400, 300, 30, 100, 1000, 650, 1100, 550, 1600, true, true, 0],
+  );
+  assert.equal(c.introMs, 10000);
+  assert.equal(c.firstTimeoutFree, true);
+  game.start();
+  assert.equal(game.state.current.patienceMaxMs, 2700);
+  assert.equal(game.state.current.speaking, true);
 });
 
 test('first timeout of a round is free (polite scene, no aura loss); later ones cost 20', () => {
@@ -592,4 +611,330 @@ test('bonus(n) adds n to the queue and 100n to the score, with an event and mile
   assert.equal(of('bonus')[0].queueDelta, 25);
   assert.deepEqual(of('milestone').map((m) => m.level), [10]);
   assert.equal(game.bonus(0), null);
+});
+
+// ---------------------------------------------------------------- talking phase / t0 (4.1, 8.1)
+
+// The real timeline: talking phase on, presses ignored for the first 280 ms, landing pauses per kind.
+const LIVE = { speakMaxMs: 1880, minAnswerMs: 280, gapMs: undefined, landMs: 650, landBigMs: 1100, landWrongMs: 550, landPoliteMs: 1600, landStepExtraMs: 300 };
+function live(config = {}, opts = {}) {
+  return setup({ ...opts, config: { ...LIVE, ...config } });
+}
+
+test('arrive → ready: patience does not move while the customer talks (A6)', () => {
+  const { game, of } = live();
+  game.start();
+  const p0 = game.state.current.patienceMs;
+  assert.equal(game.state.current.speaking, true);
+  game.tick(500); game.tick(700);
+  assert.equal(game.state.current.patienceMs, p0);
+  assert.equal(of('ready').length, 0);
+  assert.equal(game.speechDone(), true);
+  assert.equal(game.speechDone(), false, 'only once');
+  assert.equal(game.state.current.speaking, false);
+  const r = of('ready')[0];
+  assert.equal(r.customer, game.state.current.customer);
+  assert.equal(r.patienceMs, p0);
+  game.tick(100);
+  assert.equal(game.state.current.patienceMs, p0 - 100);
+});
+
+test('speakMaxMs fallback turns talking into ready by itself, then W runs out → polite', () => {
+  const { game, of } = live();
+  game.start();
+  const W = game.state.current.patienceMaxMs;
+  game.tick(1879);
+  assert.equal(of('ready').length, 0);
+  game.tick(1);
+  assert.equal(of('ready').length, 1);
+  game.tick(W - 1);
+  assert.equal(of('polite').length, 0);
+  game.tick(2);
+  assert.equal(of('polite').length, 1);
+});
+
+test('presses within minAnswerMs of arrive are ignored', () => {
+  const { game, of } = live();
+  game.start();
+  game.tick(279);
+  assert.equal(game.press(rightKey(game)), null);
+  game.tick(1);
+  assert.ok(game.press(rightKey(game)));
+  assert.equal(of('resolve').length, 1);
+});
+
+test('cut-in: a press while talking counts as perfect with reactionMs 0', () => {
+  const { game, of } = live();
+  game.start();
+  game.tick(400);
+  const r = game.press(rightKey(game));
+  assert.equal(r.cutIn, true);
+  assert.equal(r.reactionMs, 0);
+  assert.equal(r.perfect, true);
+  game.tick(1000);
+  game.tick(10); // next customer
+  game.tick(400);
+  const w = game.press(wrongKey(game));
+  assert.equal(w.cutIn, true);
+  assert.equal(w.perfect, false);
+  assert.equal(of('resolve').length, 2);
+});
+
+test('reaction is measured from t0, not from arrive', () => {
+  const { game } = live();
+  game.start();
+  game.tick(1500);
+  game.speechDone();
+  game.tick(500);
+  const r = game.press(rightKey(game));
+  assert.equal(r.reactionMs, 500);
+  assert.equal(r.perfect, true);
+});
+
+test('landing pause by kind: normal 650, wrong 550, big 1100, polite 1600 (A7)', () => {
+  const customers = [
+    { id: 1, style: 'real', key: 'gun', reply: 'a' },
+    { id: 2, style: 'curse', key: 'shut', reply: 'b' },
+    { id: 3, style: 'cold', key: 'take', cups: 250, reply: 'c' },
+  ];
+  const { game, of } = live({}, { customers });
+  const gapAfter = (fn) => {
+    const n = of('arrive').length;
+    fn();
+    let t = 0;
+    while (of('arrive').length === n && t < 5000) { game.tick(10); t += 10; }
+    return t;
+  };
+  game.start();
+  const answer = (correct) => () => {
+    game.tick(300);
+    const c = game.state.current.customer;
+    const r = game.press(correct ? c.key : KEYS.find((k) => k !== c.key));
+    assert.equal(r.land, !correct ? 'wrong' : (c.style === 'curse' || c.cups === 250) ? 'big' : 'normal');
+  };
+  for (let i = 0; i < 6; i++) {
+    const c = game.state.current.customer;
+    const correct = i % 2 === 0;
+    const expected = !correct ? 550 : (c.style === 'curse' || c.cups === 250) ? 1100 : 650;
+    assert.equal(gapAfter(answer(correct)), expected, `#${c.id} correct=${correct}`);
+  }
+  // timeout
+  const t = gapAfter(() => { game.tick(1880); game.tick(game.state.current.patienceMs); });
+  assert.equal(of('polite').length, 1);
+  assert.equal(t, 1600);
+});
+
+test('a press during the landing pause is ignored', () => {
+  const { game } = live();
+  game.start();
+  game.tick(300);
+  game.press(rightKey(game));
+  assert.equal(game.state.current, null);
+  assert.equal(game.press('gun'), null);
+  assert.ok(game.state.gapLeftMs > 0);
+});
+
+test('delayNext(ms) only lengthens the landing pause, and only when nobody is at the counter', () => {
+  const { game, of } = live();
+  game.start();
+  assert.equal(game.delayNext(5000), false, 'customer at the counter');
+  game.tick(300);
+  game.press(rightKey(game));
+  assert.equal(game.delayNext(100), true);
+  assert.equal(game.state.gapLeftMs, 650, 'never shortens');
+  game.delayNext(2000);
+  game.tick(1990);
+  assert.equal(of('arrive').length, 1);
+  game.tick(20);
+  assert.equal(of('arrive').length, 2);
+});
+
+test('delayNext called from the resolve handler is kept (the landing pause is not reset to L afterwards)', () => {
+  const { game, of } = live();
+  game.on('resolve', () => game.delayNext(2400));
+  game.start();
+  game.tick(300);
+  game.press(rightKey(game));
+  assert.equal(game.state.gapLeftMs, 2400, 'main.js asks for punch end + L inside the resolve event');
+  game.tick(2390);
+  assert.equal(of('arrive').length, 1, 'the next customer does not step on the punch line');
+  game.tick(20);
+  assert.equal(of('arrive').length, 2);
+});
+
+test('keyWeights draw never repeats a customer while that key still has unseen ones (day 1 pool)', () => {
+  const customers = makeCustomers(21);
+  const seen = [];
+  const game = createGame({ customers, rng: seeded(7), config: { ...BASE, keyWeights: { gun: 0.45, take: 0.3, shut: 0.25 }, durationMs: 600000 } });
+  game.on('arrive', ({ customer }) => seen.push(customer.id));
+  game.start();
+  for (let i = 0; i < 14; i++) game.press(game.state.current.customer.key);
+  const byKey = {};
+  for (const id of seen) (byKey[customers[id - 1].key] ||= []).push(id);
+  for (const [k, ids] of Object.entries(byKey)) {
+    const per = customers.filter((c) => c.key === k).length;
+    const first = ids.slice(0, per);
+    assert.equal(new Set(first).size, first.length, `${k}: no repeat before all ${per} were seen (${ids})`);
+  }
+});
+
+test('charge level 2 makes the landing a big one (landBigMs from the answer)', () => {
+  const { game, of } = live();
+  game.start();
+  game.tick(300);
+  const c = game.state.current.customer;
+  if (c.style === 'curse') game.tick(0);
+  game.press(rightKey(game));
+  game.tick(300);
+  game.charge(1);
+  assert.ok(game.state.gapLeftMs <= 650);
+  game.tick(200);
+  game.charge(2);
+  assert.equal(game.state.gapLeftMs, 1100 - 500);
+  game.tick(590);
+  assert.equal(of('arrive').length, 1);
+  game.tick(20);
+  assert.equal(of('arrive').length, 2);
+});
+
+test('timeoutCostsAura false: a timeout never costs aura (day 1)', () => {
+  const { game, of } = live({ timeoutCostsAura: false, firstTimeoutFree: false });
+  game.start();
+  const aura0 = game.state.aura;
+  for (let i = 0; i < 3; i++) {
+    game.tick(1880);
+    game.tick(game.state.current.patienceMs + 1);
+    while (!game.state.current) game.tick(50);
+  }
+  assert.equal(of('polite').length, 3);
+  assert.ok(of('polite').every((p) => p.free));
+  assert.equal(game.state.aura, aura0);
+});
+
+test('furyEnabled false: fury never fills and rage never starts', () => {
+  const { game, of } = setup({ config: { furyEnabled: false, furyPerCustomer: 50, furyCorrect: 50 } });
+  game.start();
+  for (let i = 0; i < 10; i++) game.press(rightKey(game));
+  assert.equal(game.state.fury, 0);
+  assert.equal(of('rageStart').length, 0);
+});
+
+test('rage: a talking customer is never timed; ready comes when rage ends', () => {
+  const { game, of } = live({ furyPerCustomer: 100 });
+  game.start();
+  assert.equal(game.state.phase, 'rage');
+  assert.equal(game.speechDone(), true);
+  assert.equal(of('ready').length, 0, 'no ready during rage');
+  game.tick(8001);
+  assert.equal(game.state.phase, 'playing');
+  assert.equal(of('ready').length, 1);
+});
+
+test('patienceFor: window interpolates, intro bonus, combo tightening, floor', () => {
+  const game = createGame({ customers: makeCustomers(), config: { windowStartMs: 2000, windowEndMs: 1000, durationMs: 10000, introMs: 2000, introBonusMs: 300, comboTightenAt: 30, comboTightenMs: 100, windowFloorMs: 1050 } });
+  assert.equal(game.patienceFor(0, 0), 2300);
+  assert.equal(game.patienceFor(2000, 0), 1800);
+  assert.equal(game.patienceFor(5000, 0), 1500);
+  assert.equal(game.patienceFor(5000, 30), 1400);
+  assert.equal(game.patienceFor(10000, 0), 1050, 'floor');
+});
+
+// ---------------------------------------------------------------- two-step customer (7, 8.1 item 10)
+
+const ORIG = { id: 'orig', style: '250', key: 'take', steps: ['take', 'shut'], cups: 250, says: '250杯！', says2: '少甜少冰！', reply: 'r1', reply1: '好，250杯什么？', reply2: '调你妈！|黄金比例最好喝！' };
+
+test('two-step customer: take → step event, stays, talks again with a fresh window; shut → big finale', () => {
+  const others = makeCustomers(6);
+  const { game, of } = live({ special: { customer: ORIG, atMs: 0 } }, { customers: others });
+  game.start();
+  assert.equal(game.state.current.customer, ORIG);
+  game.tick(1880); // ready
+  game.tick(700);
+  const s1 = game.press('take');
+  assert.equal(s1.step, 1);
+  assert.equal(of('step').length, 1);
+  assert.equal(of('resolve').length, 0);
+  assert.equal(game.state.queue, 0, 'no reward on the first step');
+  const cur = game.state.current;
+  assert.equal(cur.customer, ORIG);
+  assert.equal(cur.step, 1);
+  assert.equal(cur.speaking, true);
+  assert.equal(cur.patienceMs, cur.patienceMaxMs);
+  assert.equal(game.press('shut'), null, 'minAnswerMs applies again');
+  game.tick(1000);
+  game.speechDone();
+  assert.equal(of('ready').at(-1).step, 1);
+  game.tick(300);
+  const r = game.press('shut');
+  assert.equal(r.correct, true);
+  assert.equal(r.land, 'step');
+  assert.equal(r.line, ORIG.reply2);
+  assert.equal(r.queueDelta, 1 + 10, 'normal + bonus250');
+  assert.equal(game.state.gapLeftMs, 1100 + 300);
+  // once per round
+  for (let i = 0; i < 20; i++) { while (!game.state.current) game.tick(50); game.tick(300); game.press(rightKey(game) ?? 'gun'); }
+  assert.equal(of('arrive').filter((a) => a.customer === ORIG).length, 1);
+});
+
+test('two-step customer: a wrong key at either step resolves and they leave (no penalty)', () => {
+  for (const wrongAt of [0, 1]) {
+    const { game, of } = live({ special: { customer: ORIG, atMs: 0 } }, { customers: makeCustomers(6) });
+    game.start();
+    const aura0 = game.state.aura;
+    game.tick(300);
+    if (wrongAt === 1) { game.press('take'); game.tick(300); }
+    const r = game.press('gun');
+    assert.equal(r.correct, false);
+    assert.equal(r.land, 'wrong');
+    assert.equal(game.state.current, null);
+    assert.equal(game.state.aura, aura0);
+    assert.equal(of('step').length, wrongAt);
+  }
+});
+
+test('the special customer waits for atMs', () => {
+  const { game, of } = setup({ config: { special: { customer: ORIG, atMs: 5000 } } });
+  game.start();
+  for (let i = 0; i < 5; i++) { game.tick(900); game.press(rightKey(game)); }
+  assert.ok(!of('arrive').some((a) => a.customer === ORIG));
+  game.tick(600);
+  game.press(rightKey(game));
+  assert.equal(game.state.current.customer, ORIG);
+});
+
+// ---------------------------------------------------------------- order: fixedOrder / keyWeights (8.2)
+
+test('fixedOrder: the first customers come in the given order', () => {
+  const { game, of } = setup({ customers: makeCustomers(30), config: { fixedOrder: [7, 2, 9] } });
+  game.start();
+  for (let i = 0; i < 5; i++) game.press(rightKey(game));
+  assert.deepEqual(of('arrive').slice(0, 3).map((a) => a.customer.id), [7, 2, 9]);
+  assert.ok(!of('arrive').slice(3).some((a) => [7, 2, 9].includes(a.customer.id)), 'fixed ones are taken from the pool');
+});
+
+test('keyWeights: roughly the weighted mix, never the same key three times in a row', () => {
+  const customers = makeCustomers(60);
+  const counts = { gun: 0, shut: 0, take: 0 };
+  for (const seed of [1, 2, 3, 4]) {
+    const { game, of } = setup({ seed, customers, config: { keyWeights: { gun: 0.45, take: 0.30, shut: 0.25 }, auraStart: 100 } });
+    game.start();
+    for (let i = 0; i < 400; i++) game.press(rightKey(game));
+    const keys = of('arrive').map((a) => a.customer.key);
+    for (let i = 2; i < keys.length; i++) {
+      assert.ok(!(keys[i] === keys[i - 1] && keys[i] === keys[i - 2]), `seed ${seed} at ${i}`);
+    }
+    keys.forEach((k) => counts[k]++);
+  }
+  const n = counts.gun + counts.shut + counts.take;
+  assert.ok(counts.gun / n > 0.36 && counts.gun / n < 0.5, JSON.stringify(counts));
+  assert.ok(counts.shut / n > 0.18 && counts.shut / n < 0.33, JSON.stringify(counts));
+});
+
+test('snapshot exposes speaking and step', () => {
+  const { game } = live();
+  game.start();
+  const c = game.state.current;
+  assert.equal(c.speaking, true);
+  assert.equal(c.step, 0);
+  assert.throws(() => { 'use strict'; c.speaking = false; });
 });

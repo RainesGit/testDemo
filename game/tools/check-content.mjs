@@ -6,20 +6,22 @@ import { readFileSync } from 'node:fs';
 import { CUSTOMERS_ZH, SYSTEM_ZH } from '../src/content.zh.js';
 import { CUSTOMERS_EN, SYSTEM_EN } from '../src/content.en.js';
 import { createGame, DEFAULT_CONFIG } from '../src/engine.js';
+import { stripStage, splitPunch, clipKey } from '../src/audio.js';
+import { exportJobs } from './voice/export-lines.mjs';
 
 const STYLES = new Set(['real', 'curse', 'disdain', 'cold', 'deadpan', 'chuuni', 'math', '250', 'twist']);
 const KEYS = new Set(['gun', 'shut', 'take']);
 const results = [];
 const check = (id, name, ok, detail = '') => results.push({ id, name, ok: !!ok, detail });
 
-// All player-facing text in one language.
+// Every string inside a value (nested objects and arrays included).
+const strings = (v) => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(strings)
+  : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : []);
+// All player-facing text in one language (the customer `tag` field is not displayed any more).
 function texts(customers, system) {
   const out = [];
-  for (const c of customers) out.push(c.name, c.says, c.reply, c.alt);
-  for (const v of Object.values(system)) {
-    if (Array.isArray(v)) v.forEach((x) => out.push(typeof x === 'string' ? x : x.text));
-    else if (v && typeof v === 'object') out.push(...Object.values(v));
-  }
+  for (const c of customers) out.push(c.name, c.says, c.reply, c.alt, c.sign, ...strings(c.hua || []));
+  out.push(...strings(system));
   return out.filter(Boolean).map(String);
 }
 const ZH = texts(CUSTOMERS_ZH, SYSTEM_ZH);
@@ -43,10 +45,14 @@ const mismatch = CUSTOMERS_ZH.filter((z) => {
 check('B3', 'zh and en share style, key and cups for every id', mismatch.length === 0, mismatch.map((c) => c.id).join(','));
 for (const [lang, sys] of [['zh', SYSTEM_ZH], ['en', SYSTEM_EN]]) {
   const ok = sys.next?.length >= 5 && sys.polite?.length >= 4 && sys.boo?.length >= 3 && sys.rageStart?.length >= 2
-    && sys.rageLines?.length >= 24 && sys.closing?.length >= 3 && sys.signature250?.length >= 6
+    && sys.rageLines?.length >= 24 && sys.closing?.length >= 3 && sys.opening && typeof sys.opening === 'object'
     && [10, 100, 1000, 10000, 100000].every((k) => sys.milestones?.[k])
-    && ['gun', 'shut', 'take', 'queue', 'aura', 'fury', 'start', 'again', 'bleep'].every((k) => sys.ui?.[k]);
-  check(`B4-${lang}`, `${lang}: system lines complete (next>=5, polite>=4, rageLines>=24, milestones, ui, signature250)`, ok);
+    && ['gun', 'shut', 'take', 'queue', 'aura', 'fury', 'start', 'again', 'bleep'].every((k) => sys.ui?.[k])
+    && ['gun', 'shut', 'take'].every((k) => sys.tips?.[k]) && sys.daySlow
+    && ['aura', 'rage', 'rageTip', 'charge'].every((k) => sys.unlock?.[k])
+    && sys.originalCustomer?.steps?.join() === 'take,shut' && sys.originalCustomer.reply1 && sys.originalCustomer.reply2
+    && !('signature250' in sys);
+  check(`B4-${lang}`, `${lang}: system lines complete (next>=5, polite>=4, rageLines>=24, milestones, ui, opening, tips, unlock, originalCustomer; signature250 removed)`, ok);
 }
 
 // C. Design red lines (shipped game text only; docs are reviewed by hand)
@@ -71,6 +77,7 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
   const customers = [{ id: 1, style: 'real', key: 'gun', reply: 'r', alt: 'a' }, { id: 2, style: 'cold', key: 'shut', reply: 'r', alt: 'a' }];
   const g = createGame({ customers, rng: () => 0.5 });
   g.start();
+  g.tick(500); // past minAnswerMs (presses in the first 280 ms after arrival are ignored)
   const before = g.state.aura;
   const cur = g.state.current.customer;
   g.press(cur.key === 'gun' ? 'shut' : 'gun', 0);
@@ -78,23 +85,129 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
     g.state.aura === before && g.state.queue >= 1, `aura ${before} -> ${g.state.aura}, queue=${g.state.queue}`);
 }
 
-// V. AI voice pack covers every spoken line (rebuild with tools/voice when lines change)
+// H. First-minute content (docs/first-minute-spec.md 8.7)
 {
-  const { clipKey, stripStage } = await import('../src/audio.js');
+  const OPENING_FIELDS = [
+    'dayCard', 'ask', 'c1', 'r1', 'c2', 'r2', 'c3', 'r3', 'c3b', 'r3b', 'c3c',
+    'r4', 'r4b', 'r4c', 'r4d', 'r4e', 'r4f', 'next',
+    'signs.s1', 'signs.s2', 'signs.s3', 'signs.s3b', 'signs.s3c', 'signs.s3cSub', 'cue.r1', 'cue.r2', 'cue.r4',
+    'wrong.w1shut', 'wrong.w1take', 'wrong.w2shut', 'wrong.w2take', 'wrong.w3gun', 'wrong.w3gunAfter',
+    'wrong.w3shut', 'wrong.w3shutAfter', 'wrong.w4gun', 'wrong.w4take', 'wrong.auto',
+    'timeout.t1', 'timeout.t2', 'timeout.t3', 'timeout.t4', 'timeout.notMe',
+    'hz.setup1', 'hz.punch1', 'hz.setup2', 'hz.setup2b', 'hz.punch2', 'hz.huh', 'hz.proud', 'hz.big250', 'hz.calm',
+    'hz.trap', 'hz.adjusting', 'hz.handStop', 'hz.punch4', 'hz.gold', 'hz.fresh', 'hz.cups250', 'hz.twoMonths',
+    'hz.stunned', 'hz.next', 'hz.logo', 'closing.title',
+  ];
+  const at = (o, path) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+  const pipes = (t) => (String(t).match(/\|/g) || []).length;
+  const missing = [];
+  for (const [lang, sys] of [['zh', SYSTEM_ZH], ['en', SYSTEM_EN]]) {
+    const o = sys.opening || {};
+    for (const f of OPENING_FIELDS) if (typeof at(o, f) !== 'string' || !at(o, f).trim()) missing.push(`${lang}:${f}`);
+    for (const [f, n] of [['recap', 3], ['plate', 3], ['closing.lines', 3]]) {
+      const v = at(o, f);
+      if (!Array.isArray(v) || v.length !== n || v.some((x) => !String(x).trim())) missing.push(`${lang}:${f}`);
+    }
+    // the cue word must be inside the punch half of its line
+    for (const k of ['r1', 'r2', 'r4']) {
+      if (o[k] && o.cue?.[k] && !splitPunch(o[k])[1].includes(o.cue[k])) missing.push(`${lang}:cue.${k} not in punch`);
+    }
+  }
+  const structure = ['ask', 'r1', 'r2', 'r3', 'r3b', 'r4', 'r4b', 'r4c', 'r4d', 'r4e', 'r4f', 'next']
+    .filter((k) => pipes(SYSTEM_ZH.opening?.[k] ?? '') !== pipes(SYSTEM_EN.opening?.[k] ?? ''));
+  check('H1', 'SYSTEM.opening complete in zh and en, same "|" structure (ask, r1, r2, ...)',
+    missing.length === 0 && structure.length === 0, [...missing.slice(0, 4), ...structure.map((k) => `| differs: ${k}`)].join(' | '));
+
+  const badHua = [];
+  for (const [lang, list] of [['zh', CUSTOMERS_ZH], ['en', CUSTOMERS_EN]]) {
+    for (const c of list) {
+      if (c.hua == null) continue;
+      const src = [c.reply, c.alt].map((t) => stripStage(String(t).replace(/\|/g, '')));
+      const ok = Array.isArray(c.hua) && c.hua.every((h) => Array.isArray(h) && typeof h[0] === 'string' && h[0]
+        && Number.isInteger(h[1]) && h[1] >= 1 && h[1] <= 5
+        && src.some((t) => t.toLowerCase().includes(h[0].replace(/[！!？?。.]+$/, '').toLowerCase())));
+      if (!ok) badHua.push(`${lang}#${c.id}`);
+    }
+  }
+  check('H2', 'customer hua overrides: each text is in reply/alt, style 1-5', badHua.length === 0, badHua.join(','));
+
+  // H3: '|' at most once, both halves speakable, never inside a stage direction.
+  const badPipe = [];
+  const pipeOk = (t) => {
+    const s = String(t);
+    if (!s.includes('|')) return true;
+    if (pipes(s) !== 1) return false;
+    const [a, b] = splitPunch(s);
+    if (!stripStage(a).trim() || !stripStage(b).trim()) return false;
+    const i = s.indexOf('|');
+    const before = s.slice(0, i);
+    const openFull = (before.match(/（/g) || []).length - (before.match(/）/g) || []).length;
+    const openHalf = (before.match(/\(/g) || []).length - (before.match(/\)/g) || []).length;
+    return openFull <= 0 && openHalf <= 0;
+  };
+  let piped = 0;
+  for (const [lang, list, sys] of [['zh', CUSTOMERS_ZH, SYSTEM_ZH], ['en', CUSTOMERS_EN, SYSTEM_EN]]) {
+    for (const c of list) for (const f of ['says', 'reply', 'alt']) {
+      if (String(c[f]).includes('|')) piped++;
+      if (!pipeOk(c[f])) badPipe.push(`${lang}#${c.id}.${f}`);
+    }
+    for (const t of strings(sys)) if (!pipeOk(t)) badPipe.push(`${lang}:${t}`);
+  }
+  check('H3', '"|" cut points: once per line, both halves non-empty, outside stage directions',
+    badPipe.length === 0 && piped > 0, `${piped} customer lines cut${badPipe.length ? '; bad: ' + badPipe.slice(0, 3).join(' | ') : ''}`);
+
+  // H4: sign text (art.signText) fits the order sign.
+  let signText = null;
+  try { ({ signText } = await import('../src/art.js')); } catch { /* art.js missing */ }
+  const badSign = [];
+  if (signText) {
+    for (const [lang, list] of [['zh', CUSTOMERS_ZH], ['en', CUSTOMERS_EN]]) {
+      for (const c of list) {
+        const merged = lang === 'en' ? { ...CUSTOMERS_ZH[c.id - 1], ...c } : c;
+        const t = String(signText(merged, lang) ?? '');
+        const lines = t.split('\n');
+        const width = (l) => (lang === 'en' ? l.length : [...l].filter((ch) => /[\u3400-\u9fff]/.test(ch)).length);
+        if (!t.trim() || lines.length > 2 || lines.some((l) => width(l) > (lang === 'en' ? 18 : 7))) badSign.push(`${lang}#${c.id}:${t.replace('\n', '/')}`);
+      }
+    }
+  }
+  check('H4', 'every customer sign text is non-empty, <= 2 lines, <= 7 hanzi (en <= 18 chars) per line',
+    !!signText && badSign.length === 0, signText ? badSign.slice(0, 4).join(' | ') : 'src/art.js signText not found');
+
+  // C8: no emoji in the UI sources or in displayed content (customer `tag` is not displayed).
+  const EMOJI = /\p{Extended_Pictographic}/u;
+  const emojiHits = [];
+  for (const f of ['../src/ui.js', '../src/art.js', '../style.css']) {
+    let src = '';
+    try { src = readFileSync(new URL(f, import.meta.url), 'utf8'); } catch { continue; }
+    src.split('\n').forEach((line, i) => { if (EMOJI.test(line)) emojiHits.push(`${f.replace('../', '')}:${i + 1}`); });
+  }
+  for (const [lang, list] of [['zh', ZH], ['en', EN]]) list.forEach((t) => { if (EMOJI.test(t)) emojiHits.push(`${lang}:${t}`); });
+  check('C8', 'no emoji (Extended_Pictographic) in ui.js, art.js, style.css or displayed content (tag excepted)',
+    emojiHits.length === 0, emojiHits.slice(0, 4).join(' | '));
+}
+
+// V. AI voice pack covers every spoken line (rebuild with tools/voice when lines change).
+// The spoken set is exactly what tools/voice/export-lines.mjs exports: lines with a '|' cut point need
+// both halves' clips (keys of the two halves), the opening routine and the original customer included.
+{
   let manifest = null;
   try { manifest = JSON.parse(readFileSync(new URL('../voice/manifest.json', import.meta.url), 'utf8')); } catch { /* missing */ }
   check('V1', 'voice/manifest.json exists', !!manifest);
-  for (const [lang, customers, sys] of [['zh', CUSTOMERS_ZH, SYSTEM_ZH], ['en', CUSTOMERS_EN, SYSTEM_EN]]) {
+  const jobs = exportJobs();
+  for (const lang of ['zh', 'en']) {
     const clips = manifest?.langs?.[lang]?.clips || {};
-    const spoken = [
-      ...customers.flatMap((c) => [c.says, c.reply, c.alt]),
-      ...sys.polite, ...sys.rageStart, ...sys.rageLines, ...sys.next, ...sys.closing, ...sys.boo,
-      ...Object.values(sys.milestones), ...(sys.signature250 || []).map((l) => l.text),
-    ].filter((t) => /[\p{L}\p{N}]/u.test(stripStage(t).replace(/\p{Extended_Pictographic}/gu, '')));
-    const missing = spoken.filter((t) => !clips[clipKey(lang, t)]);
-    check(`V2-${lang}`, `${lang}: every spoken line has a voice clip`, manifest && missing.length === 0,
-      `${spoken.length - missing.length}/${spoken.length}${missing.length ? ' missing e.g. ' + missing.slice(0, 2).join(' | ') : ''}`);
+    const want = jobs.filter((j) => j.lang === lang);
+    const missing = want.filter((j) => !clips[j.key]);
+    const halves = want.filter((j) => j.part).length;
+    check(`V2-${lang}`, `${lang}: every spoken line has a voice clip (both halves of "|" lines)`, manifest && missing.length === 0,
+      `${want.length - missing.length}/${want.length} (${halves} half-lines)${missing.length ? ' missing e.g. ' + missing.slice(0, 2).map((j) => j.text).join(' | ') : ''}`);
   }
+  // sanity: the key of each half is what audio.js looks up at runtime
+  const sample = CUSTOMERS_ZH.find((c) => String(c.reply).includes('|'));
+  const keys = new Set(jobs.map((j) => j.key));
+  check('V3', 'export keys match runtime lookups for cut-point halves',
+    !sample || splitPunch(sample.reply).every((h) => keys.has(clipKey('zh', h))));
 }
 
 // Report

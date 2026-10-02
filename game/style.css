@@ -88,7 +88,7 @@ button { font: inherit; color: inherit; }
   linear-gradient(var(--wall), var(--wall-2)); }
 .menu-board { position: absolute; left: 3cqw; top: 3cqw; width: 33cqw; padding: 2cqw; background: #1f2a22; color: #e9f5e9; border: 1cqw solid var(--wood); border-radius: 1.2cqw; font-size: 2.8cqw; box-shadow: 0 1cqw 2cqw #0005; transform: rotate(-2deg); }
 .menu-title { font-weight: 900; font-size: 3.2cqw; margin-bottom: 1cqw; color: #ffe7a8; }
-.menu-row { display: flex; justify-content: space-between; line-height: 1.45; }
+.menu-row { display: flex; justify-content: space-between; gap: 1.2cqw; line-height: 1.45; white-space: nowrap; }
 .menu-row:last-of-type { color: var(--gold); font-weight: 900; }
 .menu-foot { margin-top: 1cqw; font-size: 2.3cqw; color: #9fbfa5; }
 .number-sign { position: absolute; right: 3cqw; top: 3cqw; padding: 1.4cqw 2.4cqw; background: #111; border: .6cqw solid #444; border-radius: 1.4cqw; display: flex; align-items: baseline; gap: 1cqw; font-family: ui-monospace, Menlo, Consolas, monospace; }
@@ -126,7 +126,7 @@ button { font: inherit; color: inherit; }
 /* Customer: only the top half of the head peeks above the bottom edge */
 .cust-wrap { position: absolute; left: 13%; bottom: 0; width: 26cqw; z-index: 4; display: flex; flex-direction: column; align-items: center; }
 .cust-tag { order: -2; font-size: 7cqw; line-height: 1; animation: bob 1s ease-in-out infinite alternate; }
-.cust-name { order: -1; font-size: 3cqw; font-weight: 900; background: #000a; padding: .3cqw 1.6cqw; border-radius: 99px; margin: .6cqw 0; white-space: nowrap; max-width: 30cqw; overflow: hidden; text-overflow: ellipsis; }
+.cust-name { order: -1; font-size: 3cqw; font-weight: 900; background: #000a; padding: .3cqw 1.6cqw; border-radius: 2cqw; margin: .6cqw 0; max-width: 34cqw; text-align: center; line-height: 1.15; overflow-wrap: anywhere; }
 .cust-name:empty { display: none; }
 .cust-clip { height: 12cqw; width: 26cqw; overflow: hidden; display: flex; justify-content: center; }
 .cust-head { font-size: 22cqw; line-height: 1; transform: rotate(-14deg) translateY(1cqw); transform-origin: 50% 80%; filter: drop-shadow(0 -.6cqw 0 #0003); }
@@ -321,3 +321,11 @@ button { font: inherit; color: inherit; }
   .stage.shake-0 .shaker, .stage.shake-1 .shaker, .stage.shake-2 .shaker { animation: none; }
   .fan, .clerk-legs::before, .clerk-legs::after, .qp, .card-cups, .big-btn { animation: none; }
 }
+
+/* Integration: keep the 中/EN and bleep toggles usable on the start / report cards. */
+.stage:has(> .overlay:not(.hidden)) .hud { z-index: 60; background: none; }
+.stage:has(> .overlay:not(.hidden)) .hud > :not(.hud-row),
+.stage:has(> .overlay:not(.hidden)) .hud-row > :not(.hud-toggles) { visibility: hidden; }
+
+/* QA: Latin plaque text needs less tracking than 点 餐 处. */
+.counter-plaque.latin { letter-spacing: .15em; text-indent: .15em; font-size: 3.6cqw; }

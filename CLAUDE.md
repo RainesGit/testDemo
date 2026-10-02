@@ -2,58 +2,76 @@
 
 Guidance for AI assistants (Claude Code and similar) working in this repository.
 
-## Current state of the repository
+## What this repository is
 
-This repository (`RainesGit/testDemo`) is **effectively empty**. Apart from this
-`CLAUDE.md`, the working tree has no source code, build configuration, tests, or
-CI setup.
+`RainesGit/testDemo` holds **《来250杯！》("250 Cups!")**, a vertical mobile comedy
+game: the player is a rude bubble-tea clerk on a towering counter, customers only
+show half a head, and every insult makes the queue outside grow. It is currently a
+playable **web prototype** plus design and voice documents.
 
-Git history (both `main` and feature branches share it):
+```
+docs/
+  game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
+  lines-zh.md           100 customer types with clerk lines (v3)
+  audio-sourcing.md     Royalty-free SFX/music/voice sources and licensing notes
+  voice/
+    voice-bible.md      Voice direction: clerk voice, delivery marks, system lines, English "250" plan
+    voice-script-zh.md  Chinese recording script (100 customers)
+    voice-script-en.md  English transcreated recording script (100 customers)
+game/                   Web prototype (plain HTML/CSS/ES modules, zero dependencies, no build)
+  index.html, style.css
+  src/engine.js         Pure game logic (no DOM); rules + events
+  src/ui.js             DOM rendering and effects
+  src/audio.js          Procedurally synthesized SFX (WebAudio) + Web Speech TTS + bleep
+  src/content.zh.js / content.en.js / content.js   Customer + system lines per language
+  src/main.js           Wires everything together
+  test/*.test.mjs       node:test unit tests (engine, audio bleep splitter)
+  tools/                Playwright smoke/QA scripts (screenshots and node_modules are gitignored)
+  README.md             Prototype details, module contracts, known limits
+```
 
-| Commit    | Author   | Date       | Change                                   |
-|-----------|----------|------------|------------------------------------------|
-| `d59bffa` | liangjie | 2021-07-01 | `[update]` — added `README.md` (Chinese) |
-| `a4169f8` | Raines   | 2021-07-01 | `Delete README.md`                        |
+## Commands
 
-### Historical context (deleted README)
+Run from `game/`:
 
-The deleted README (see `git show d59bffa:README.md`) described setting up an
-**iOS CocoaPods binary-component workflow**:
+- **Unit tests:** `node --test test/*.test.mjs` (Node 22; passing a directory does not work).
+- **Run locally:** `python3 -m http.server 8765`, then open `http://localhost:8765/`.
+  ES modules do not load from `file://`.
+- **Browser smoke test:** with the server running, `node tools/play-integrate.mjs`;
+  full QA matrix: `node tools/qa.mjs`. These use the globally installed Playwright
+  and the preinstalled Chromium; do not run `playwright install`.
 
-1. Create a private CocoaPods spec repo for binary pods and add it locally:
-   `pod repo add example_spec_bin_dev git@github.com:su350380433/example_spec_bin_dev.git`
-2. Install MongoDB 4.0.9 (macOS tarball) under `/usr/local/mongodb` and create
-   `/data/db`.
-3. Start MongoDB with `sudo mongod`.
-4. Start a static binary server from a sibling `../binary-server` directory
-   with `npm install && npm start` (requires `mongod` running).
+## Design rules (from the producer — do not violate)
 
-None of those components (`binary-server`, podspecs, etc.) exist in this
-repository. Treat this as background only. It does not describe code you can
-build or run here.
+- Core contrast is three beats: polite service → sudden swearing → instantly professional again.
+- **Everyone at the counter can be cursed.** No "protected" customers, no
+  "hold back" levels, no penalty for cursing the "wrong" way (`auraWrong: 0` in
+  `main.js`). The only failure is being too slow (forced polite voice).
+- No delivery-rider characters, no fantasy elements, no jokes about appearance,
+  gender, race, origin, politics or religion, and no customer type the clerk is
+  specially gentle to.
+- "250" (二百五) is the signature number and a deadpan insult; "two months later"
+  and "黄金比例最好喝" are signature lines.
+- Audio must be license-safe: SFX are synthesized in code; see `docs/audio-sourcing.md`
+  before adding any audio file.
+- Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore, then English.
+  Not mainland China or the EU. Release builds need Traditional Chinese.
 
 ## Development workflow
 
-- **No build, lint, or test commands exist yet.** Do not claim to have run
-  tests; there are none. If you add code, also add the tooling to verify it
-  and document the commands in this file.
-- **Branches:** `main` is the default branch. Do work on the feature branch
-  you were assigned (for example `claude/...`), and do not push directly to
-  `main` unless explicitly asked.
-- **Commits:** Existing history uses short, informal messages. Prefer clear,
-  descriptive imperative messages (for example `Add CLAUDE.md with repo overview`).
-- **Pull requests:** Only open one when asked. There is no PR template.
+- **Branches:** `main` is the default branch. Work on the assigned feature branch
+  (for example `claude/...`); do not push to `main` unless explicitly asked.
+- **Commits:** clear, descriptive imperative messages.
+- **Pull requests:** only open one when asked. There is no PR template.
+- Run the unit tests (and the smoke test for UI changes) before committing.
 
 ## Conventions for AI assistants
 
-1. **Verify before assuming.** The repo is nearly empty, so do not invent
-   structure, frameworks, or commands. Check with `git ls-files` and
-   `git log` first.
-2. **Keep this file current.** When you add meaningful structure (languages,
-   directories, build/test commands, CI), update the sections above so they
-   match reality.
-3. **Language:** The original author wrote docs in Chinese. English is fine
-   for new docs unless the user asks otherwise. Keep a single file in one
-   language.
-4. **Minimal changes.** Make only the changes the task needs. Don't add
-   scaffolding nobody asked for.
+1. **Verify before assuming.** Check `git ls-files`, `game/README.md` and
+   `docs/game-design.md` before changing rules or structure.
+2. **Keep this file current** when you add directories, commands or rules.
+3. **Language:** design docs and voice scripts are in Simplified Chinese (English
+   script lines in US English); code and code comments are in English.
+4. **Minimal changes.** Make only the changes the task needs.
+5. Repository history before the game (2021) only contained a deleted README
+   about an unrelated iOS CocoaPods setup; ignore it.

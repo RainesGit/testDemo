@@ -31,6 +31,30 @@ const HEADS = ['👨', '👩', '🧔', '👴', '👵', '🧑', '👱', '👨‍�
 const QUEUE_PEOPLE = ['🧍', '🧍‍♀️', '🧍‍♂️', '🚶', '🚶‍♀️', '🚶‍♂️', '🧑‍🦯', '🧍', '🙋', '🙋‍♂️'];
 const CLERK_FACE = { idle: '😏', hit: '😤', rage: '🤬', polite: '🙂', perfect: '😎', over: '😌' };
 
+// Scene decor + floating effect texts, per language (zh is Simplified to match content.zh.js).
+const DECOR = {
+  zh: {
+    menuTitle: '🧋 本店饮品',
+    menu: [['珍珠奶茶', 55], ['四季春', 30], ['多多绿', 45], ['杨枝甘露', 75], ['250杯', '?']],
+    menuFoot: '甜度冰块 自己讲清楚',
+    clerkTag: '店长',
+    plaque: '点 餐 处',
+    slam: ['砰!', '砰砰!!', '轰!!!'],
+    rage: '爆气！！',
+    boo: ['嘘～～', '好软喔', '退钱！'],
+  },
+  en: {
+    menuTitle: '🧋 MENU',
+    menu: [['Boba Tea', 55], ['Oolong', 30], ['Yakult Green', 45], ['Mango Ice', 75], ['250 Cups', '?']],
+    menuFoot: 'Sugar & ice? SPEAK UP.',
+    clerkTag: 'BOSS',
+    plaque: 'ORDER HERE',
+    slam: ['BAM!', 'BAM BAM!!', 'KABOOM!!!'],
+    rage: 'RAGE!!',
+    boo: ['Booo~', 'So soft!', 'Refund!'],
+  },
+};
+
 const DEFAULT_UI = {
   zh: { gun: '滚！', shut: '闭嘴！', take: '收！', queue: '排队', aura: '气势', fury: '火气', start: '开店！', again: '再骂一天', bleep: '消音', combo: '连击', time: '秒' },
   en: { gun: 'SCRAM!', shut: 'SHUT IT!', take: 'DEAL!', queue: 'Queue', aura: 'Swagger', fury: 'Fury', start: 'OPEN SHOP!', again: 'Rant Again', bleep: 'Bleep', combo: 'Combo', time: 's' },
@@ -109,13 +133,17 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   const scene = el('main', 'scene', shaker);
   const wall = el('div', 'wall', scene);
   const menu = el('div', 'menu-board', wall);
-  el('div', 'menu-title', menu, '🧋 本店飲品');
-  for (const [n, p] of [['珍珠奶茶', 55], ['四季春', 30], ['多多綠', 45], ['楊枝甘露', 75], ['250杯', '?']]) {
-    const row = el('div', 'menu-row', menu);
-    el('span', '', row, n);
-    el('span', '', row, String(p));
+  function renderMenu() {
+    const d = DECOR[lang];
+    menu.textContent = '';
+    el('div', 'menu-title', menu, d.menuTitle);
+    for (const [n, p] of d.menu) {
+      const row = el('div', 'menu-row', menu);
+      el('span', '', row, n);
+      el('span', '', row, String(p));
+    }
+    el('div', 'menu-foot', menu, d.menuFoot);
   }
-  el('div', 'menu-foot', menu, '甜度冰塊 自己講清楚');
   const numberSign = el('div', 'number-sign', wall);
   el('span', 'ns-label', numberSign, 'NO.');
   const numberVal = el('span', 'ns-val', numberSign, '000');
@@ -124,14 +152,14 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   const clerk = el('div', 'clerk', scene);
   const clerkHead = el('div', 'clerk-head', clerk, CLERK_FACE.idle);
   const clerkBody = el('div', 'clerk-body', clerk);
-  el('span', 'clerk-tag', clerkBody, '店長');
+  const clerkTag = el('span', 'clerk-tag', clerkBody);
   el('div', 'clerk-legs', clerk);
   el('div', 'clerk-cup', clerk, '🧋');
 
   const counter = el('div', 'counter', scene);
   el('div', 'counter-top', counter);
   const counterFront = el('div', 'counter-front', counter);
-  el('div', 'counter-plaque', counterFront, '點 餐 處');
+  const plaque = el('div', 'counter-plaque', counterFront);
   el('div', 'counter-rail', counterFront);
 
   const custWrap = el('div', 'cust-wrap', scene);
@@ -198,7 +226,11 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     bleepBtn.textContent = (bleepOn ? '🔇 ' : '🔊 ') + texts.bleep;
     bleepBtn.classList.toggle('on', bleepOn);
     bleepBtn.setAttribute('aria-pressed', String(bleepOn));
-    root.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    root.lang = lang === 'zh' ? 'zh-Hans' : 'en';
+    renderMenu();
+    clerkTag.textContent = DECOR[lang].clerkTag;
+    plaque.textContent = DECOR[lang].plaque;
+    plaque.classList.toggle('latin', lang === 'en');
   }
 
   function setTexts(uiTexts = {}) {
@@ -460,7 +492,7 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
         setClerk('hit', 700);
         hitstop(() => restartClass(stage, 'shake-' + lvl, 400));
         restartClass(counter, 'slam', 300);
-        floatText(['砰!', '砰砰!!', '轟!!!'][lvl], 'slam-text lvl' + lvl, 600);
+        floatText(DECOR[lang].slam[lvl], 'slam-text lvl' + lvl, 600);
         break;
       }
       case 'miss':
@@ -478,7 +510,7 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
       case 'polite': {
         setClerk('polite', 1600);
         restartClass(stage, 'polite', 1600);
-        const boos = (payload.boo && payload.boo.length ? payload.boo : ['嘘～～', '好軟喔', '退錢！']).slice(0, 5);
+        const boos = (payload.boo && payload.boo.length ? payload.boo : DECOR[lang].boo).slice(0, 5);
         boos.forEach((t, i) => {
           const n = floatText(t, 'boo-text', 1600);
           n.style.setProperty('--row', String(i));
@@ -489,7 +521,7 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
       case 'rageStart':
         stage.classList.add('rage');
         setClerk('rage');
-        floatText(payload.text || (lang === 'zh' ? '爆氣！！' : 'RAGE!!'), 'rage-text', 1100);
+        floatText(payload.text || DECOR[lang].rage, 'rage-text', 1100);
         restartClass(stage, 'shake-2', 400);
         break;
       case 'rageEnd':
@@ -536,15 +568,15 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     startCard.textContent = '';
     const card = el('div', 'card', startCard);
     el('div', 'card-cups', card, '🧋🧋🧋');
-    el('h1', 'card-title', card, t.title || (zh ? '來250杯！' : '250 Cups!'));
-    el('p', 'card-sub', card, t.subtitle || (zh ? '櫃台很高，態度更高。罵得越兇，排隊越長。' : 'High counter. Higher attitude. The ruder you are, the longer the line.'));
+    el('h1', 'card-title', card, t.title || (zh ? '来250杯！' : '250 Cups!'));
+    el('p', 'card-sub', card, t.subtitle || (zh ? '柜台很高，态度更高。骂得越凶，排队越长。' : 'High counter. Higher attitude. The ruder you are, the longer the line.'));
     const keys = el('div', 'card-keys', card);
     KEYS.forEach((k, i) => {
       const r = el('div', 'key-row key-' + k, keys);
       el('kbd', '', r, 'JKL'[i]);
       el('span', '', r, texts[k]);
     });
-    el('p', 'card-hint', card, t.hint || (zh ? '按住蓄力更兇｜太慢會被迫客氣，全場噓你' : 'Hold to charge | Too slow and you must be polite. Everyone boos.'));
+    el('p', 'card-hint', card, t.hint || (zh ? '按住蓄力更凶｜太慢会被迫客气，全场嘘你' : 'Hold to charge | Too slow and you must be polite. Everyone boos.'));
     startButton(card, t.start || texts.start).focus?.({ preventScroll: true });
     summaryCard.classList.add('hidden');
     startCard.classList.remove('hidden');
@@ -555,18 +587,18 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     summaryCard.textContent = '';
     const card = el('div', 'card report', summaryCard);
     el('div', 'report-stamp', card, zh ? '打烊' : 'CLOSED');
-    el('h2', 'card-title', card, t.title || (zh ? '今日戰報' : "Today's Report"));
+    el('h2', 'card-title', card, t.title || (zh ? '今日战报' : "Today's Report"));
     const grid = el('div', 'report-grid', card);
     const stat = (label, val, cls = '') => {
       const c = el('div', 'stat ' + cls, grid);
       el('div', 'stat-val', c, val);
       el('div', 'stat-label', c, label);
     };
-    stat(t.cursedLabel || (zh ? '今日罵走' : 'Told off'), fmt(s.cursed) + (zh ? ' 人' : ''), 'hot');
-    stat(t.queueLabel || (zh ? '排隊' : 'In line'), fmt(s.queue) + (zh ? ' 人' : ''), 'gold');
-    stat(t.comboLabel || (zh ? '最高連擊' : 'Best combo'), '×' + fmt(s.maxCombo));
-    stat(t.scoreLabel || (zh ? '分數' : 'Score'), fmt(s.score));
-    if (s.polite) stat(zh ? '被迫客氣' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
+    stat(t.cursedLabel || (zh ? '开骂' : 'Rants'), fmt(s.cursed) + (zh ? ' 次' : ''), 'hot');
+    stat(t.queueLabel || (zh ? '排队' : 'In line'), fmt(s.queue) + (zh ? ' 人' : ''), 'gold');
+    stat(t.comboLabel || (zh ? '最高连击' : 'Best combo'), '×' + fmt(s.maxCombo));
+    stat(t.scoreLabel || (zh ? '分数' : 'Score'), fmt(s.score));
+    if (s.polite) stat(zh ? '被迫客气' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
     stat(zh ? '接客' : 'Served', fmt(s.served));
     const best = el('div', 'best', card);
     el('div', 'best-label', best, t.bestLabel || (zh ? '最狠一句' : 'Savagest line'));

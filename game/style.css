@@ -267,7 +267,7 @@ button { font: inherit; color: inherit; }
 .key-gun span { color: #ff7a6b; } .key-shut span { color: #b3a3ff; } .key-take span { color: #6be3a2; }
 .big-btn { margin-top: 2cqw; width: 100%; padding: 4cqw; font-size: 7cqw; font-weight: 900; border: 0; border-radius: 4cqw; color: #2a1200; background: linear-gradient(#ffe27a, var(--gold) 50%, #e09a00); box-shadow: 0 1.6cqw 0 #8a5a00; cursor: pointer; animation: breathe 1.2s ease-in-out infinite alternate; }
 .big-btn:active { transform: translateY(1cqw); box-shadow: 0 .6cqw 0 #8a5a00; }
-.report-stamp { position: absolute; right: 4cqw; top: 4cqw; transform: rotate(14deg); border: .8cqw solid var(--rage); color: var(--rage); font-weight: 900; font-size: 5cqw; padding: .6cqw 2cqw; border-radius: 2cqw; opacity: .85; }
+.report-stamp { width: fit-content; margin: 0 0 5cqw auto; transform: rotate(14deg); border: .8cqw solid var(--rage); color: var(--rage); font-weight: 900; font-size: 5cqw; padding: .6cqw 2cqw; border-radius: 2cqw; opacity: .85; }
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.4cqw; margin: 3cqw 0; }
 .stat { background: #fff1; border-radius: 3cqw; padding: 2.4cqw 1cqw; }
 .stat-val { font-size: 6.6cqw; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -17,7 +17,7 @@ page.on('requestfailed', (r) => errors.push('requestfailed: ' + r.url()));
 page.on('response', (r) => { if (r.status() >= 400 && !r.url().endsWith('favicon.ico')) errors.push(`HTTP ${r.status()} ${r.url()}`); });
 
 const shot = (name) => page.screenshot({ path: `${out}integrate-${name}.png` });
-const st = () => page.evaluate(() => { const s = window.__250.game.state; return { phase: s.phase, queue: s.queue, combo: s.combo, aura: s.aura, fury: s.fury, t: s.timeLeftMs, cur: s.current && { key: s.current.customer.key, id: s.current.customer.id, waited: s.current.patienceMaxMs - s.current.patienceMs } }; });
+const st = () => page.evaluate(() => { const s = window.__250.game.state; return { phase: s.phase, paused: !!s.paused, queue: s.queue, combo: s.combo, aura: s.aura, fury: s.fury, t: s.timeLeftMs, cur: s.current && { key: s.current.customer.key, id: s.current.customer.id, waited: s.current.patienceMaxMs - s.current.patienceMs } }; });
 const KEYMAP = { gun: 'j', shut: 'k', take: 'l' };
 
 await page.goto(`${base}/index.html?debug&lang=zh`);
@@ -28,12 +28,21 @@ await page.waitForTimeout(500);
 await shot('02-playing');
 
 const t0 = Date.now();
-let n = 0, taken = new Set(), stats = { presses: 0, wrong: 0, polite: 0, rage: false, milestone: false };
+let n = 0, taken = new Set(), stats = { presses: 0, wrong: 0, polite: 0, rage: false, milestone: false, signature: 0 };
 const snapAt = { hit: false, rage: false, polite: false, milestone: false };
 let letTimeout = true;
 while (Date.now() - t0 < 20000) {
   const s = await st();
   if (s.phase === 'over') break;
+  // 250 signature scene: the round pauses; screenshot it once, then tap to skip (ignored for 600ms).
+  if (s.paused) {
+    stats.signature++;
+    await page.waitForTimeout(650);
+    if (stats.signature === 1) await shot('05b-signature');
+    await page.mouse.click(195, 300);
+    await page.waitForTimeout(80);
+    continue;
+  }
   if (s.phase === 'rage') {
     stats.rage = true;
     await page.keyboard.down('j'); await page.keyboard.up('j'); stats.presses++;
@@ -79,6 +88,8 @@ await page.click('.tog-lang');
 await page.click('.tog-bleep');
 await page.waitForTimeout(300);
 await shot('08-en-playing');
+// A signature scene may have started meanwhile; skip it so the paused engine can run out the clock.
+for (let i = 0; i < 5 && (await st()).paused; i++) { await page.waitForTimeout(650); await page.mouse.click(195, 300); await page.waitForTimeout(80); }
 await page.evaluate(() => { const g = window.__250.game; for (let i = 0; i < 2000 && g.state.phase !== 'over'; i++) g.tick(100); });
 await page.waitForSelector('.overlay.summary:not(.hidden)', { timeout: 5000 });
 await page.waitForTimeout(300);

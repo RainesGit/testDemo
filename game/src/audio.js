@@ -17,7 +17,7 @@ export const DEFAULT_BLEEP_WORDS = [
   '你妈的', '你媽的', '你妈', '你媽', '他妈的', '他媽的', '他妈', '他媽', '妈的', '媽的',
   '靠北', '靠杯', '靠腰', '干你', '幹你', '机掰', '機掰', '王八蛋', 'TMD',
   /(?<![饼餅能不才若苦精])[干幹](?![杯嘛麼么净淨脆吗嗎啥活掉部燥扰擾涉預预事])/,
-  'your mom', 'yo mama', 'motherfucker', 'fucking', 'fuck', 'shit', 'damn', 'hell', 'bitch',
+  'your mom', 'yo mama', 'motherfucker', 'fucking', 'fuck', 'shit', 'damn', 'hell', 'bitch', 'ass',
 ];
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

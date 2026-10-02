@@ -112,8 +112,8 @@ async function run(vpName, w, h, scenario) {
   const check = async (tag) => { for (const i of await page.evaluate(layoutCheck)) issues.add(`[${tag}] ${i}`); };
   const st = () => page.evaluate(() => {
     const s = window.__250.game.state;
-    return { phase: s.phase, queue: s.queue, combo: s.combo, aura: s.aura, fury: s.fury, t: s.timeLeftMs, stats: s.stats,
-      cur: s.current && { key: s.current.customer.key, id: s.current.customer.id } };
+    return { phase: s.phase, paused: !!s.paused, queue: s.queue, combo: s.combo, aura: s.aura, fury: s.fury, t: s.timeLeftMs, stats: s.stats,
+      cur: s.current && { key: s.current.customer.key, id: s.current.customer.id, cups: s.current.customer.cups } };
   });
   const tick = (ms) => page.evaluate((ms) => window.__250.game.tick(ms), ms);
   const tap = async (key, hold = 0) => {
@@ -126,8 +126,8 @@ async function run(vpName, w, h, scenario) {
   await page.waitForSelector('.overlay.start:not(.hidden) .big-btn');
   await page.evaluate(() => {
     window.__log = [];
-    for (const ev of ['arrive', 'resolve', 'polite', 'rageStart', 'rageHit', 'rageEnd', 'milestone', 'over'])
-      window.__250.game.on(ev, (p) => window.__log.push({ ev, ...(ev === 'resolve' ? { correct: p.correct, charge: p.charge, queueDelta: p.queueDelta } : {}) }));
+    for (const ev of ['arrive', 'resolve', 'polite', 'rageStart', 'rageHit', 'rageEnd', 'milestone', 'over', 'charge'])
+      window.__250.game.on(ev, (p) => window.__log.push({ ev, ...(ev === 'resolve' ? { correct: p.correct, charge: p.charge, queueDelta: p.queueDelta, id: p.customer?.id } : ev === 'charge' ? { level: p.level } : {}) }));
     const a = window.__250.audio;
     window.__audio = { bleep: [], speak: [] };
     const sb = a.setBleep; a.setBleep = (on) => { window.__audio.bleep.push(on); return sb(on); };
@@ -168,12 +168,23 @@ async function run(vpName, w, h, scenario) {
   await check('playing');
   if (scenario !== 'idle') await shot('playing');
 
-  let presses = 0, guard = 0, shotRage = false, shotMs = false, charged = [];
+  let presses = 0, guard = 0, shotRage = false, shotMs = false, charged = [], sigSkips = 0, earlyResolve = [];
   const t0 = Date.now();
   while (guard++ < 3000) {
     s = await st();
     if (s.phase === 'over') break;
     if (scenario === 'idle') { await tick(100); continue; }
+    // 250 signature scene (once per round, on a correct "take" for a 250-cup customer): the engine
+    // pauses and input is locked. Skip it the way a player would (tap; skips are ignored for 600ms).
+    if (s.paused) {
+      sigSkips++;
+      await page.waitForTimeout(650);
+      const b = await page.locator('.sig-skip').boundingBox();
+      if (!b) issues.add('[signature] paused without a skip layer');
+      else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+      await page.waitForTimeout(50);
+      continue;
+    }
     if (s.phase === 'rage') {
       await tap('gun'); presses++;
       if (!shotRage) {
@@ -193,13 +204,19 @@ async function run(vpName, w, h, scenario) {
     s = await st();
     if (!s.cur || s.phase !== 'playing') continue;
     let key = scenario === 'wrong' ? WRONG[s.cur.key] : s.cur.key;
-    if (scenario === 'charge' && charged.length < 4) {
+    // A correct "take" on a 250-cup customer starts the signature scene, which locks input, so a hold
+    // there cannot charge by design; only sample charge levels on other customers.
+    if (scenario === 'charge' && charged.length < 4 && !(s.cur.key === 'take' && s.cur.cups === 250)) {
       // Real pointer hold on the on-screen button: 900ms (charge 2), 450ms (charge 1), tap (0).
       const hold = [900, 450, 50, 1000][charged.length];
       const box = await page.locator(`.btn-${key}`).boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      const before = await page.evaluate(() => window.__log.filter((e) => e.ev === 'resolve').length);
       await page.mouse.down();
-      await page.waitForTimeout(Math.max(0, hold - 120));
+      await page.waitForTimeout(40);
+      // Press resolves on press-down; holding only adds force afterwards.
+      earlyResolve.push((await page.evaluate(() => window.__log.filter((e) => e.ev === 'resolve').length)) > before);
+      await page.waitForTimeout(Math.max(0, hold - 160));
       if (charged.length === 0) { await page.waitForTimeout(60); await shot('holding'); }
       await page.waitForTimeout(60);
       await page.mouse.up();
@@ -229,13 +246,21 @@ async function run(vpName, w, h, scenario) {
     if (90 - s.t / 1000 > 20) issues.add('idle round not short');
   }
   if (scenario === 'charge') {
-    const ch = log.filter((e) => e.ev === 'resolve').slice(0, 4).map((e) => e.charge);
-    notes.push('charges ' + JSON.stringify(ch));
+    // Charge level per press = highest 'charge' event between this resolve and the next one.
+    const ch = []; let lv = -1;
+    for (const e of log) {
+      if (e.ev === 'resolve') { if (lv >= 0) ch.push(lv); lv = 0; }
+      if (e.ev === 'charge') lv = Math.max(lv, e.level);
+      if (ch.length === 4) break;
+    }
+    notes.push('charges ' + JSON.stringify(ch) + ' ids ' + JSON.stringify(log.filter((e) => e.ev === 'resolve').slice(0, 4).map((e) => e.id)) + ' resolvedOnDown ' + JSON.stringify(earlyResolve));
+    if (earlyResolve.some((x) => !x)) issues.add('press did not resolve on press-down ' + JSON.stringify(earlyResolve));
     if (JSON.stringify(ch) !== '[2,1,0,2]') issues.add('charge levels wrong ' + JSON.stringify(ch));
   }
   if (scenario === 'rage') { notes.push(`rage×${count('rageStart')} hits ${count('rageHit')}`); if (!count('rageHit')) issues.add('no rage hits'); }
   if (scenario === 'wrong') notes.push(`wrong presses ${presses}, ended at ${(90 - s.t / 1000).toFixed(1)}s, aura ${s.aura}`);
-  if (scenario === 'correct') notes.push(`queue ${s.queue} maxCombo ${log.length && (await page.evaluate(() => window.__250.game.state.maxCombo))} rage×${count('rageStart')} milestones ${count('milestone')}`);
+  if (scenario === 'correct') notes.push(`queue ${s.queue} maxCombo ${log.length && (await page.evaluate(() => window.__250.game.state.maxCombo))} rage×${count('rageStart')} milestones ${count('milestone')} signatureSkips ${sigSkips}`);
+  if (sigSkips > 3) issues.add(`signature scene needed ${sigSkips} skip taps`);
   // Summary card
   try { await page.waitForSelector('.overlay.summary:not(.hidden)', { timeout: 3000 }); }
   catch { issues.add('summary card missing'); }

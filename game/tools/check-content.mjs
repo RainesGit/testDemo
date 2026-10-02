@@ -89,7 +89,7 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
     const spoken = [
       ...customers.flatMap((c) => [c.says, c.reply, c.alt]),
       ...sys.polite, ...sys.rageStart, ...sys.rageLines, ...sys.next, ...sys.closing, ...sys.boo,
-      ...Object.values(sys.milestones),
+      ...Object.values(sys.milestones), ...(sys.signature250 || []).map((l) => l.text),
     ].filter((t) => /[\p{L}\p{N}]/u.test(stripStage(t).replace(/\p{Extended_Pictographic}/gu, '')));
     const missing = spoken.filter((t) => !clips[clipKey(lang, t)]);
     check(`V2-${lang}`, `${lang}: every spoken line has a voice clip`, manifest && missing.length === 0,

@@ -1,5 +1,6 @@
 // 《来250杯！》/ "250 Cups!" — pure game logic. No DOM, no audio.
-// Contract: createGame({ customers, rng, config }) -> { start, tick, press, on, off, state }
+// Contract: createGame({ customers, rng, config }) ->
+//   { start, tick, press, charge, pause, resume, bonus, on, off, state, config }
 
 export const KEYS = ['gun', 'shut', 'take'];
 export const MILESTONES = [10, 100, 1000, 10000, 100000];
@@ -20,6 +21,10 @@ export const DEFAULT_CONFIG = {
   chargeMidMs: 300,       // hold >= this -> charge 1
   chargeHighMs: 800,      // hold > this -> charge 2
   chargeBonus: [0, 1, 3],
+  chargeWindowMs: 1000,   // charge(level) upgrades a correct answer resolved within this window
+  introMs: 10000,         // beginner protection: customers arriving in the first 10 s ...
+  introPatienceMs: 4500,  // ... get this fixed patience
+  firstTimeoutFree: true, // the first timeout of a round plays the polite scene but costs no aura
   bonus250: 10,
   gapMs: 250,             // pause between customers (for animation); 0 = instant
   altChance: 0.35,        // chance to use customer.alt instead of reply
@@ -61,11 +66,15 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       stats: { served: 0, cursed: 0, polite: 0, perfect: 0 },
       milestonesHit: [],
       best: { id: null, score: -Infinity },
+      paused: false,
+      timeouts: 0,
+      lastHit: null, // { customer, correct, charge, scoreDelta, atMs } of the last resolved answer
     };
   }
   s = fresh();
 
   function patienceFor(elapsedMs) {
+    if (elapsedMs < cfg.introMs) return cfg.introPatienceMs;
     const f = clamp(elapsedMs / cfg.durationMs, 0, 1);
     return Math.round(cfg.patienceStartMs + (cfg.patienceEndMs - cfg.patienceStartMs) * f);
   }
@@ -187,6 +196,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       maxCombo: s.maxCombo,
       score: s.score,
       rageLeftMs: s.rageLeftMs,
+      paused: s.paused,
       current: c ? Object.freeze({ customer: c.customer, patienceMs: c.patienceMs, patienceMaxMs: c.patienceMaxMs }) : null,
       stats: Object.freeze({ ...s.stats }),
     });
@@ -221,6 +231,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
 
     tick(dtMs) {
       if (s.phase !== 'playing' && s.phase !== 'rage') return;
+      if (s.paused) return; // paused: neither the round clock nor patience advances
       const dt = Math.max(0, Number(dtMs) || 0);
       s.elapsedMs += dt;
       s.timeLeftMs = Math.max(0, s.timeLeftMs - dt);
@@ -245,16 +256,19 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       s.current.patienceMs -= dt;
       if (s.current.patienceMs <= 0) {
         const customer = s.current.customer;
+        s.timeouts += 1;
+        const free = cfg.firstTimeoutFree && s.timeouts === 1;
         s.stats.polite += 1;
         s.combo = 0;
         s.current = null;
-        emit('polite', { customer });
-        addAura(cfg.auraTimeout);
+        emit('polite', { customer, free });
+        if (!free) addAura(cfg.auraTimeout);
         if (s.phase === 'playing') scheduleNext();
       }
     },
 
     press(key, holdMs = 0) {
+      if (s.paused) return null;
       if (s.phase === 'rage') {
         bumpCombo();
         const queueDelta = 2 + Math.floor(s.combo / 10);
@@ -291,6 +305,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       if (perfect) s.stats.perfect += 1;
       if (scoreDelta > s.best.score) s.best = { id: customer.id ?? null, score: scoreDelta };
       s.current = null;
+      s.lastHit = { customer, correct, charge, scoreDelta, atMs: s.elapsedMs };
 
       const payload = { customer, key, correct, perfect, charge, queueDelta, scoreDelta, line, reactionMs };
       emit('resolve', payload);
@@ -303,6 +318,44 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       if (s.phase === 'playing') scheduleNext();
       // if rage started, next customer arrives after rage ends
       return payload;
+    },
+
+    // Hold-to-charge after the fact: the UI resolves on key-down (press(key, 0)) and calls
+    // charge(1|2) while the key stays down. Only upgrades the last answer if it was correct and
+    // resolved within chargeWindowMs; adds just the difference in chargeBonus to queue and score.
+    charge(level) {
+      if (s.paused || (s.phase !== 'playing' && s.phase !== 'rage')) return null;
+      const hit = s.lastHit;
+      const lvl = Math.max(0, Math.min(cfg.chargeBonus.length - 1, level | 0));
+      if (!hit || !hit.correct || s.elapsedMs - hit.atMs > cfg.chargeWindowMs || lvl <= hit.charge) return null;
+      const queueDelta = cfg.chargeBonus[lvl] - cfg.chargeBonus[hit.charge];
+      hit.charge = lvl;
+      const scoreDelta = queueDelta * 100;
+      hit.scoreDelta += scoreDelta;
+      s.score += scoreDelta;
+      if (hit.scoreDelta > s.best.score) s.best = { id: hit.customer.id ?? null, score: hit.scoreDelta };
+      const payload = { level: lvl, queueDelta, customer: hit.customer };
+      emit('charge', payload);
+      addQueue(queueDelta);
+      return payload;
+    },
+
+    // Freeze the round (cutscenes): tick() does nothing and press()/charge() are ignored.
+    pause() {
+      if (s.phase === 'playing' || s.phase === 'rage') s.paused = true;
+    },
+    resume() {
+      s.paused = false;
+    },
+
+    // Flat reward outside an answer (e.g. after the 250 signature scene): queue +n, score +100n.
+    bonus(n) {
+      const queueDelta = Math.max(0, Math.floor(Number(n) || 0));
+      if (!queueDelta || (s.phase !== 'playing' && s.phase !== 'rage')) return null;
+      s.score += queueDelta * 100;
+      emit('bonus', { queueDelta });
+      addQueue(queueDelta);
+      return { queueDelta };
     },
   };
 

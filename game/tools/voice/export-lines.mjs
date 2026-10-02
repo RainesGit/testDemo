@@ -66,6 +66,11 @@ for (const lang of ['zh', 'en']) {
   system.closing.forEach((l) => add(lang, l, 'clerk', 'deadpan', cast.clerk));
   system.boo.forEach((l, i) => add(lang, l, 'crowd', 'boo', cast.customers[i % cast.customers.length]));
   Object.values(system.milestones).forEach((l) => add(lang, l, 'announcer', 'announce', cast.announcer));
+  // 250 signature scene: clerk in the deadpan style, the customer with the first voice of the pool.
+  (system.signature250 || []).forEach(({ who, text }) => {
+    if (who === 'cust') add(lang, text, 'customer', 'cust', cast.customers[0]);
+    else add(lang, text, 'clerk', 'deadpan', cast.clerk);
+  });
 }
 
 process.stdout.write(JSON.stringify([...jobs.values()], null, 1));

@@ -31,13 +31,14 @@ function makeCustomers(n = 30) {
   }));
 }
 
-// no fury-triggered rage unless asked; instant next customer
-const BASE = { gapMs: 0, furyPerCustomer: 0, furyCorrect: 0 };
+// no fury-triggered rage unless asked; instant next customer; beginner protection off
+// (the intro patience and free first timeout have their own tests below)
+const BASE = { gapMs: 0, furyPerCustomer: 0, furyCorrect: 0, introMs: 0, firstTimeoutFree: false };
 
 function setup({ customers = makeCustomers(), config = {}, seed = 1 } = {}) {
   const game = createGame({ customers, rng: seeded(seed), config: { ...BASE, ...config } });
   const log = [];
-  for (const ev of ['start', 'arrive', 'resolve', 'polite', 'rageStart', 'rageHit', 'rageEnd', 'milestone', 'over']) {
+  for (const ev of ['start', 'arrive', 'resolve', 'polite', 'rageStart', 'rageHit', 'rageEnd', 'milestone', 'over', 'charge', 'bonus']) {
     game.on(ev, p => log.push({ ev, ...p }));
   }
   return { game, log, of: name => log.filter(e => e.ev === name) };
@@ -434,4 +435,161 @@ test('restart resets everything', () => {
   assert.equal(game.state.score, 0);
   assert.equal(game.state.timeLeftMs, 90000);
   assert.equal(game.state.stats.served, 0);
+});
+
+// ---------------------------------------------------------------- beginner protection
+
+test('intro: customers arriving in the first 10s get a fixed 4500ms patience', () => {
+  const { game } = setup({ config: { introMs: 10000, introPatienceMs: 4500 } });
+  game.start();
+  assert.equal(game.state.current.patienceMaxMs, 4500);
+  game.tick(9000);
+  game.press(rightKey(game)); // spawn at 9s: still intro
+  assert.equal(game.state.current.patienceMaxMs, 4500);
+  game.tick(1500);
+  game.press(rightKey(game)); // spawn at 10.5s: normal linear curve
+  const expected = Math.round(3000 + (1200 - 3000) * (10500 / 90000));
+  assert.equal(game.state.current.patienceMaxMs, expected);
+});
+
+test('intro patience is the default config', () => {
+  const game = createGame({ customers: makeCustomers(), rng: seeded(3) });
+  assert.equal(game.config.introMs, 10000);
+  assert.equal(game.config.introPatienceMs, 4500);
+  assert.equal(game.config.firstTimeoutFree, true);
+  game.start();
+  assert.equal(game.state.current.patienceMaxMs, 4500);
+});
+
+test('first timeout of a round is free (polite scene, no aura loss); later ones cost 20', () => {
+  const { game, of } = setup({ config: { firstTimeoutFree: true } });
+  for (let round = 0; round < 2; round++) {
+    game.start();
+    const aura0 = game.state.aura;
+    game.tick(3001);
+    assert.equal(of('polite').length, round * 2 + 1);
+    assert.equal(of('polite').at(-1).free, true);
+    assert.equal(game.state.aura, aura0, 'first timeout costs nothing');
+    assert.equal(game.state.stats.polite, 1);
+    game.tick(game.state.current.patienceMs + 1);
+    assert.equal(of('polite').at(-1).free, false);
+    assert.equal(game.state.aura, aura0 - 20, 'second timeout costs 20');
+  }
+});
+
+// ---------------------------------------------------------------- charge after press
+
+test('charge(level) upgrades the last correct answer by the chargeBonus difference', () => {
+  const { game, of } = setup();
+  game.start();
+  game.tick(300);
+  const cust = game.state.current.customer;
+  const r = game.press(cust.key, 0);
+  assert.equal(r.charge, 0);
+  assert.equal(r.perfect, true, 'resolving on key-down keeps perfect reachable');
+  const q0 = game.state.queue, s0 = game.state.score;
+  game.tick(300);
+  const c1 = game.charge(1);
+  assert.deepEqual({ ...c1 }, { level: 1, queueDelta: 1, customer: cust });
+  assert.equal(game.state.queue, q0 + 1);
+  assert.equal(game.state.score, s0 + 100);
+  game.tick(500);
+  const c2 = game.charge(2);
+  assert.equal(c2.queueDelta, 2, 'only the difference 3 - 1 is added');
+  assert.equal(game.state.queue, q0 + 3);
+  assert.equal(game.state.score, s0 + 300);
+  assert.equal(game.charge(2), null, 'same level twice does nothing');
+  assert.equal(game.charge(1), null, 'no downgrade');
+  const ev = of('charge');
+  assert.equal(ev.length, 2);
+  assert.deepEqual(ev.map((e) => e.level), [1, 2]);
+  assert.equal(ev[1].customer, cust);
+});
+
+test('charge jumping straight to level 2 adds the full bonus', () => {
+  const { game } = setup();
+  game.start();
+  game.press(rightKey(game));
+  const q0 = game.state.queue;
+  game.tick(800);
+  assert.equal(game.charge(2).queueDelta, 3);
+  assert.equal(game.state.queue, q0 + 3);
+});
+
+test('charge is ignored after a wrong answer, outside the 1000ms window, or before any answer', () => {
+  const { game, of } = setup();
+  game.start();
+  assert.equal(game.charge(1), null, 'nothing resolved yet');
+  game.press(wrongKey(game));
+  assert.equal(game.charge(1), null, 'wrong answer');
+  game.press(rightKey(game));
+  game.tick(1001);
+  assert.equal(game.charge(1), null, 'too late');
+  assert.equal(of('charge').length, 0);
+});
+
+test('charge can cross a milestone', () => {
+  const { game, of } = setup();
+  game.start();
+  for (let i = 0; i < 7; i++) game.press(rightKey(game)); // 5 x 1 + 2 x 2 (combo bonus) = 9
+  assert.equal(game.state.queue, 9);
+  game.charge(2);
+  assert.deepEqual(of('milestone').map((m) => m.level), [10]);
+});
+
+// ---------------------------------------------------------------- pause / resume / bonus
+
+test('pause freezes the clock and patience and ignores input; resume continues', () => {
+  const { game } = setup();
+  game.start();
+  game.press(rightKey(game));
+  const st0 = game.state;
+  game.pause();
+  assert.equal(game.state.paused, true);
+  game.tick(60000);
+  assert.equal(game.state.timeLeftMs, st0.timeLeftMs);
+  assert.equal(game.state.current.patienceMs, st0.current.patienceMs);
+  assert.equal(game.press(rightKey(game)), null);
+  assert.equal(game.charge(1), null);
+  assert.equal(game.state.queue, st0.queue);
+  game.resume();
+  assert.equal(game.state.paused, false);
+  game.tick(100);
+  assert.equal(game.state.timeLeftMs, st0.timeLeftMs - 100);
+  assert.ok(game.press(rightKey(game)));
+});
+
+test('pause during the gap keeps the next customer waiting', () => {
+  const { game, of } = setup({ config: { gapMs: 250 } });
+  game.start();
+  game.press(rightKey(game));
+  game.pause();
+  game.tick(5000);
+  assert.equal(of('arrive').length, 1);
+  game.resume();
+  game.tick(260);
+  assert.equal(of('arrive').length, 2);
+});
+
+test('start clears a pause; pause is a no-op when idle', () => {
+  const { game } = setup();
+  game.pause();
+  assert.equal(game.state.paused, false);
+  game.start();
+  game.pause();
+  game.start();
+  assert.equal(game.state.paused, false);
+});
+
+test('bonus(n) adds n to the queue and 100n to the score, with an event and milestones', () => {
+  const { game, of } = setup();
+  game.start();
+  const s0 = game.state.score;
+  const r = game.bonus(25);
+  assert.deepEqual({ ...r }, { queueDelta: 25 });
+  assert.equal(game.state.queue, 25);
+  assert.equal(game.state.score, s0 + 2500);
+  assert.equal(of('bonus')[0].queueDelta, 25);
+  assert.deepEqual(of('milestone').map((m) => m.level), [10]);
+  assert.equal(game.bonus(0), null);
 });

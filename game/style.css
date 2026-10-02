@@ -137,6 +137,8 @@ button { font: inherit; color: inherit; }
 .bubble { position: absolute; left: 40%; right: 3%; bottom: 7cqw; z-index: 5; background: #fffdf6; color: #23170e; border-radius: 3cqw; padding: 2.4cqw 3cqw 3cqw; box-shadow: 0 1cqw 0 #0004; border: .5cqw solid #23170e; }
 .bubble::after { content: ''; position: absolute; left: -3.4cqw; bottom: 3cqw; border: 2cqw solid transparent; border-right: 3cqw solid #23170e; border-left: 0; }
 .bubble-text { font-size: 4.2cqw; font-weight: 700; line-height: 1.35; max-height: 17cqw; overflow: hidden; }
+.bubble-text.long { font-size: 3.5cqw; }
+.bubble-text.longer { font-size: 3cqw; }
 .bubble-text .dir { display: block; font-size: 2.8cqw; font-style: italic; font-weight: 400; color: #8a7560; }
 .bubble.enter { animation: pop .25s ease-out; }
 .bubble.gone { opacity: 0; transform: scale(.6); transition: .15s; }
@@ -219,17 +221,19 @@ button { font: inherit; color: inherit; }
 .stage.rage .bubble { opacity: .25; }
 
 /* Gold 250 */
-.stage.gold .scene { animation: goldFlash 1.4s ease-out; }
+.stage.gold .scene { animation: goldFlash .9s ease-out; }
 
 /* Shake + hitstop */
 .stage.shake-0 .shaker { animation: shake .22s; --amp: .8cqw; }
 .stage.shake-1 .shaker { animation: shake .3s; --amp: 1.6cqw; }
 .stage.shake-2 .shaker { animation: shake .4s; --amp: 2.8cqw; }
+.stage.shake-3 .shaker { animation: shake .5s; --amp: 4.2cqw; }
+.stage.charge-flash .scene { animation: chargeFlash .3s ease-out; }
 .stage.freeze .scene *, .stage.freeze .scene *::before, .stage.freeze .scene *::after { animation-play-state: paused !important; transition: none !important; }
 .stage.freeze .scene { filter: contrast(1.25) brightness(1.15); }
 
 /* Milestone zoom-out */
-.stage.zoomout .scene { animation: zoomout 1s ease-in-out; }
+.stage.zoomout .scene { animation: zoomout .9s ease-in-out; }
 
 /* ---------- Floating FX ---------- */
 .fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
@@ -237,20 +241,29 @@ button { font: inherit; color: inherit; }
 .slam-text { top: 66%; font-size: 8cqw; color: #fff; -webkit-text-stroke: .4cqw #000; animation: slamText .6s ease-out forwards; }
 .slam-text.lvl1 { font-size: 11cqw; color: #ffd23f; }
 .slam-text.lvl2 { font-size: 15cqw; color: #ff3b3b; }
+.slam-text.up { animation: slamUp .7s cubic-bezier(.2,1.8,.4,1) forwards; }
+.slam-text.up.lvl2 { font-size: 18cqw; text-shadow: 0 0 4cqw #ff2a00; }
 .miss-text { left: 26%; top: 62%; font-size: 8cqw; color: #ddd; -webkit-text-stroke: .3cqw #000; animation: rise .7s ease-out forwards; }
 .perfect-text { top: 28%; font-size: 13cqw; font-style: italic; background: linear-gradient(#fff, #7ef0ff 50%, #2a9dff); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: .35cqw #002a55; animation: stamp .9s cubic-bezier(.2,1.8,.4,1) forwards; }
-.gold-text { top: 38%; font-size: 40cqw; color: var(--gold); -webkit-text-stroke: .8cqw #7a4300; text-shadow: 0 0 6cqw #ffb300, 0 2cqw 0 #7a4300; animation: stamp 1.4s cubic-bezier(.2,1.8,.4,1) forwards; letter-spacing: -.04em; }
+.gold-text { top: 38%; font-size: 40cqw; color: var(--gold); -webkit-text-stroke: .8cqw #7a4300; text-shadow: 0 0 6cqw #ffb300, 0 2cqw 0 #7a4300; animation: stamp .9s cubic-bezier(.2,1.8,.4,1) forwards; letter-spacing: -.04em; }
 .boo-text { --row: 0; left: 105%; top: calc(14% + var(--row) * 12%); transform: none; font-size: 6cqw; color: #fff; background: #0008; padding: .6cqw 2.4cqw; border-radius: 99px; animation: booFly 1.6s linear forwards; }
-.rage-text { top: 22%; font-size: 18cqw; color: #fff; -webkit-text-stroke: .6cqw #600; text-shadow: 0 0 5cqw #f00; animation: stamp 1.1s cubic-bezier(.2,1.8,.4,1) forwards; }
+.rage-text { top: 22%; font-size: 18cqw; color: #fff; -webkit-text-stroke: .6cqw #600; text-shadow: 0 0 5cqw #f00; animation: stamp .9s cubic-bezier(.2,1.8,.4,1) forwards; }
 .flyer { position: absolute; z-index: 30; font-size: 22cqw; line-height: 1; pointer-events: none; }
 
 /* ---------- Milestone card ---------- */
 .milestone { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; pointer-events: none; }
 .milestone.hidden { display: none; }
-.ms-card { width: 82cqw; padding: 5cqw 4cqw; text-align: center; background: linear-gradient(135deg, #1d1208f2, #3b2208f2); border: 1cqw solid var(--gold); border-radius: 4cqw; box-shadow: 0 0 8cqw #ffb30088; animation: msIn 1s ease-in-out forwards; }
-.ms-crowd { font-size: 5cqw; letter-spacing: -1.2cqw; white-space: nowrap; overflow: hidden; animation: march 1s linear; }
+.ms-card { width: 82cqw; padding: 5cqw 4cqw; text-align: center; background: linear-gradient(135deg, #1d1208f2, #3b2208f2); border: 1cqw solid var(--gold); border-radius: 4cqw; box-shadow: 0 0 8cqw #ffb30088; animation: msIn .9s ease-in-out forwards; }
+.ms-crowd { font-size: 5cqw; letter-spacing: -1.2cqw; white-space: nowrap; overflow: hidden; animation: march .9s linear; }
 .ms-level { font-size: 18cqw; font-weight: 900; color: var(--gold); line-height: 1.05; text-shadow: 0 1.2cqw 0 #7a4300; font-variant-numeric: tabular-nums; }
 .ms-text { font-size: 6cqw; font-weight: 900; }
+
+/* ---------- 250 signature scene ---------- */
+.sig-skip { position: absolute; inset: 0; z-index: 45; cursor: pointer; display: flex; justify-content: flex-end; align-items: flex-start; padding: 24cqw 3cqw 0; }
+.sig-skip.hidden { display: none; }
+.sig-hint { font-size: 3.6cqw; font-weight: 700; color: #fff; background: #000a; border: .3cqw solid var(--gold); padding: .8cqw 2.6cqw; border-radius: 99px; animation: pulse .8s ease-in-out infinite alternate; }
+.stage.signature .scene { box-shadow: inset 0 0 12cqw #ffb30088; }
+.stage.signature .pad { filter: grayscale(.7) brightness(.7); }
 
 /* ---------- Start / summary ---------- */
 .overlay { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; background: #000b; backdrop-filter: blur(3px); padding: 5cqw; overflow-y: auto; }
@@ -329,3 +342,5 @@ button { font: inherit; color: inherit; }
 
 /* QA: Latin plaque text needs less tracking than 点 餐 处. */
 .counter-plaque.latin { letter-spacing: .15em; text-indent: .15em; font-size: 3.6cqw; }
+@keyframes slamUp { 0% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; } 20% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 75% { opacity: 1; } 100% { transform: translate(-50%,-70%) scale(1.15); opacity: 0; } }
+@keyframes chargeFlash { 0% { filter: brightness(1); } 25% { filter: brightness(1.8) saturate(1.6); } 100% { filter: none; } }

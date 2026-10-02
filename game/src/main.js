@@ -3,6 +3,8 @@
 // Flow: start card → 开店 (unlocks audio) → customer arrives (bubble + voice) → player presses
 // gun/shut/take → clerk line (voice + subtitle) + juice → next customer. Timeout → forced polite
 // voice + boos. Fury full → rage (rapid-fire rageLines). Milestones → camera card. Over → report.
+// A press resolves on key-down; holding on charges it up afterwards (game.charge). Answering the
+// 250-cup customer with 收 plays the signature scene once per round (engine paused, +25 people).
 //
 // Speech never blocks the game: the engine runs on its own clock, every clerk line cancels the
 // previous one (stopSpeech), and a customer's line is only voiced once the clerk is quiet and that
@@ -25,6 +27,9 @@ function stored(key) {
 function store(key, value) {
   try { localStorage.setItem(key, value); } catch { /* private mode etc. */ }
 }
+
+const SIGNATURE_BONUS = 25;     // queue reward after the 250 signature scene
+const SIGNATURE_LINE_MAX_MS = 4000;
 
 const pick = (arr) => (Array.isArray(arr) && arr.length ? arr[Math.floor(Math.random() * arr.length)] : '');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -90,6 +95,12 @@ function sayCustomer(customer) {
   else { audio.stopSpeech(); go(); }
 }
 
+// Short rage lines for the level-2 charge shout (shorter half of rageLines).
+function shortRageLine() {
+  const lines = [...(content.system.rageLines || [])].sort((a, b) => a.length - b.length);
+  return pick(lines.slice(0, Math.max(1, Math.ceil(lines.length / 2))));
+}
+
 async function rageChant() {
   const g = ++rageGen;
   const lines = content.system.rageLines || [];
@@ -106,9 +117,17 @@ async function rageChant() {
 
 // ---------------------------------------------------------------- UI
 const root = document.getElementById('app');
+const pressOk = {}; // key → the press that started this hold resolved a customer (so charge may apply)
 const ui = createUI(root, {
   onPress(key, holdMs) {
-    game.press(key, holdMs);
+    if (sig.active) return;
+    const r = game.press(key, holdMs);
+    pressOk[key] = !!r && !r.rage && r.correct;
+    ui.render(game.state);
+  },
+  onCharge(key, level) {
+    if (sig.active || !pressOk[key]) return;
+    game.charge(level);
     ui.render(game.state);
   },
   onStart() {
@@ -161,6 +180,7 @@ function setLang(next) {
   applyTexts();
   const phase = game.state.phase;
   if (phase === 'playing' || phase === 'rage') ui.relabelCustomer(local(game.state.current?.customer));
+  ui.relabelMilestone();
   if (phase === 'idle') ui.showStart(startTexts());
   else if (phase === 'over' && lastSummary) showSummary(lastSummary, true);
 }
@@ -175,12 +195,76 @@ function showSummary(summary, relocalize = false) {
   ui.showSummary(summary, { bestLine: bestLine || undefined, verdict: lastVerdict, again: content.system.ui.again });
 }
 
+// ---------------------------------------------------------------- 250 signature scene
+// Once per round: the engine pauses, the signature250 dialogue plays line by line (clerk lines as
+// subtitles, customer lines in the bubble), each voiced and awaited (max 4 s). Tap to skip.
+const sig = { active: false, done: false, gen: 0, pendingRage: false, skip: null };
+
+function lineDwell(text) {
+  return Math.min(SIGNATURE_LINE_MAX_MS, 700 + String(text || '').length * 70);
+}
+
+async function playSignature(key) {
+  sig.active = true;
+  sig.done = true;
+  sig.pendingRage = false;
+  const g = ++sig.gen;
+  game.pause();
+  audio.stopSpeech();
+  clerkGen++;
+  clerkSpeaking = false;
+  afterClerk = null;
+  rageGen++;
+  const skipped = new Promise((resolve) => { sig.skip = resolve; });
+  ui.beginSignature(() => sig.skip && sig.skip());
+  ui.effect('250', {});
+  audio.sfx('cheer', { delay: 0.1 });
+  for (let i = 0; ; i++) {
+    const lines = content.system.signature250 || []; // re-read: the language may switch mid-scene
+    if (g !== sig.gen || i >= lines.length) break;
+    const { who, text } = lines[i];
+    const isCust = who === 'cust';
+    ui.showLine(text, isCust ? { who: 'cust' } : { style: 'deadpan', who: 'clerk' });
+    audio.stopSpeech();
+    const t0 = performance.now();
+    const spoken = audio.speak(text, { style: isCust ? 'cust' : 'deadpan' }).catch(() => {});
+    const r = await Promise.race([spoken.then(() => 'done'), wait(SIGNATURE_LINE_MAX_MS), skipped.then(() => 'skip')]);
+    if (r === 'skip') break;
+    // No voice (muted / unsupported): keep the line up long enough to read.
+    const left = lineDwell(text) - (performance.now() - t0);
+    if (left > 0 && (await Promise.race([wait(left), skipped.then(() => 'skip')])) === 'skip') break;
+  }
+  if (g === sig.gen) endSignature(key);
+}
+
+function endSignature(key) {
+  sig.gen++;
+  sig.skip = null;
+  if (!sig.active) return;
+  sig.active = false;
+  audio.stopSpeech();
+  ui.endSignature();
+  const phase = game.state.phase;
+  if (phase !== 'playing' && phase !== 'rage') return;
+  game.resume();
+  game.bonus(SIGNATURE_BONUS);
+  ui.effect('fly', { key });
+  audio.sfx('whoosh');
+  audio.sfx('cheer', { delay: 0.1 });
+  if (sig.pendingRage && game.state.phase === 'rage') startRageScene();
+  sig.pendingRage = false;
+  ui.render(game.state);
+}
+
 // ---------------------------------------------------------------- engine events
 let flyTimer = 0;
 let bestLineMeta = { id: null, alt: false, score: -Infinity };
 
 game.on('start', () => {
   arrivals = 0;
+  if (sig.active) { sig.gen++; sig.active = false; ui.endSignature(); }
+  sig.done = false;
+  sig.pendingRage = false;
   lastSummary = null;
   lastVerdict = '';
   bestLineMeta = { id: null, alt: false, score: -Infinity };
@@ -200,6 +284,16 @@ game.on('resolve', (e) => {
   const isAlt = !!customer.alt && e.line === customer.alt && e.line !== customer.reply;
   const line = (isAlt ? loc.alt : loc.reply) || e.line;
   if (scoreDelta > bestLineMeta.score) bestLineMeta = { id: customer.id, alt: isAlt, score: scoreDelta };
+
+  if (correct && key === 'take' && customer.cups === 250 && !sig.done) {
+    // Signature scene replaces the normal reply; the customer leaves when it ends.
+    clearTimeout(flyTimer);
+    ui.effect('hit', { charge });
+    audio.sfx('pop');
+    audio.sfx('slam', { intensity: 0.8 });
+    playSignature(key);
+    return;
+  }
 
   ui.showLine(line, { style: customer.style, who: 'clerk' });
   sayClerk(line, customer.style);
@@ -231,6 +325,21 @@ game.on('resolve', (e) => {
   }, 90);
 });
 
+game.on('charge', ({ level }) => {
+  ui.effect('charge', { level });
+  audio.sfx('slam', { intensity: 0.8 + level * 0.15 });
+  if (level >= 2) {
+    audio.sfx('shake');
+    const shout = shortRageLine();
+    if (shout) {
+      ui.showLine(shout, { style: 'curse', who: 'clerk' });
+      const pending = afterClerk; // keep a waiting customer's line queued behind the shout
+      sayClerk(shout, 'rage');
+      afterClerk = pending;
+    }
+  }
+});
+
 game.on('polite', () => {
   const line = pick(content.system.polite);
   ui.showLine(line, { style: 'polite', who: 'clerk' });
@@ -241,7 +350,7 @@ game.on('polite', () => {
   sayClerk(line, 'polite');
 });
 
-game.on('rageStart', () => {
+function startRageScene() {
   const line = pick(content.system.rageStart);
   ui.effect('rageStart', {});
   audio.sfx('rage');
@@ -249,6 +358,11 @@ game.on('rageStart', () => {
   sayClerk(line, 'rage').then(() => {
     if (game.state.phase === 'rage') rageChant();
   });
+}
+
+game.on('rageStart', () => {
+  if (sig.active) { sig.pendingRage = true; return; } // after the signature scene
+  startRageScene();
 });
 
 game.on('rageHit', ({ queueDelta }) => {
@@ -268,7 +382,8 @@ game.on('rageEnd', () => {
 
 game.on('milestone', ({ level }) => {
   const text = content.system.milestones?.[level] || '';
-  ui.showMilestone(level, text);
+  // Pass a getter so a queued or visible card follows a language switch (acceptance D10).
+  ui.showMilestone(level, () => content.system.milestones?.[level] || '');
   audio.sfx('milestone');
   audio.announce(text, { delay: 0.25, gainValue: 0.9 });
   audio.sfx('cheer', { delay: 0.4 });
@@ -276,6 +391,7 @@ game.on('milestone', ({ level }) => {
 
 game.on('over', ({ summary }) => {
   clearTimeout(flyTimer);
+  if (sig.active) { sig.gen++; sig.active = false; ui.endSignature(); }
   rageGen++;
   lastSummary = summary;
   ui.render(game.state);

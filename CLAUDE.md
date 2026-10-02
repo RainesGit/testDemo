@@ -27,7 +27,7 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback, Web Speech fallback, bleep
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language
   src/main.js           Wires everything together
-  test/*.test.mjs       node:test unit tests (engine, audio bleep splitter)
+  test/*.test.mjs       node:test unit tests (engine, audio bleep splitter, ui fx queue, integration)
   tools/                Playwright smoke/QA scripts (screenshots and node_modules are gitignored)
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
   voice/                Generated voice pack: manifest.json + mp3 sprites per language
@@ -43,8 +43,10 @@ Run from `game/`:
 - **Run locally:** `python3 -m http.server 8765`, then open `http://localhost:8765/`.
   ES modules do not load from `file://`.
 - **Browser smoke test:** with the server running, `node tools/play-integrate.mjs`;
-  full QA matrix: `node tools/qa.mjs`. These use the globally installed Playwright
-  and the preinstalled Chromium; do not run `playwright install`.
+  full QA matrix: `node tools/qa.mjs`; 250 signature scene check:
+  `node tools/check-signature.mjs`. These use the globally installed Playwright
+  and the preinstalled Chromium; do not run `playwright install`. Stop the server with
+  `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 
 ## Design rules (from the producer — do not violate)
 

@@ -57,6 +57,15 @@ test('splitForBleep: English is case-insensitive and respects word boundaries', 
   ]);
 });
 
+test('splitForBleep: default list bleeps the English #67 line but not words containing "ass"', () => {
+  assert.deepEqual(splitForBleep('Split my ASS! Whoever pays stays.'), [
+    { type: 'text', value: 'Split my ' },
+    { type: 'bleep', value: 'ASS' },
+    { type: 'text', value: '! Whoever pays stays.' },
+  ]);
+  assert.deepEqual(splitForBleep('Pass the class, assistant.'), [{ type: 'text', value: 'Pass the class, assistant.' }]);
+});
+
 test('splitForBleep: default list does not bleep innocent 干 (干杯/饼干/干嘛)', () => {
   for (const s of ['干杯！', '吃饼干', '你干嘛？', '不干了', '干净一点']) {
     assert.deepEqual(splitForBleep(s), [{ type: 'text', value: s }], s);

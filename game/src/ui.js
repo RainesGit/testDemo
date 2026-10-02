@@ -1,14 +1,15 @@
 // ui.js — DOM rendering, input and juice effects for 《来250杯！》.
 // No game logic lives here: the UI only draws what it is told and forwards input.
 //
-// createUI(root, { onPress, onStart, onToggleLang, onToggleBleep }) → {
-//   render(state), showCustomer(customer), showLine(text, { style, who }),
+// createUI(root, { onPress, onCharge, onStart, onToggleLang, onToggleBleep }) → {
+//   render(state), showCustomer(customer), relabelCustomer(customer), relabelMilestone(), showLine(text, { style, who }),
 //   effect(name, payload), showMilestone(level, text), showStart(texts),
-//   showSummary(summary, texts), setTexts(uiTexts)
+//   showSummary(summary, texts), setTexts(uiTexts), beginSignature(onSkip, hint?), endSignature()
 // }
 //
 // Callbacks:
-//   onPress(key, holdMs)        key: 'gun'|'shut'|'take'; fired on release (pointer or J/K/L)
+//   onPress(key, 0)             key: 'gun'|'shut'|'take'; fired immediately on pointerdown / J/K/L keydown
+//   onCharge(key, level)        level 1 after holding 300 ms, level 2 after 800 ms (same press, still held)
 //   onStart()                   start / play-again button
 //   onToggleLang(nextLang)      nextLang: 'zh'|'en' (UI flips its own label too)
 //   onToggleBleep(nextOn)       nextOn: boolean
@@ -21,7 +22,12 @@
 // setTexts(uiTexts)  SYSTEM.ui shape: { gun, shut, take, queue, aura, fury, start, again, bleep, lang? }
 // effect payloads (all optional):
 //   hit { charge }, miss {}, perfect { text }, '250' { text }, polite { boo: string[] },
-//   rageStart { text }, rageEnd {}, fly { key }
+//   rageStart { text }, rageEnd {}, fly { key }, charge { level }
+// 'perfect', '250', the rageStart banner and milestone cards share one queue: only one big
+// banner is on screen at a time, each for at most 900 ms. hit/miss/fly/polite/charge play at once.
+//
+// beginSignature(onSkip, hint) locks the buttons and lays a transparent tap-to-skip layer over the
+// stage (onSkip fires once, after a short grace period); endSignature() removes it.
 
 const KEYS = ['gun', 'shut', 'take'];
 const KEYBOARD = { j: 'gun', k: 'shut', l: 'take' };
@@ -87,8 +93,49 @@ function pick(arr, i) {
   return arr[((i % arr.length) + arr.length) % arr.length];
 }
 
-export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {} } = {}) {
+export function chargeLevel(ms) {
+  return ms >= CHARGE_MS[1] ? 2 : ms >= CHARGE_MS[0] ? 1 : 0;
+}
+
+// Plays "big" effects one after another. push(play, ms): play() starts the effect and may return a
+// cleanup function, which runs when its slot (min(ms, maxMs)) ends, right before the next one starts.
+export function createFxQueue({ maxMs = 900, maxPending = 4, schedule = setTimeout, cancel = clearTimeout } = {}) {
+  const pending = [];
+  let busy = false;
+  let timer = 0;
+  let cleanup = null;
+  function finishCurrent() {
+    const c = cleanup;
+    cleanup = null;
+    if (typeof c === 'function') c();
+  }
+  function next() {
+    finishCurrent();
+    const item = pending.shift();
+    if (!item) { busy = false; return; }
+    busy = true;
+    cleanup = item.play() || null;
+    timer = schedule(next, Math.min(maxMs, item.ms ?? maxMs));
+  }
+  return {
+    push(play, ms) {
+      pending.push({ play, ms });
+      while (pending.length > maxPending) pending.shift(); // never build a long backlog
+      if (!busy) next();
+    },
+    clear() {
+      cancel(timer);
+      pending.length = 0;
+      finishCurrent();
+      busy = false;
+    },
+    get size() { return pending.length + (busy ? 1 : 0); },
+  };
+}
+
+export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {} } = {}) {
   let lang = 'zh';
+  let locked = false; // signature scene: buttons do nothing
   let bleepOn = false;
   let texts = { ...DEFAULT_UI.zh };
   let phase = 'idle';
@@ -199,13 +246,15 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     const ring = el('span', 'ring', b);
     const label = el('span', 'btn-label', b);
     el('span', 'btn-hint', b, 'JKL'[i]);
-    buttons[key] = { b, ring, label, down: 0, raf: 0, src: null };
+    buttons[key] = { b, ring, label, down: 0, raf: 0, src: null, level: 0 };
   });
 
   // Overlays
   const milestoneCard = el('div', 'milestone hidden', stage);
   const startCard = el('div', 'overlay start hidden', stage);
   const summaryCard = el('div', 'overlay summary hidden', stage);
+  const sigLayer = el('div', 'sig-skip hidden', stage);
+  const sigHint = el('div', 'sig-hint', sigLayer);
 
   // ---------- Texts / toggles ----------
   function applyTexts() {
@@ -251,43 +300,47 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     onToggleBleep(bleepOn);
   });
 
-  // ---------- Input: hold to charge ----------
-  function chargeLevel(ms) {
-    return ms >= CHARGE_MS[1] ? 2 : ms >= CHARGE_MS[0] ? 1 : 0;
-  }
+  // ---------- Input: press resolves at once, holding on upgrades the charge ----------
   function inputLocked() {
-    return phase === 'idle' || phase === 'over' || !startCard.classList.contains('hidden') || !summaryCard.classList.contains('hidden');
+    return locked || phase === 'idle' || phase === 'over' || !startCard.classList.contains('hidden') || !summaryCard.classList.contains('hidden');
   }
   function beginHold(key, src) {
     const s = buttons[key];
     if (s.down || inputLocked()) return;
     s.down = performance.now();
     s.src = src;
+    s.level = 0;
     s.b.classList.add('held');
-    const loop = () => {
-      const ms = performance.now() - s.down;
-      const p = Math.min(1, ms / CHARGE_MS[1]);
-      s.b.style.setProperty('--charge', p.toFixed(3));
-      s.b.dataset.charge = String(chargeLevel(ms));
-      s.raf = requestAnimationFrame(loop);
-    };
-    loop();
-  }
-  function endHold(key, cancel = false) {
-    const s = buttons[key];
-    if (!s.down) return;
-    const held = performance.now() - s.down;
-    cancelAnimationFrame(s.raf);
-    s.down = 0;
-    s.src = null;
-    s.b.classList.remove('held');
-    s.b.style.setProperty('--charge', '0');
-    s.b.dataset.charge = '0';
-    if (cancel) return;
     s.b.classList.remove('tap');
     void s.b.offsetWidth;
     s.b.classList.add('tap');
-    onPress(key, Math.round(held));
+    onPress(key, 0);
+    if (!s.down || locked) return; // the press itself may have locked input (signature scene)
+    const loop = () => {
+      const ms = performance.now() - s.down;
+      const p = Math.min(1, ms / CHARGE_MS[1]);
+      const lvl = chargeLevel(ms);
+      s.b.style.setProperty('--charge', p.toFixed(3));
+      s.b.dataset.charge = String(lvl);
+      if (lvl > s.level && !locked) {
+        s.level = lvl;
+        onCharge(key, lvl);
+      }
+      if (lvl >= 2 || locked) return; // fully charged: nothing more to track until release
+      s.raf = requestAnimationFrame(loop);
+    };
+    s.raf = requestAnimationFrame(loop);
+  }
+  function endHold(key) {
+    const s = buttons[key];
+    if (!s.down) return;
+    cancelAnimationFrame(s.raf);
+    s.down = 0;
+    s.src = null;
+    s.level = 0;
+    s.b.classList.remove('held');
+    s.b.style.setProperty('--charge', '0');
+    s.b.dataset.charge = '0';
   }
 
   for (const key of KEYS) {
@@ -298,10 +351,15 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
       beginHold(key, 'pointer');
     });
     b.addEventListener('pointerup', (e) => { e.preventDefault(); endHold(key); });
-    b.addEventListener('pointercancel', () => endHold(key, true));
+    b.addEventListener('pointercancel', () => endHold(key));
     b.addEventListener('contextmenu', (e) => e.preventDefault());
   }
   const onKeyDown = (e) => {
+    if (sigSkip && ['Enter', ' ', 'Escape'].includes(e.key)) {
+      e.preventDefault();
+      if (!e.repeat) trySkip();
+      return;
+    }
     const key = KEYBOARD[e.key?.toLowerCase()];
     if (key) {
       e.preventDefault();
@@ -322,7 +380,35 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   };
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
-  window.addEventListener('blur', () => KEYS.forEach((k) => endHold(k, true)));
+  window.addEventListener('blur', () => KEYS.forEach((k) => endHold(k)));
+
+  // ---------- Signature scene: input lock + tap anywhere to skip ----------
+  let sigSkip = null;
+  let sigSince = 0;
+  const SKIP_GRACE_MS = 600; // a player still hammering buttons must not skip by accident
+  function trySkip() {
+    if (!sigSkip || performance.now() - sigSince < SKIP_GRACE_MS) return;
+    const f = sigSkip;
+    sigSkip = null;
+    f();
+  }
+  sigLayer.addEventListener('pointerdown', (e) => { e.preventDefault(); trySkip(); });
+  sigLayer.addEventListener('contextmenu', (e) => e.preventDefault());
+  function beginSignature(onSkip, hint) {
+    locked = true;
+    KEYS.forEach((k) => endHold(k));
+    sigSkip = typeof onSkip === 'function' ? onSkip : null;
+    sigSince = performance.now();
+    sigHint.textContent = hint || (lang === 'zh' ? '点击屏幕跳过 ▸▸' : 'Tap to skip ▸▸');
+    sigLayer.classList.remove('hidden');
+    stage.classList.add('signature');
+  }
+  function endSignature() {
+    sigSkip = null;
+    locked = false;
+    sigLayer.classList.add('hidden');
+    stage.classList.remove('signature');
+  }
 
   // ---------- Render ----------
   function setBar(bar, v, key) {
@@ -402,6 +488,14 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   }
 
   let custCount = 0;
+  // Long lines (mostly English) would overflow the 3-line bubble: step the font down until it fits.
+  function fillBubble(text) {
+    fillLine(bubbleText, text);
+    bubbleText.classList.remove('long', 'longer');
+    if (bubbleText.scrollHeight > bubbleText.clientHeight + 2) bubbleText.classList.add('long');
+    if (bubbleText.scrollHeight > bubbleText.clientHeight + 2) bubbleText.classList.replace('long', 'longer');
+  }
+
   function showCustomer(customer) {
     if (!customer) return;
     custCount++;
@@ -410,7 +504,7 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     custTag.textContent = customer.tag || '';
     custName.textContent = customer.name || '';
     custWrap.dataset.style = customer.style || '';
-    fillLine(bubbleText, customer.says || '');
+    fillBubble(customer.says || '');
     custWrap.classList.remove('gone', 'enter');
     bubble.classList.remove('gone', 'enter');
     void custWrap.offsetWidth;
@@ -426,13 +520,13 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     if (!customer) return;
     custTag.textContent = customer.tag || '';
     custName.textContent = customer.name || '';
-    fillLine(bubbleText, customer.says || '');
+    fillBubble(customer.says || '');
   }
 
   // ---------- Subtitles ----------
   function showLine(text, { style = '', who = 'clerk' } = {}) {
     if (who === 'cust') {
-      fillLine(bubbleText, text);
+      fillBubble(text);
       bubble.classList.remove('gone', 'enter');
       void bubble.offsetWidth;
       bubble.classList.add('enter');
@@ -449,7 +543,13 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     }
     // Long lines shrink so the subtitle never overflows.
     const len = String(text || '').length;
-    node.style.setProperty('--len-scale', len > 60 ? '0.62' : len > 36 ? '0.78' : '1');
+    let scale = len > 60 ? 0.62 : len > 36 ? 0.78 : 1;
+    node.style.setProperty('--len-scale', String(scale));
+    // Wide CJK text and several stage directions can still overflow: step down until it fits.
+    while (scale > 0.5 && subs.scrollHeight > subs.clientHeight + 2) {
+      scale = Math.round((scale - 0.08) * 100) / 100;
+      node.style.setProperty('--len-scale', String(scale));
+    }
   }
 
   // ---------- Effects ----------
@@ -465,6 +565,17 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     setTimeout(() => n.remove(), ms);
     return n;
   }
+
+  const bigFx = createFxQueue({ maxMs: 900 });
+  // A queued banner: created when its turn comes, removed when its slot ends.
+  function queueBanner(text, cls, ms = 900, extra) {
+    bigFx.push(() => {
+      const n = el('div', 'float ' + cls, fx, text);
+      const undo = extra ? extra() : null;
+      return () => { n.remove(); if (undo) undo(); };
+    }, ms);
+  }
+  let lastSlam = null;
 
   function hitstop(then) {
     stage.classList.add('freeze');
@@ -501,7 +612,18 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
         setClerk('hit', 700);
         hitstop(() => restartClass(stage, 'shake-' + lvl, 400));
         restartClass(counter, 'slam', 300);
-        floatText(DECOR[lang].slam[lvl], 'slam-text lvl' + lvl, 600);
+        lastSlam = floatText(DECOR[lang].slam[lvl], 'slam-text lvl' + lvl, 600);
+        break;
+      }
+      case 'charge': {
+        // Held on after the hit: bigger shake, the slam word upgrades in place.
+        const lvl = Math.max(1, Math.min(2, payload.charge ?? payload.level ?? 1));
+        setClerk(lvl === 2 ? 'rage' : 'hit', 700);
+        restartClass(stage, 'shake-' + (lvl + 1), 500);
+        restartClass(counter, 'slam', 300);
+        if (lvl === 2) restartClass(stage, 'charge-flash', 300);
+        if (lastSlam) lastSlam.remove();
+        lastSlam = floatText(DECOR[lang].slam[lvl], 'slam-text up lvl' + lvl, 700);
         break;
       }
       case 'miss':
@@ -510,11 +632,13 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
         break;
       case 'perfect':
         setClerk('perfect', 700);
-        floatText(payload.text || 'PERFECT', 'perfect-text', 900);
+        queueBanner(payload.text || 'PERFECT', 'perfect-text');
         break;
       case '250':
-        restartClass(stage, 'gold', 1400);
-        floatText(payload.text || '250', 'gold-text', 1400);
+        queueBanner(payload.text || '250', 'gold-text', 900, () => {
+          restartClass(stage, 'gold');
+          return () => stage.classList.remove('gold');
+        });
         break;
       case 'polite': {
         setClerk('polite', 1600);
@@ -530,8 +654,8 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
       case 'rageStart':
         stage.classList.add('rage');
         setClerk('rage');
-        floatText(payload.text || DECOR[lang].rage, 'rage-text', 1100);
         restartClass(stage, 'shake-2', 400);
+        queueBanner(payload.text || DECOR[lang].rage, 'rage-text');
         break;
       case 'rageEnd':
         stage.classList.remove('rage');
@@ -547,17 +671,33 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   }
 
   // ---------- Milestone card ----------
-  let msTimer = 0;
+  // `text` may be a string or a function returning the text in the current language; a function
+  // is resolved when the card is shown (it may wait in the fx queue) and again on relabelMilestone().
+  let milestoneText = null;
+  let milestoneTextEl = null;
+  const resolveText = (t) => (typeof t === 'function' ? t() : t) || '';
   function showMilestone(level, text) {
-    clearTimeout(msTimer);
-    milestoneCard.textContent = '';
-    const card = el('div', 'ms-card', milestoneCard);
-    el('div', 'ms-crowd', card, '🧍🧍‍♀️🚶🧍‍♂️🙋🧍🚶‍♀️🧍🧍‍♀️🚶‍♂️🧍🙋‍♂️');
-    el('div', 'ms-level', card, fmt(level) + '+');
-    el('div', 'ms-text', card, text || '');
-    milestoneCard.classList.remove('hidden');
-    restartClass(stage, 'zoomout', 1000);
-    msTimer = setTimeout(() => milestoneCard.classList.add('hidden'), 1000);
+    bigFx.push(() => {
+      milestoneCard.textContent = '';
+      const card = el('div', 'ms-card', milestoneCard);
+      el('div', 'ms-crowd', card, '🧍🧍‍♀️🚶🧍‍♂️🙋🧍🚶‍♀️🧍🧍‍♀️🚶‍♂️🧍🙋‍♂️');
+      el('div', 'ms-level', card, fmt(level) + '+');
+      milestoneText = text;
+      milestoneTextEl = el('div', 'ms-text', card, resolveText(text));
+      milestoneCard.classList.remove('hidden');
+      restartClass(stage, 'zoomout');
+      return () => {
+        milestoneCard.classList.add('hidden');
+        stage.classList.remove('zoomout');
+        milestoneText = null;
+        milestoneTextEl = null;
+      };
+    }, 900);
+  }
+
+  /** Re-render the visible milestone card's text (after a language switch). */
+  function relabelMilestone() {
+    if (milestoneTextEl && milestoneText != null) milestoneTextEl.textContent = resolveText(milestoneText);
   }
 
   // ---------- Start / summary ----------
@@ -573,6 +713,8 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   }
 
   function showStart(t = {}) {
+    bigFx.clear();
+    endSignature();
     const zh = lang === 'zh';
     startCard.textContent = '';
     const card = el('div', 'card', startCard);
@@ -592,6 +734,8 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   }
 
   function showSummary(s = {}, t = {}) {
+    bigFx.clear();
+    endSignature();
     const zh = lang === 'zh';
     summaryCard.textContent = '';
     const card = el('div', 'card report', summaryCard);
@@ -622,5 +766,5 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   applyTexts();
   setClerk('idle');
 
-  return { render, showCustomer, relabelCustomer, showLine, effect, showMilestone, showStart, showSummary, setTexts };
+  return { render, showCustomer, relabelCustomer, showLine, effect, showMilestone, relabelMilestone, showStart, showSummary, setTexts, beginSignature, endSignature };
 }

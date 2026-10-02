@@ -110,10 +110,10 @@ test('buildSpeechPlan: strips stage directions, applies style, inserts bleeps', 
   assert.deepEqual(buildSpeechPlan('（沉默）', {}), []);
 });
 
-test('buildSpeechPlan: chuuni starts slow then speeds up', () => {
+test('buildSpeechPlan: chuuni is one utterance (split utterances sound choppy)', () => {
   const plan = buildSpeechPlan('觉醒吧，我的封印之手！', { style: 'chuuni' });
-  assert.equal(plan.length, 2);
-  assert.ok(plan[0].rate < plan[1].rate);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].rate, STYLE_VOICE.chuuni.rate);
 });
 
 test('createAudio degrades silently without browser APIs', async () => {

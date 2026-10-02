@@ -94,19 +94,20 @@ export function splitForBleep(text, words = DEFAULT_BLEEP_WORDS) {
 
 // Speech style → voice parameters. rate: 0.1..10 (1 = normal), pitch: 0..2 (1 = normal).
 export const STYLE_VOICE = {
-  real:    { rate: 1.15, pitch: 1.0 },
-  curse:   { rate: 1.5,  pitch: 1.35 },
-  disdain: { rate: 0.95, pitch: 0.8 },
-  cold:    { rate: 0.72, pitch: 0.55 },
+  // Kept within ~0.85-1.25x: many system voices stutter or clip at more extreme rates.
+  real:    { rate: 1.05, pitch: 1.0 },
+  curse:   { rate: 1.2,  pitch: 1.15 },
+  disdain: { rate: 0.95, pitch: 0.85 },
+  cold:    { rate: 0.85, pitch: 0.75 },
   deadpan: { rate: 1.0,  pitch: 0.9 },
-  chuuni:  { rate: 1.45, pitch: 1.25, slowRate: 0.7, slowPitch: 1.1 },
-  math:    { rate: 1.3,  pitch: 1.05 },
-  '250':   { rate: 1.35, pitch: 1.2 },
-  twist:   { rate: 1.2,  pitch: 1.1 },
-  polite:  { rate: 1.0,  pitch: 1.6 },  // forced service voice "您好～😊"
-  cust:    { rate: 1.05, pitch: 1.15 }, // customer lines
-  boo:     { rate: 1.1,  pitch: 0.7 },
-  rage:    { rate: 1.7,  pitch: 1.4 },
+  chuuni:  { rate: 1.1,  pitch: 1.1 },
+  math:    { rate: 1.15, pitch: 1.0 },
+  '250':   { rate: 1.1,  pitch: 1.05 },
+  twist:   { rate: 1.1,  pitch: 1.05 },
+  polite:  { rate: 1.0,  pitch: 1.35 },  // forced service voice "您好～😊"
+  cust:    { rate: 1.05, pitch: 1.1 },   // customer lines
+  boo:     { rate: 1.05, pitch: 0.8 },
+  rage:    { rate: 1.25, pitch: 1.2 },
 };
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -140,13 +141,6 @@ export function buildSpeechPlan(text, { style = 'real', rate, pitch, bleep = fal
   const p = styleParams(style, { rate, pitch });
   const sayParts = (t) => {
     if (!t.trim()) return [];
-    if (style === 'chuuni' && rate == null) {
-      const base = STYLE_VOICE.chuuni;
-      const [slow, fast] = chuuniSplit(t);
-      const out = [{ type: 'say', text: slow, rate: base.slowRate, pitch: pitch ?? base.slowPitch }];
-      if (fast) out.push({ type: 'say', text: fast, rate: p.rate, pitch: p.pitch });
-      return out;
-    }
     return [{ type: 'say', text: t.trim(), rate: p.rate, pitch: p.pitch }];
   };
   if (!bleep) return sayParts(clean);

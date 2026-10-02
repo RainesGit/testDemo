@@ -15,8 +15,11 @@ import json
 import os
 import sys
 
+from multiprocessing import Pool
+
 import lameenc
 import numpy as np
+import onnxruntime as ort
 from kokoro_onnx import Kokoro
 
 SR = 24000
@@ -49,8 +52,15 @@ def bleep(chars):
 
 
 class Synth:
-    def __init__(self, model, voices):
-        self.k = Kokoro(model, voices)
+    def __init__(self, model, voices, threads=0):
+        if threads:
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = threads
+            opts.inter_op_num_threads = 1
+            sess = ort.InferenceSession(model, sess_options=opts, providers=['CPUExecutionProvider'])
+            self.k = Kokoro.from_session(sess, voices)
+        else:
+            self.k = Kokoro(model, voices)
         self.zh = None
 
     def say(self, lang, text, voice, speed):
@@ -83,6 +93,18 @@ def render(synth, job):
                 parts.append(normalize(synth.say(job['lang'], seg['value'], job['voice'], job['speed'])))
         bleeped = np.concatenate(parts) if parts else None
     return main, bleeped
+
+
+_worker = None
+
+
+def _init_worker(model, voices, threads):
+    global _worker
+    _worker = Synth(model, voices, threads)
+
+
+def _render_job(job):
+    return render(_worker, job)
 
 
 class Packer:
@@ -123,6 +145,8 @@ def main():
     ap.add_argument('--model', required=True)
     ap.add_argument('--voices', required=True)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--workers', type=int, default=os.cpu_count() or 1,
+                    help='parallel single-threaded synthesis processes (default: CPU count)')
     args = ap.parse_args()
 
     jobs = json.load(open(args.jobs, encoding='utf-8'))
@@ -131,14 +155,14 @@ def main():
         if f.endswith('.mp3') or f == 'manifest.json':
             os.remove(os.path.join(args.out, f))
 
-    synth = Synth(args.model, args.voices)
+    pool = Pool(args.workers, initializer=_init_worker, initargs=(args.model, args.voices, 1))
     manifest = {'version': 1, 'sampleRate': SR, 'engine': 'Kokoro-82M v1.0 (Apache-2.0)', 'langs': {}}
     for lang in ('zh', 'en'):
         packer = Packer(args.out, lang)
         clips = {}
         todo = [j for j in jobs if j['lang'] == lang]
-        for i, job in enumerate(todo, 1):
-            main_audio, bleeped = render(synth, job)
+        rendered = pool.imap(_render_job, todo, chunksize=2)
+        for i, (job, (main_audio, bleeped)) in enumerate(zip(todo, rendered), 1):
             if main_audio.size == 0:
                 print(f'[skip] {lang} {job["key"]} empty: {job["text"]!r}', file=sys.stderr)
                 continue
@@ -151,6 +175,7 @@ def main():
         packer.flush()
         manifest['langs'][lang] = {'chunks': packer.chunks, 'clips': clips}
 
+    pool.close()
     with open(os.path.join(args.out, 'manifest.json'), 'w', encoding='utf-8') as f:
         json.dump(manifest, f, ensure_ascii=False, separators=(',', ':'))
     total = sum(os.path.getsize(os.path.join(args.out, n)) for n in os.listdir(args.out))

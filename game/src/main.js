@@ -84,7 +84,7 @@ function sayCustomer(customer) {
     const cur = game.state.current;
     if (myArrival !== arrivals || !cur || cur.customer.id !== customer.id) return;
     if (game.state.phase !== 'playing') return;
-    audio.speak(local(customer).says, { style: 'cust', rate: 1.3 });
+    audio.speak(local(customer).says, { style: 'cust' });
   };
   if (clerkSpeaking) afterClerk = go;
   else { audio.stopSpeech(); go(); }

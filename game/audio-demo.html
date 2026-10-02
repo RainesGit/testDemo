@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Audio Test Bench</title>
+  <style>
+    :root { --bg:#1b1410; --card:#2a1f18; --fg:#fbeedd; --muted:#c9b39a; --acc:#ff7a1a; --acc2:#ffd23f; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif; padding:16px; }
+    h1 { font-size:22px; margin:0 0 4px; }
+    h2 { font-size:15px; color:var(--muted); margin:20px 0 8px; text-transform:uppercase; letter-spacing:.08em; }
+    p.note { color:var(--muted); font-size:13px; margin:0 0 12px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:8px; }
+    button { font:inherit; background:var(--card); color:var(--fg); border:2px solid #4a372a; border-radius:12px; padding:12px 8px; cursor:pointer; }
+    button:active { transform:scale(.96); border-color:var(--acc); }
+    button.big { background:var(--acc); color:#1b1410; font-weight:800; border:none; width:100%; font-size:18px; }
+    .line { display:block; width:100%; text-align:left; margin-bottom:8px; }
+    .line small { display:block; color:var(--muted); font-size:12px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+    input[type=range] { flex:1; min-width:160px; accent-color:var(--acc); }
+    #status { font-size:13px; color:var(--acc2); min-height:1.4em; }
+  </style>
+</head>
+<body>
+  <h1>來250杯！音效試聽</h1>
+  <p class="note">All sounds are synthesized live with WebAudio, no audio files. Speech uses your browser's built-in voices.</p>
+  <button class="big" id="unlock">點我解鎖聲音 / Tap to unlock audio</button>
+  <div id="status"></div>
+
+  <h2>SFX</h2>
+  <div class="grid" id="sfx"></div>
+
+  <h2>Crowd</h2>
+  <div class="row"><span>人群 0</span><input type="range" id="crowd" min="0" max="1" step="0.05" value="0"><span>1</span></div>
+
+  <h2>Voice</h2>
+  <div class="row">
+    <label><input type="checkbox" id="bleep"> 消音 Bleep</label>
+    <button id="stop">停 Stop</button>
+  </div>
+  <div id="lines"></div>
+
+  <script type="module">
+    import { createAudio } from './src/audio.js';
+    const audio = createAudio();
+    const $ = (id) => document.getElementById(id);
+    const status = (t) => { $('status').textContent = t; };
+
+    $('unlock').addEventListener('click', () => {
+      audio.unlock();
+      audio.sfx('ding');
+      status(`已解鎖 · WebAudio ${audio.canPlay ? 'OK' : '不支援'} · 語音 ${audio.canSpeak ? 'OK' : '不支援'}`);
+    });
+
+    const names = ['slam', 'whoosh', 'boo', 'cheer', 'ding', 'pop', 'rage', 'shake', 'milestone', 'bleep'];
+    for (const n of names) {
+      const b = document.createElement('button');
+      b.textContent = n;
+      b.addEventListener('click', () => { audio.unlock(); audio.sfx(n); });
+      $('sfx').append(b);
+    }
+
+    $('crowd').addEventListener('input', (e) => { audio.unlock(); audio.crowd(Number(e.target.value)); });
+    $('bleep').addEventListener('change', (e) => audio.setBleep(e.target.checked));
+    $('stop').addEventListener('click', () => audio.stopSpeech());
+
+    const lines = [
+      ['zh', 'cust', '嗯……我想想……'],
+      ['zh', 'real', '（盯他三秒，深吸一口氣）……還在想？滾！'],
+      ['zh', 'curse', '你媽的，點個珍奶要十分鐘，靠北喔！下一位！'],
+      ['zh', 'cold', '閉嘴。'],
+      ['zh', 'chuuni', '吾之右手……已經封印不住了！收！'],
+      ['zh', '250', '來！兩百五十杯！收！'],
+      ['zh', 'polite', '您好～請問需要什麼呢？'],
+      ['en', 'cust', 'Umm... let me think...'],
+      ['en', 'curse', 'Ask YOUR MOM what you want. Next!'],
+      ['en', 'deadpan', '(stares) No.'],
+      ['en', 'chuuni', 'My right hand... can no longer be sealed! TAKE IT!'],
+      ['en', 'polite', 'Hi there! What can I get for you today?'],
+    ];
+    for (const [lang, style, text] of lines) {
+      const b = document.createElement('button');
+      b.className = 'line';
+      b.innerHTML = `<small>${lang} · ${style}</small>`;
+      b.append(text);
+      b.addEventListener('click', async () => {
+        audio.unlock();
+        audio.stopSpeech();
+        audio.setLang(lang);
+        if (style !== 'cust' && style !== 'polite') audio.sfx('slam');
+        if (style === 'polite') audio.sfx('boo', { delay: 1.2 });
+        await audio.speak(text, { style });
+        if (style === 'curse' || style === '250') audio.sfx('whoosh');
+      });
+      $('lines').append(b);
+    }
+  </script>
+</body>
+</html>

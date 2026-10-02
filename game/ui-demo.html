@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>UI Demo — 來250杯！</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .demo-bar { position: fixed; left: 0; top: 0; z-index: 999; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; max-width: 220px; font: 12px system-ui; }
+    .demo-bar button { font-size: 11px; padding: 3px 6px; border-radius: 4px; border: 1px solid #555; background: #222; color: #eee; cursor: pointer; }
+    .demo-bar.hide { display: none; }
+    .demo-log { position: fixed; right: 0; bottom: 0; z-index: 999; font: 11px ui-monospace, monospace; color: #9f9; background: #000c; padding: 4px 6px; max-width: 220px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="demo-bar" id="bar"></div>
+  <div class="demo-log" id="log"></div>
+  <script type="module">
+    import { createUI } from './src/ui.js';
+
+    // Fake content (the real lines live in content.zh.js / content.en.js).
+    const CUSTOMERS = [
+      { id: 1, cat: '犹豫磨叽', name: '猶豫哥', tag: '🤔', cups: null, says: '嗯……我想想……', reply: '（盯他三秒，深吸一口氣）……還在想？滾！', style: 'real', key: 'gun' },
+      { id: 2, cat: '250', name: '團購阿姨', tag: '📣', cups: 250, says: '（揮著手機）來250杯！全糖去冰！', reply: '（拍櫃台）250杯？你才250！……收！', style: '250', key: 'take' },
+      { id: 3, cat: '中二', name: '暗黑學生', tag: '🕶️', cups: 1, says: '吾之契約……需要一杯半糖微冰的黑暗之泉。', reply: '（緩緩抬手）你的契約……我收了。三十塊。', style: 'chuuni', key: 'take' },
+      { id: 4, cat: '杠精', name: '槓精伯', tag: '🧐', cups: null, says: '你們珍珠是不是比隔壁小顆？我量過喔。', reply: '閉嘴！', style: 'deadpan', key: 'shut' },
+    ];
+    const UI_ZH = { gun: '滾！', shut: '閉嘴！', take: '收！', queue: '排隊', aura: '氣勢', fury: '火氣', start: '開店！', again: '再罵一天', bleep: '消音', lang: 'zh' };
+    const UI_EN = { gun: 'SCRAM!', shut: 'SHUT IT!', take: 'DEAL!', queue: 'Queue', aura: 'Swagger', fury: 'Fury', start: 'OPEN SHOP!', again: 'Rant Again', bleep: 'Bleep', lang: 'en' };
+
+    const log = (m) => { document.getElementById('log').textContent = m; };
+    const ui = createUI(document.getElementById('app'), {
+      onPress: (k, ms) => log(`press ${k} hold=${ms}ms`),
+      onStart: () => { log('start'); playing(); },
+      onToggleLang: (l) => { ui.setTexts(l === 'zh' ? UI_ZH : UI_EN); log('lang ' + l); },
+      onToggleBleep: (b) => log('bleep ' + b),
+    });
+    ui.setTexts(UI_ZH);
+
+    const base = { phase: 'playing', timeLeftMs: 63400, queue: 37, aura: 72, fury: 45, combo: 7, maxCombo: 9, score: 4120,
+      current: { customer: CUSTOMERS[0], patienceMs: 1900, patienceMaxMs: 3000 }, stats: { served: 21, cursed: 17, polite: 1, perfect: 6 } };
+    const S = (o = {}) => ({ ...base, ...o });
+
+    function playing(c = CUSTOMERS[0], o = {}) {
+      const st = S({ current: { customer: c, patienceMs: 1900, patienceMaxMs: 3000 }, ...o });
+      ui.render(st);
+      ui.showCustomer(c);
+      return st;
+    }
+
+    const STATES = {
+      start() { ui.render(S({ phase: 'idle', queue: 0, combo: 0, aura: 100, fury: 0, current: null, timeLeftMs: 90000 })); ui.showStart({}); },
+      playing() { playing(); ui.showLine('下一位！', { who: 'system' }); },
+      hit() { playing(); ui.showLine(CUSTOMERS[0].reply, { style: 'real', who: 'clerk' }); ui.effect('hit', { charge: 2 }); },
+      fly() { playing(); ui.showLine(CUSTOMERS[0].reply, { style: 'curse', who: 'clerk' }); ui.effect('hit', { charge: 1 }); setTimeout(() => ui.effect('fly', { key: 'gun' }), 120); },
+      perfect() { playing(CUSTOMERS[3]); ui.showLine(CUSTOMERS[3].reply, { style: 'deadpan', who: 'clerk' }); ui.effect('perfect', {}); },
+      miss() { playing(CUSTOMERS[2]); ui.showLine('（翻白眼）……算了，滾。', { style: 'cold', who: 'clerk' }); ui.effect('miss'); },
+      g250() { playing(CUSTOMERS[1], { queue: 1250, combo: 14 }); ui.showLine(CUSTOMERS[1].reply, { style: '250', who: 'clerk' }); ui.effect('250', {}); },
+      polite() { playing(CUSTOMERS[0], { aura: 22, combo: 0 }); ui.showLine('您好～請問需要什麼呢😊', { style: 'polite', who: 'clerk' }); ui.effect('polite', { boo: ['噓～～～', '好軟喔', '退錢！', '店長變了'] }); },
+      rage() {
+        playing(CUSTOMERS[0], { phase: 'rage', fury: 100, combo: 23, queue: 864 });
+        ui.effect('rageStart', {});
+        ['滾！', '下一個！', '你也滾！', '甜度自己講清楚！'].forEach((t, i) => setTimeout(() => ui.showLine(t, { style: 'curse', who: 'clerk' }), 80 * i));
+      },
+      milestone() { playing(CUSTOMERS[0], { queue: 1003 }); ui.showMilestone(1000, '排到捷運站！'); },
+      chuuni() { playing(CUSTOMERS[2]); ui.showLine('（緩緩起身，背光）汝之訂單……已被吾之右手封印。三十塊，找你七十。這杯是今天的第一百杯，你懂這代表什麼嗎？', { style: 'chuuni', who: 'clerk' }); },
+      summary() {
+        ui.render(S({ phase: 'over', queue: 12873, combo: 0, current: null, timeLeftMs: 0 }));
+        ui.showSummary({ queue: 12873, score: 98210, maxCombo: 41, served: 88, cursed: 71, polite: 3, bestLineId: 2 },
+          { bestLine: CUSTOMERS[1].reply });
+      },
+      en() {
+        ui.setTexts(UI_EN);
+        const c = { id: 2, name: 'Group-Buy Auntie', tag: '📣', cups: 250, says: '(waving phone) 250 cups! Full sugar, no ice!', style: '250' };
+        playing(c, { queue: 250 });
+        ui.showLine("(slams counter) 250 cups? YOU'RE the 250! ...DEAL!", { style: '250', who: 'clerk' });
+      },
+      enSummary() {
+        ui.setTexts(UI_EN);
+        ui.render(S({ phase: 'over', queue: 412, current: null, timeLeftMs: 0 }));
+        ui.showSummary({ queue: 412, score: 9120, maxCombo: 12, served: 40, cursed: 33, polite: 0 }, { bestLine: "(stares for three seconds) ...Still thinking? SCRAM!" });
+      },
+    };
+
+    const bar = document.getElementById('bar');
+    for (const name of Object.keys(STATES)) {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.onclick = () => STATES[name]();
+      bar.appendChild(b);
+    }
+    const params = new URLSearchParams(location.search);
+    if (params.has('clean')) bar.classList.add('hide'), document.getElementById('log').style.display = 'none';
+    (STATES[params.get('state') || 'start'] || STATES.start)();
+    window.__ui = ui; window.__states = STATES;
+  </script>
+</body>
+</html>

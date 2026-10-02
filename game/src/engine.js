@@ -9,7 +9,7 @@ export const DEFAULT_CONFIG = {
   auraStart: 60,          // starting aura (0-100)
   auraCorrect: 8,
   auraPerfect: 12,
-  auraWrong: -5,
+  auraWrong: 0,          // a wrong curse only earns less; it never costs aura
   auraTimeout: -20,
   furyPerCustomer: 6,
   furyCorrect: 4,

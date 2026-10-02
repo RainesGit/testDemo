@@ -44,7 +44,7 @@ let content = getContent(lang);
 // The engine only needs the language-neutral fields (id/style/key/cups are identical in zh and en);
 // all displayed / spoken text is looked up by id in the current language.
 // Design rule: a wrong curse is never punished, only rewarded less. The only failure is being too slow.
-const game = createGame({ customers: getContent('zh').customers, config: { auraWrong: 0 } });
+const game = createGame({ customers: getContent('zh').customers });
 const audio = createAudio();
 audio.setLang(lang);
 audio.setBleep(bleep);

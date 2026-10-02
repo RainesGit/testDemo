@@ -105,7 +105,7 @@ test('perfect press (<600ms): aura +12 and perfect stat', () => {
   assert.equal(game.state.stats.perfect, 1);
 });
 
-test('wrong press: aura -5, still counts as a curse, smaller gain, no combo gain', () => {
+test('wrong press: no aura loss, still counts as a curse, smaller gain, no combo gain', () => {
   const { game, of } = setup();
   game.start();
   game.press(rightKey(game)); // combo 1
@@ -115,7 +115,7 @@ test('wrong press: aura -5, still counts as a curse, smaller gain, no combo gain
   const r = of('resolve')[1];
   assert.equal(r.correct, false);
   assert.equal(r.perfect, false);
-  assert.equal(game.state.aura, aura0 - 5);
+  assert.equal(game.state.aura, aura0);
   assert.equal(game.state.stats.cursed, 2);
   assert.ok(r.queueDelta >= 0 && r.queueDelta <= 1);
   assert.equal(game.state.queue, q0 + r.queueDelta);
@@ -262,12 +262,22 @@ test('aura reaching zero ends the game early', () => {
   assert.equal(of('over').length, 1);
 });
 
-test('wrong presses can also drain aura to zero', () => {
-  const { game } = setup({ config: { auraStart: 10 } });
+test('only wrong presses survive until the round timer ends', () => {
+  const { game, of } = setup({ config: { auraStart: 10 } });
   game.start();
-  game.press(wrongKey(game));
-  game.press(wrongKey(game));
+  for (let i = 0; i < 179; i++) {
+    game.tick(500);
+    game.press(wrongKey(game));
+  }
+  assert.equal(game.state.phase, 'playing');
+  assert.equal(game.state.aura, 10);
+  assert.equal(game.state.stats.served, 179);
+  assert.equal(game.state.stats.polite, 0);
+  assert.equal(of('over').length, 0);
+  game.tick(500);
   assert.equal(game.state.phase, 'over');
+  assert.equal(game.state.timeLeftMs, 0);
+  assert.equal(of('over').length, 1);
 });
 
 test('round ends after 90 seconds with summary', () => {

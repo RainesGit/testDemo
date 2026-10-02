@@ -7,7 +7,7 @@ The prototype uses plain HTML, CSS and native ES modules, with no dependencies a
 ## Run
 
 ```bash
-cd /home/user/testDemo/game
+cd game
 python3 -m http.server 8765
 # open http://127.0.0.1:8765/  (phone: same LAN IP; use portrait)
 ```
@@ -33,7 +33,7 @@ Audio starts only after you press 开店 / Open Shop, because browsers require a
 ## Test
 
 ```bash
-cd /home/user/testDemo/game
+cd game
 node --test test/*.test.mjs        # engine + audio + integration (44 tests)
 ```
 
@@ -122,7 +122,7 @@ Rules:
 - A round lasts 90 s.
 - Aura starts at 60.
 - A correct answer gives +8 aura, or +12 for a perfect answer (reaction under 600 ms).
-- A wrong answer gives -5 aura, but it still counts as a curse.
+- A wrong answer leaves aura and combo unchanged and still counts as a curse, with a smaller reward.
 - A timeout gives -20 aura and resets the combo.
 - When aura reaches 0, the game is over.
 - Each correct answer adds `1 + floor(combo/5) + charge(0/1/3) + 10 (style 250 or cups 250)` people to the line.
@@ -175,8 +175,7 @@ The tunables are in `DEFAULT_CONFIG`.
 - **`signature250` is not played anywhere yet.** The scripted 250-cup routine exists in both content files, but no game moment triggers it. Candidates are an attract-mode loop on the start card or a cut-in when customer #47 (`cups: 250`) is served.
 - **Chinese is Simplified throughout.** Content, UI labels and scene decor (menu board, 点餐处, 店长, slam words) all use Simplified Chinese; the scene decor also switches to English in EN mode.
 - **Rants vs. Served.** The report's "Rants / 开骂" (`stats.cursed`) includes rage hits, so it is usually much larger than "Served / 接客".
-- **Wrong presses can end the round.** Per the engine contract a wrong key costs 5 aura, so pressing only wrong keys ends the round in about 7 s. The design brief says only slowness should be punished; pass `config: { auraWrong: 0 }` to `createGame` in main.js if that is preferred.
 - **The best line is chosen by score.** "Savagest line" is the line with the highest single `scoreDelta`. That is usually a 250 or charged hit, not necessarily the funniest line.
 - **The tab must be visible.** `dt` is capped at 100 ms per frame, and a backgrounded tab effectively pauses the game. There is no explicit pause button.
 - **Half-width parentheses are always stage directions.** `audio.js` and `ui.js` treat any `(...)` as a stage direction, so ordinary English parentheses in content are hidden from speech too.
-- **Audio sourcing for a release build.** For licensing and sourcing options for real voice-over and SFX, see `/home/user/testDemo/docs/audio-sourcing.md`.
+- **Audio sourcing for a release build.** For licensing and sourcing options for real voice-over and SFX, see [audio sourcing notes](../docs/audio-sourcing.md).

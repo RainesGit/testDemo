@@ -46,7 +46,7 @@ Run from `game/`:
 - Core contrast is three beats: polite service → sudden swearing → instantly professional again.
 - **Everyone at the counter can be cursed.** No "protected" customers, no
   "hold back" levels, no penalty for cursing the "wrong" way (`auraWrong: 0` in
-  `main.js`). The only failure is being too slow (forced polite voice).
+  `engine.js` by default). The only failure is being too slow (forced polite voice).
 - No delivery-rider characters, no fantasy elements, no jokes about appearance,
   gender, race, origin, politics or religion, and no customer type the clerk is
   specially gentle to.

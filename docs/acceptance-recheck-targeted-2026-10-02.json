@@ -1,0 +1,129 @@
+{
+  "pack": {
+    "hasVoicePack": true,
+    "hasClip": true
+  },
+  "before": {
+    "id": 61,
+    "name": "刷卡"
+  },
+  "switched": {
+    "name": "Card Swiper",
+    "bubble": "Do you take card?",
+    "subtitles": "",
+    "expected": "Card Swiper"
+  },
+  "speech": [
+    {
+      "offset": 0.12,
+      "duration": 0.849,
+      "bufferDuration": 61.536
+    }
+  ],
+  "network": [
+    {
+      "file": "manifest.json",
+      "status": 200
+    },
+    {
+      "file": "zh-0.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-7.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-1.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-0.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-2.mp3",
+      "status": 200
+    },
+    {
+      "file": "manifest.json",
+      "status": 200
+    },
+    {
+      "file": "zh-0.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-8.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-1.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-4.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-12.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-0.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-2.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-1.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-3.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-2.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-7.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-5.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-3.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-6.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-4.mp3",
+      "status": 200
+    },
+    {
+      "file": "en-5.mp3",
+      "status": 200
+    },
+    {
+      "file": "zh-7.mp3",
+      "status": 200
+    }
+  ],
+  "errors": [],
+  "milestone": {
+    "queue": 13,
+    "text": "排到门口了！"
+  },
+  "milestoneAfter": "排到门口了！",
+  "normalSwitchPass": true,
+  "milestoneSwitchPass": false
+}

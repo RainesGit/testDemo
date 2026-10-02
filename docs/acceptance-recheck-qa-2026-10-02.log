@@ -1,0 +1,23 @@
+PASS 390x844 correct presses=255 queue 4358 maxCombo 255 rage×6 milestones 3
+PASS 390x844 wrong presses=226 wrong presses 226, ended at 90.0s, aura 60
+PASS 390x844 idle presses=0 polite×3 ended at 9.7s game time
+PASS 390x844 charge presses=258 charges [2,1,0,2]
+PASS 390x844 rage presses=263 rage×6 hits 194
+PASS 390x844 english presses=262 
+PASS 390x844 bleep presses=261 speak calls 83
+PASS 360x640 correct presses=255 queue 4368 maxCombo 255 rage×6 milestones 3
+PASS 360x640 wrong presses=225 wrong presses 225, ended at 90.0s, aura 60
+PASS 360x640 idle presses=0 polite×3 ended at 9.6s game time
+PASS 360x640 charge presses=259 charges [2,1,0,2]
+PASS 360x640 rage presses=262 rage×6 hits 194
+PASS 360x640 english presses=262 
+PASS 360x640 bleep presses=262 speak calls 85
+PASS 1280x800 correct presses=255 queue 4328 maxCombo 255 rage×6 milestones 3
+PASS 1280x800 wrong presses=227 wrong presses 227, ended at 90.0s, aura 60
+PASS 1280x800 idle presses=0 polite×3 ended at 9.6s game time
+PASS 1280x800 charge presses=258 charges [2,1,0,2]
+PASS 1280x800 rage presses=261 rage×6 hits 194
+PASS 1280x800 english presses=260 
+PASS 1280x800 bleep presses=261 speak calls 82
+
+21/21 passed

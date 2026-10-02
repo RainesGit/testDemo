@@ -1,0 +1,25 @@
+{
+ "stats": {
+  "presses": 70,
+  "wrong": 2,
+  "polite": 1,
+  "rage": true,
+  "milestone": true
+ },
+ "mid": {
+  "phase": "rage",
+  "queue": 346,
+  "combo": 63,
+  "aura": 100,
+  "fury": 100,
+  "t": 69234.09999999982,
+  "cur": {
+   "key": "gun",
+   "id": 9,
+   "waited": 0
+  }
+ },
+ "againPhase": "playing",
+ "overflow": false,
+ "errors": []
+}

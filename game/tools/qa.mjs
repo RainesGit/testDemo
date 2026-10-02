@@ -6,7 +6,7 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 let pw;
-try { pw = require('playwright'); } catch { pw = require('/opt/node22/lib/node_modules/playwright'); }
+pw = (await import('./pw.mjs')).default;
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:8765';
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);

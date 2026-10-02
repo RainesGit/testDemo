@@ -108,8 +108,8 @@ def _render_job(job):
 
 
 class Packer:
-    def __init__(self, out, lang):
-        self.out, self.lang = out, lang
+    def __init__(self, out, lang, base=0):
+        self.out, self.lang, self.base = out, lang, base
         self.chunks, self.buf, self.pos = [], [], 0
 
     def add(self, audio):
@@ -117,7 +117,7 @@ class Packer:
             self.flush()
         self.buf.append(np.zeros(GAP, dtype=np.float32))
         self.pos += GAP
-        clip = {'c': len(self.chunks), 'o': round(self.pos / SR, 4), 'd': round(len(audio) / SR, 4)}
+        clip = {'c': self.base + len(self.chunks), 'o': round(self.pos / SR, 4), 'd': round(len(audio) / SR, 4)}
         self.buf.append(audio)
         self.pos += len(audio)
         return clip
@@ -132,7 +132,7 @@ class Packer:
         enc.set_channels(1)
         enc.set_quality(2)
         data = enc.encode((np.clip(pcm, -1, 1) * 32767).astype(np.int16).tobytes()) + enc.flush()
-        name = f'{self.lang}-{len(self.chunks)}.mp3'
+        name = f'{self.lang}-{self.base + len(self.chunks)}.mp3'
         with open(os.path.join(self.out, name), 'wb') as f:
             f.write(data)
         self.chunks.append(name)
@@ -147,20 +147,31 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--workers', type=int, default=os.cpu_count() or 1,
                     help='parallel single-threaded synthesis processes (default: CPU count)')
+    ap.add_argument('--incremental', action='store_true',
+                    help='keep clips already in <out>/manifest.json, render only new or changed lines into new sprites')
     args = ap.parse_args()
 
     jobs = json.load(open(args.jobs, encoding='utf-8'))
     os.makedirs(args.out, exist_ok=True)
-    for f in os.listdir(args.out):
-        if f.endswith('.mp3') or f == 'manifest.json':
-            os.remove(os.path.join(args.out, f))
+    old = {}
+    manifest_path = os.path.join(args.out, 'manifest.json')
+    if args.incremental and os.path.exists(manifest_path):
+        old = json.load(open(manifest_path, encoding='utf-8')).get('langs', {})
+    else:
+        for f in os.listdir(args.out):
+            if f.endswith('.mp3') or f == 'manifest.json':
+                os.remove(os.path.join(args.out, f))
 
     pool = Pool(args.workers, initializer=_init_worker, initargs=(args.model, args.voices, 1))
     manifest = {'version': 1, 'sampleRate': SR, 'engine': 'Kokoro-82M v1.0 (Apache-2.0)', 'langs': {}}
     for lang in ('zh', 'en'):
-        packer = Packer(args.out, lang)
-        clips = {}
-        todo = [j for j in jobs if j['lang'] == lang]
+        prev = old.get(lang, {'chunks': [], 'clips': {}})
+        wanted = [j for j in jobs if j['lang'] == lang]
+        # Keep clips whose line is unchanged; lines that no longer exist drop out of the manifest.
+        clips = {j['key']: prev['clips'][j['key']] for j in wanted if j['key'] in prev['clips']}
+        todo = [j for j in wanted if j['key'] not in clips]
+        packer = Packer(args.out, lang, base=len(prev['chunks']))
+        print(f'{lang}: {len(clips)} kept, {len(todo)} to render', file=sys.stderr, flush=True)
         rendered = pool.imap(_render_job, todo, chunksize=2)
         for i, (job, (main_audio, bleeped)) in enumerate(zip(todo, rendered), 1):
             if main_audio.size == 0:
@@ -173,7 +184,7 @@ def main():
             if i % 25 == 0 or i == len(todo):
                 print(f'{lang}: {i}/{len(todo)}', file=sys.stderr, flush=True)
         packer.flush()
-        manifest['langs'][lang] = {'chunks': packer.chunks, 'clips': clips}
+        manifest['langs'][lang] = {'chunks': prev['chunks'] + packer.chunks, 'clips': clips}
 
     pool.close()
     with open(os.path.join(args.out, 'manifest.json'), 'w', encoding='utf-8') as f:

@@ -53,6 +53,10 @@ python tools/voice/build_voice.py /tmp/voice-jobs.json \
   --model ~/kokoro/kokoro-q8.onnx --voices ~/kokoro/voices.npz --out voice
 ```
 
+For a few edited lines, add `--incremental`: clips for unchanged lines are kept and only new or
+changed lines are rendered into new sprites (seconds instead of ~25 minutes). Run a full build now
+and then to drop audio for deleted lines from the sprites.
+
 `clipKey()` in `src/audio.js` names each clip from the language and the line with stage
 directions removed, so editing a line's wording requires a rebuild; editing only a stage
 direction does not. Lines containing bleep words get a second, bleeped rendering that plays

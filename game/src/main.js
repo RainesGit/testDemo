@@ -160,6 +160,7 @@ function setLang(next) {
   store(LANG_KEY, lang);
   applyTexts();
   const phase = game.state.phase;
+  if (phase === 'playing' || phase === 'rage') ui.relabelCustomer(local(game.state.current?.customer));
   if (phase === 'idle') ui.showStart(startTexts());
   else if (phase === 'over' && lastSummary) showSummary(lastSummary, true);
 }

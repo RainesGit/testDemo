@@ -11,14 +11,14 @@
 
 | # | 怎么验 | 通过标准 |
 |---|---|---|
-| A1 | `node --test test/*.test.mjs` | `fail 0`。当前共 44 个测试 |
+| A1 | `node --test test/*.test.mjs` | `fail 0`。当前共 45 个测试 |
 | A2 | `node tools/check-content.mjs` | 最后一行 `17/17 checks passed`，退出码 0（含 V1–V2 语音包覆盖检查） |
 | A3 | 先起服务 `python3 -m http.server 8765 &`，再跑 `node tools/play-integrate.mjs` | 输出的 JSON 里 `"errors": []` 且 `"overflow": false` |
 | A4 | 服务保持运行，跑 `node tools/qa.mjs`（约几分钟） | 最后一行 `21/21 passed`，退出码 0 |
 
 注意：
 - Node 22 下 `node --test test` 传目录会报错，必须用 `test/*.test.mjs`。
-- Playwright 用全局安装的版本和预装的 Chromium（`/opt/pw-browsers`），**不要**运行 `playwright install`。
+- 浏览器脚本通过 `tools/pw.mjs` 查找 Playwright：本地安装、全局 npm、`/opt/node22`。云端容器已预装 Chromium（`/opt/pw-browsers`），**不要**运行 `playwright install`；本机（如 macOS）没有时执行 `npm i --prefix tools playwright && npx --prefix tools playwright install chromium`。
 - 跑完记得关掉服务：`pkill -f "http.server 8765"`。
 
 ## B. 内容完整性（A2 脚本自动检查）

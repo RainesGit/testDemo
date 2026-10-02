@@ -420,6 +420,15 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
     patienceFill.style.transform = 'scaleX(1)';
   }
 
+  // Re-label the customer at the counter in place (language switch mid-round): no animation, no new ticket number.
+  function relabelCustomer(customer) {
+    subs.textContent = '';
+    if (!customer) return;
+    custTag.textContent = customer.tag || '';
+    custName.textContent = customer.name || '';
+    fillLine(bubbleText, customer.says || '');
+  }
+
   // ---------- Subtitles ----------
   function showLine(text, { style = '', who = 'clerk' } = {}) {
     if (who === 'cust') {
@@ -613,5 +622,5 @@ export function createUI(root, { onPress = () => {}, onStart = () => {}, onToggl
   applyTexts();
   setClerk('idle');
 
-  return { render, showCustomer, showLine, effect, showMilestone, showStart, showSummary, setTexts };
+  return { render, showCustomer, relabelCustomer, showLine, effect, showMilestone, showStart, showSummary, setTexts };
 }

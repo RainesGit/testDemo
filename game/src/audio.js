@@ -42,6 +42,20 @@ export function stripStage(text) {
 }
 
 /**
+ * Stable id for a pre-rendered voice clip: FNV-1a (32-bit, hex) of "lang|line without stage directions".
+ * tools/voice/export-lines.mjs uses the same function, so build time and runtime agree.
+ */
+export function clipKey(lang, text) {
+  const s = `${lang === 'en' ? 'en' : 'zh'}|${stripStage(text)}`;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/**
  * Split text into spoken text and bleep segments.
  * @param {string} text
  * @param {(string|RegExp)[]} words
@@ -165,6 +179,14 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
   let speechGen = 0;
   let crowdNodes = null;
   let voices = [];
+
+  // ---- pre-rendered voice pack (tools/voice) ----
+  // manifest: { langs: { zh|en: { chunks: [file], clips: { key: { c, o, d, b? } } } } }
+  let pack = null;
+  let packBase = '';
+  const chunkCache = new Map(); // "lang:index" -> Promise<AudioBuffer|null>
+  const speechSources = new Set();
+  const CLIP_RATE = { polite: 1.08, cold: 0.97, rage: 1.04 };
 
   // ---- voices ----
   const loadVoices = () => { try { voices = synth ? synth.getVoices() || [] : []; } catch { voices = []; } };
@@ -529,8 +551,81 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
     });
   }
 
+  // ---- voice pack playback ----
+  async function loadVoicePack(url = 'voice/manifest.json') {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return false;
+      pack = await res.json();
+      packBase = url.slice(0, url.lastIndexOf('/') + 1);
+      return true;
+    } catch {
+      pack = null;
+      return false;
+    }
+  }
+
+  function findClip(text, l = lang) {
+    const clip = pack?.langs?.[l]?.clips?.[clipKey(l, text)];
+    if (!clip) return null;
+    return bleepOn && clip.b ? clip.b : clip;
+  }
+
+  function chunk(l, index) {
+    const id = `${l}:${index}`;
+    if (!chunkCache.has(id)) {
+      const name = pack?.langs?.[l]?.chunks?.[index];
+      const p = !name || !ensureCtx()
+        ? Promise.resolve(null)
+        : fetch(packBase + name)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+          .then((buf) => ctx.decodeAudioData(buf))
+          .catch(() => { chunkCache.delete(id); return null; });
+      chunkCache.set(id, p);
+    }
+    return chunkCache.get(id);
+  }
+
+  /** Decode the current language's sprites in the background so the first lines play without delay. */
+  async function preloadVoice(l = lang) {
+    const n = pack?.langs?.[l]?.chunks?.length || 0;
+    for (let i = 0; i < n; i++) await chunk(l, i);
+  }
+
+  // Plays one clip. Speech clips are cancelled by stopSpeech(); announcer clips are not.
+  async function playClip(clip, { style, delay = 0, speech = true, gen = speechGen, gainValue = 1 } = {}) {
+    const buffer = await chunk(lang, clip.c);
+    if (!buffer || (speech && gen !== speechGen)) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    await new Promise((resolve) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.value = CLIP_RATE[style] || 1;
+      const g = gain(master, gainValue);
+      src.connect(g);
+      const done = () => { speechSources.delete(src); clearTimeout(timer); resolve(); };
+      src.onended = done;
+      const timer = setTimeout(done, (clip.d / src.playbackRate.value + delay) * 1000 + 800);
+      if (speech) speechSources.add(src);
+      src.start(now() + delay, clip.o, clip.d);
+    });
+  }
+
+  /** Play a line from the voice pack without interrupting the clerk (crowd boos, milestone announcer). */
+  function announce(text, { delay = 0, style, gainValue = 0.8 } = {}) {
+    if (!unlocked) return Promise.resolve();
+    const clip = findClip(text);
+    if (!clip || !ensureCtx()) return Promise.resolve();
+    return playClip(clip, { style, delay, speech: false, gainValue }).catch(() => {});
+  }
+
   async function speak(text, opts = {}) {
     if (!unlocked) return;
+    const clip = findClip(text);
+    if (clip && ensureCtx()) {
+      await playClip(clip, { style: opts.style, gen: speechGen });
+      return;
+    }
     const plan = buildSpeechPlan(text, { ...opts, bleep: bleepOn, words });
     if (!plan.length) return;
     const gen = speechGen;
@@ -547,6 +642,10 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
 
   function stopSpeech() {
     speechGen++;
+    for (const src of speechSources) {
+      try { src.stop(); } catch { /* already stopped */ }
+    }
+    speechSources.clear();
     try { synth?.cancel(); } catch { /* ignore */ }
   }
 
@@ -581,6 +680,11 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
     setBleepWords(list) { words = Array.isArray(list) ? list : DEFAULT_BLEEP_WORDS; },
     setVolume(v) { volume = clamp(Number(v) || 0, 0, 1); if (master) master.gain.value = volume; },
     speak,
+    announce,
+    loadVoicePack,
+    preloadVoice,
+    hasClip: (text) => !!findClip(text),
+    get hasVoicePack() { return !!pack; },
     sfx,
     crowd,
     stopSpeech,

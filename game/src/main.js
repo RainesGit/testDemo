@@ -48,6 +48,8 @@ const game = createGame({ customers: getContent('zh').customers });
 const audio = createAudio();
 audio.setLang(lang);
 audio.setBleep(bleep);
+// Pre-rendered AI voice clips (tools/voice); lines without a clip fall back to the browser's speech synthesis.
+audio.loadVoicePack('voice/manifest.json');
 
 function local(customer) {
   if (!customer) return customer;
@@ -91,7 +93,7 @@ function sayCustomer(customer) {
 async function rageChant() {
   const g = ++rageGen;
   const lines = content.system.rageLines || [];
-  if (!audio.canSpeak || !audio.unlocked || !lines.length) return;
+  if ((!audio.canSpeak && !audio.hasVoicePack) || !audio.unlocked || !lines.length) return;
   while (g === rageGen && game.state.phase === 'rage') {
     const line = pick(content.system.rageLines);
     ui.showLine(line, { style: 'curse', who: 'clerk' });
@@ -113,6 +115,7 @@ const ui = createUI(root, {
     audio.unlock();
     audio.setLang(lang);
     audio.setBleep(bleep);
+    audio.preloadVoice();
     game.start();
     audio.sfx('slam');
     audio.crowd(0.08);
@@ -153,6 +156,7 @@ function setLang(next) {
   content = getContent(lang);
   audio.setLang(lang);
   audio.stopSpeech();
+  if (audio.unlocked) audio.preloadVoice();
   store(LANG_KEY, lang);
   applyTexts();
   const phase = game.state.phase;
@@ -232,6 +236,7 @@ game.on('polite', () => {
   const boos = [...(content.system.boo || [])].sort(() => Math.random() - 0.5).slice(0, 3);
   ui.effect('polite', { boo: boos });
   audio.sfx('boo');
+  boos.slice(0, 2).forEach((b, i) => audio.announce(b, { delay: 0.2 + i * 0.5, gainValue: 0.5 }));
   sayClerk(line, 'polite');
 });
 
@@ -264,6 +269,7 @@ game.on('milestone', ({ level }) => {
   const text = content.system.milestones?.[level] || '';
   ui.showMilestone(level, text);
   audio.sfx('milestone');
+  audio.announce(text, { delay: 0.25, gainValue: 0.9 });
   audio.sfx('cheer', { delay: 0.4 });
 });
 

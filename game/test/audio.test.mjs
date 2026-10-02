@@ -129,3 +129,11 @@ test('createAudio degrades silently without browser APIs', async () => {
   await a.speak('Your mom! (slams counter) Next!', { style: 'curse' });
   a.stopSpeech();
 });
+
+test('clipKey is stable, language-scoped and ignores stage directions', async () => {
+  const { clipKey } = await import('../src/audio.js');
+  assert.match(clipKey('zh', '调你妈！'), /^[0-9a-f]{8}$/);
+  assert.equal(clipKey('zh', '（拍柜台）下一位！'), clipKey('zh', '下一位！'));
+  assert.notEqual(clipKey('zh', '下一位！'), clipKey('en', '下一位！'));
+  assert.equal(clipKey('zh', '下一位！'), clipKey('zh', '下一位！'));
+});

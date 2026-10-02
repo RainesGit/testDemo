@@ -78,6 +78,25 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
     g.state.aura === before && g.state.queue >= 1, `aura ${before} -> ${g.state.aura}, queue=${g.state.queue}`);
 }
 
+// V. AI voice pack covers every spoken line (rebuild with tools/voice when lines change)
+{
+  const { clipKey, stripStage } = await import('../src/audio.js');
+  let manifest = null;
+  try { manifest = JSON.parse(readFileSync(new URL('../voice/manifest.json', import.meta.url), 'utf8')); } catch { /* missing */ }
+  check('V1', 'voice/manifest.json exists', !!manifest);
+  for (const [lang, customers, sys] of [['zh', CUSTOMERS_ZH, SYSTEM_ZH], ['en', CUSTOMERS_EN, SYSTEM_EN]]) {
+    const clips = manifest?.langs?.[lang]?.clips || {};
+    const spoken = [
+      ...customers.flatMap((c) => [c.says, c.reply, c.alt]),
+      ...sys.polite, ...sys.rageStart, ...sys.rageLines, ...sys.next, ...sys.closing, ...sys.boo,
+      ...Object.values(sys.milestones),
+    ].filter((t) => /[\p{L}\p{N}]/u.test(stripStage(t).replace(/\p{Extended_Pictographic}/gu, '')));
+    const missing = spoken.filter((t) => !clips[clipKey(lang, t)]);
+    check(`V2-${lang}`, `${lang}: every spoken line has a voice clip`, manifest && missing.length === 0,
+      `${spoken.length - missing.length}/${spoken.length}${missing.length ? ' missing e.g. ' + missing.slice(0, 2).join(' | ') : ''}`);
+  }
+}
+
 // Report
 let failed = 0;
 for (const r of results) {

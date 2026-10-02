@@ -24,11 +24,13 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   index.html, style.css
   src/engine.js         Pure game logic (no DOM); rules + events
   src/ui.js             DOM rendering and effects
-  src/audio.js          Procedurally synthesized SFX (WebAudio) + Web Speech TTS + bleep
+  src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback, Web Speech fallback, bleep
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language
   src/main.js           Wires everything together
   test/*.test.mjs       node:test unit tests (engine, audio bleep splitter)
   tools/                Playwright smoke/QA scripts (screenshots and node_modules are gitignored)
+  tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
+  voice/                Generated voice pack: manifest.json + mp3 sprites per language
   README.md             Prototype details, module contracts, known limits
 ```
 
@@ -57,6 +59,9 @@ Run from `game/`:
   and "黄金比例最好喝" are signature lines.
 - Audio must be license-safe: SFX are synthesized in code; see `docs/audio-sourcing.md`
   before adding any audio file.
+- Voice lines come from `game/voice/` (Kokoro AI voices). After changing any line in
+  `src/content.*.js`, rebuild the pack (`game/tools/voice/README.md`); `tools/check-content.mjs`
+  fails if a spoken line has no clip.
 - Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore, then English.
   Not mainland China or the EU. Release builds need Traditional Chinese.
 

@@ -597,6 +597,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
       src.playbackRate.value = CLIP_RATE[style] || 1;
       const g = gain(master, gainValue);
       src.connect(g);
+      src.fadeGain = g; // stopSpeech() fades this out instead of cutting mid-syllable
       const done = () => { speechSources.delete(src); clearTimeout(timer); resolve(); };
       src.onended = done;
       const timer = setTimeout(done, (clip.d / src.playbackRate.value + delay) * 1000 + 800);
@@ -637,7 +638,12 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
   function stopSpeech() {
     speechGen++;
     for (const src of speechSources) {
-      try { src.stop(); } catch { /* already stopped */ }
+      try {
+        const t = now();
+        src.fadeGain.gain.setValueAtTime(src.fadeGain.gain.value, t);
+        src.fadeGain.gain.linearRampToValueAtTime(0, t + 0.06);
+        src.stop(t + 0.07);
+      } catch { /* already stopped */ }
     }
     speechSources.clear();
     try { synth?.cancel(); } catch { /* ignore */ }

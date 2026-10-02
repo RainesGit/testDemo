@@ -10,8 +10,10 @@ show half a head, and every insult makes the queue outside grow. It is currently
 playable **web prototype** plus design and voice documents.
 
 ```
+AGENTS.md               Entry point for Codex and other agents; points here and to the acceptance checklist
 docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
+  acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
   audio-sourcing.md     Royalty-free SFX/music/voice sources and licensing notes
   voice/
@@ -35,6 +37,7 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
 Run from `game/`:
 
 - **Unit tests:** `node --test test/*.test.mjs` (Node 22; passing a directory does not work).
+- **Content and design-rule checks:** `node tools/check-content.mjs` (exits 1 on any failure).
 - **Run locally:** `python3 -m http.server 8765`, then open `http://localhost:8765/`.
   ES modules do not load from `file://`.
 - **Browser smoke test:** with the server running, `node tools/play-integrate.mjs`;

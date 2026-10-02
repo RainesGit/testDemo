@@ -1,3 +1,4 @@
 tools/node_modules/
 tools/shots/
 tools/package-lock.json
+tools/voice/__pycache__/

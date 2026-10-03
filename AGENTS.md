@@ -9,6 +9,26 @@ Instructions for coding agents (Codex and others) working in this repository.
 
 ## Acceptance testing
 
+### Required model
+
+The user requires all acceptance work (验收), including running acceptance checks,
+reviewing evidence, and writing acceptance conclusions, to be delegated to a
+sub-agent with exactly these settings:
+
+- `model: "gpt-5.6-sol"`
+- `reasoning_effort: "medium"` (中)
+
+A sub-agent already running with these settings performs the acceptance work
+directly; this requirement does not call for recursive delegation.
+
+Do not perform acceptance work with the coordinating agent or silently substitute
+another model or reasoning level. The coordinating agent may synchronize the
+repository, maintain these instructions, relay the acceptance agent's findings,
+and commit/push the resulting artifacts. If the required model cannot be started,
+report the blocker to the user rather than continuing acceptance with a fallback.
+
+### Checklist and reporting
+
 When asked to verify, review or accept ("验收") the prototype, follow
 [`docs/acceptance-checklist.md`](docs/acceptance-checklist.md) item by item and reply in
 its section G report format. Report problems; do not fix code during acceptance unless asked.

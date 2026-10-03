@@ -48,7 +48,7 @@ Controls: tap the three keys, or **J / K / L**. A press resolves at once; holdin
 
 ```bash
 cd game
-node --test test/*.test.mjs        # 154 tests: engine 60, audio 21, art 16, opening 16, huazi 13, integration 9, days 8, ui 8, hant 3
+node --test test/*.test.mjs        # 161 tests: engine 60, audio 21, art 16, opening 16, huazi 13, hant 10, integration 9, days 8, ui 8
 node tools/check-content.mjs       # 23 content / design-rule checks (V2 needs a rebuilt voice pack after line changes)
 ```
 
@@ -95,7 +95,7 @@ game/
     opening.js          day 1 opening script director (beat list, injected clock)
     art.js              SVG / HTML string templates for all art (pure)
     huazi.js            花字 picking and rate limits (pure)
-    hant.js             Simplified → Traditional display conversion (generated with OpenCC s2tw; pure)
+    hant.js             Simplified → Traditional display conversion (OpenCC s2tw table + Taiwan wording; pure)
     ui.js               DOM, input, camera, 花字 rendering, guidance, cards
     audio.js            WebAudio SFX synth, bed, voice pack playback with "|" cut points, Web Speech, bleep
     content.js          getContent(lang) → { customers, system }, merges en over zh by id
@@ -125,7 +125,7 @@ Each module's full contract is in the comment at the top of its file. In short:
 - **opening** `runOpening({ ui, audio, content, lang, onDone, now, schedule, cancel, storage, skippable })` → `{ press(key), skip(), stop(), active, waiting, beat, elapsed }`. Beat times may also be `['max', a, b]` and `['beat', id, ms]`; "调你妈！" holds `CLIMAX_HZ_MS` (1400 ms) before "黄金比例最好喝！". A first wrong press plays its quip with the keys live: after `quipCutMs` (250 ms) the right key cuts it and answers, a wrong one gives "算了，我自己来。" at once. Later timeouts rotate `timeout.notMeAlt`. `content` / `lang` may be getters (a language switch applies from the next line). `onDone({ skipped, queue: 12 })` at F4. It never touches the engine.
 - **art** `CLERK_SVG`, `SHOP_SVG`, `COUNTER_SVG`, `customerSVG()`, `signSVG()`, `signText()`, `miniSign()`, `KEY_ICONS`, `FINGER_SVG`, `DOOR_GATE_SVG`, `STAR_SVG`, `ticketHTML()`, `monitorHTML()`, `queueCapText()`; the CSS hooks (classes / data attributes) are listed in its header.
 - **huazi** `pickHuazi(line, ctx)`, `createHuaziTracker({ mode, lang })` (one S1 per 3 customers, no keyword twice within 5).
-- **hant** `toHant(text)` (idempotent), `PHRASES`, `HANT_CHARS`, `HANT_SAME`. Regenerate after adding text with new characters: `pip install opencc-python-reimplemented`, convert every Han character in `src/*.js` with `OpenCC('s2tw')`, keep pairs that differ, add two-character phrases where the character map disagrees with OpenCC (`test/hant.test.mjs` lists unknown characters).
+- **hant** `toHant(text)` (idempotent), `PHRASES` (character-form fixes), `TW_PHRASES` / `TW_WHOLE` / `TW_PUNCT` (Taiwan wording, see `docs/localization-tw.md`), `HANT_CHARS`, `HANT_SAME`. Regenerate after adding text with new characters: `pip install opencc-python-reimplemented`, convert every Han character in `src/*.js` with `OpenCC('s2tw')`, keep pairs that differ, add two-character phrases where the character map disagrees with OpenCC (`test/hant.test.mjs` lists unknown characters).
 - **ui** `createUI(root, { onPress, onCharge, onStart, onToggleLang, onToggleBleep })`: HUD (`render`, `setHud`, `setQueue`, `setTicket`, `setTexts` (also relabels the scene props), `setScript('hans'|'hant')`, `queueGain(n)`), clerk (`setClerk`, `setClerkFlags`, `clerkBeat`, `clerkTap`, `resetClerk`), customer and sign (`showCustomer`, `showSign`, `signExit`, `signFx`, `startSignTimer`, `customerReact`, `customerPose`, `showPlate`), camera and fx (`camera`, `flash(ms)`, `speedLines(ms)`, `shake`, `freeze` (hit-stop: 花字 keep playing), `letterbox`, `gate`, `goldsign`), 花字 (`huazi(list, timing)`, `clearHuazi`), subtitles (`showLine`, `emphasize`), guidance (`guide`, `clearGuide`, `hintCorrect`, `tip`, `breathKey`, `coverKey`, `lockInput`, `unlockInput`, `inputLocked`), screens (`showStart`, `fontsReady`, `showClosing`, `showRecap`, `showSkip`, `showSummary`, `showMilestone`). Pure exports for tests: `createFxQueue`, `chargeLevel`, `FOCUS`, `camTransform`, `rectsOverlap`, `placeHuazi`, `hzFontSize`, `hzMaxScale`.
 - **audio** `createAudio()`: `unlock`, `setLang`, `setBleep`, `loadVoicePack`, `playClerk(text, { punchGapMs, punchFx, bedBackMs, style })` (returns a Promise carrying `{ setupMs, punchStartMs, punchMs, totalMs }`), `playCustomer(text, { rate })` (`{ ms }`), `voiceTimings`, `cut`, `hush`, `duck` / `restore`, `bed`, `loop` / `stopLoop(s)`, `sfx(name, opts)`, `crowd`, `speak`, `stopSpeech`, `announce`.
 - **content** 100 customers `{ id, cat, name, tag, cups, says, reply, alt, style, key }` per language; `reply` / `alt` of the day 1 pool carry one `|` cut point (setup | punch). Text inside `（…）` / `(…)` is a stage direction: shown small, never spoken.
@@ -146,7 +146,7 @@ Each module's full contract is in the comment at the top of its file. In short:
 - **Performance on low-end devices (A13).** Camera glides on the SVG scene were most of the cost (about 16% long frames at 4x CPU in headless Chromium). A K4 lite mode now switches itself on when a 30-frame window has 6+ frames over 32 ms (camera cuts instead of glides, no idle loops, no spinning rays); with it the 4x-CPU opening measures 4.5–5.7% long frames (target ≤ 5%), so A13 is borderline here and needs a real-phone check. Headless runs that take many screenshots can trip lite mode too; add `?lite=0` for visual QA (`?lite=1` forces it).
 - **Google Fonts** may be blocked (the sandbox proxy here); the game falls back to system fonts.
 - **Rage may swallow the original customer** on day 3+: during rage every press is a hit, so a two-step customer standing at the counter then is resolved as a rage hit.
-- **Traditional Chinese is display-only**: characters are converted (OpenCC s2tw table), wording is not localized for Taiwan; voice lines are generated from the Simplified text.
+- **Traditional Chinese is display-only**: characters are converted (OpenCC s2tw table) and the few mainland words in the text are swapped for Taiwanese ones (投诉 → 客訴, 硬币 → 銅板, 铁门 → 鐵捲門, “” → 「」 …; table and reasoning in [`docs/localization-tw.md`](../docs/localization-tw.md)). zh-HK / zh-MO get the same Taiwan wording (銅板 reads Taiwanese there; the lines themselves use Taiwan words such as 捷运 and 载具). Voice lines are still generated from the Simplified text in mainland-accented Mandarin, so the subtitle says 客訴 where #88 is heard saying 投诉; the doc lists the lines to re-word or re-record for a Taiwan voice pack.
 - **Day 1 pace**: with readable subtitles a day 1 customer takes about 4–5 s (about 9–10 customers in 45 s with estimated speech lengths; the spec estimated about 13). Re-check after the voice pack rebuild.
 - **The tab must be visible.** `dt` is capped at 100 ms per frame, so a backgrounded tab effectively pauses the game.
 - **Half-width parentheses are always stage directions**, so ordinary English parentheses in content are hidden from speech too.

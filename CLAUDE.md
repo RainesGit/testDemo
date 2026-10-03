@@ -17,6 +17,7 @@ docs/
                         over game-design.md where they conflict
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
+  localization-tw.md    Taiwan wording for the zh-TW display (mapping table, HK notes, voice re-word list)
   audio-sourcing.md     Royalty-free SFX/music/voice sources and licensing notes
   voice/
     voice-bible.md      Voice direction: clerk voice, delivery marks, system lines, English "250" plan
@@ -29,7 +30,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, signs, monitor)
   src/huazi.js          花字 (caption) picking and rate limits (pure)
-  src/hant.js           Simplified → Traditional display conversion (zh-TW / zh-HK / zh-MO), generated with OpenCC
+  src/hant.js           Simplified → Traditional display conversion (zh-TW / zh-HK / zh-MO), generated with OpenCC,
+                        plus Taiwan wording (TW_PHRASES; see docs/localization-tw.md)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, Web Speech fallback, bleep
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
@@ -80,7 +82,8 @@ Run from `game/`:
   fails if a spoken line has no clip.
 - Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore, then English.
   Not mainland China or the EU. Release builds need Traditional Chinese: zh-TW / zh-HK / zh-MO browsers
-  (or `?lang=zh-TW`) get it through `src/hant.js` (display only); regenerate its table when text adds new characters.
+  (or `?lang=zh-TW`) get it through `src/hant.js` (display only); regenerate its table when text adds new characters,
+  and add mainland-only words in new text to its Taiwan wording table (`docs/localization-tw.md`).
 
 ## Development workflow
 

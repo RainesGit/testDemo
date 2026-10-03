@@ -17,10 +17,11 @@
 //         data-gold on .shop to make it glow).
 //   COUNTER_SVG : string
 //       Counter lip + front + in-store queue silhouettes, same 360x640 frame; wrap it in
-//       <div class="counter">. Set data-q="0".."3" on .counter for visible silhouettes
-//       (min(queue,3)) and write queueCapText(queue) into text.q-num (capsule shows when data-q=3
-//       and the text is non-empty; add class "cap" on .counter to show it).
+//       <div class="counter">. Set data-q="0".."3" on .counter for the visible queue people q-p1..q-p3
+//       (min(queue,3)) and data-crowd="0".."3" for the far crowd row (queueCrowd(queue)); write
+//       queueCapText(queue) into text.q-num (add class "cap" on .counter to show the capsule).
 //   queueCapText(queue) -> string            '+1,281' style capsule text ('' when queue <= 3)
+//   queueCrowd(queue) -> 0..3                far crowd row level behind the three queue people
 //   customerSVG(customer, visitIndex = 0, { fixed, gray } = {}) -> string
 //       <svg class="cust">, viewBox 0 0 200 200. Same id+visit -> same look. fixed: 'hesitant' |
 //       'fifteen' | 'c250' (the three opening customers, also accepts 1|2|3). gray: true renders
@@ -541,7 +542,8 @@ function brickPaths() {
 
 const BRICKS = brickPaths();
 const CUP = `<symbol id="cup" viewBox="0 0 14 24"><path d="M1 3 H13 L11 23 H3 Z" fill="${CREAM}" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/><path d="M2 10 H12 L11 23 H3 Z" fill="#B8865A" stroke="none"/><path d="M8 3 L10 -3" stroke="${INK}" stroke-width="1.6" fill="none"/></symbol>`;
-const QP = `<symbol id="q-p" viewBox="0 0 20 40"><circle cx="10" cy="8" r="7"/><path d="M0 40 Q0 18 10 17 Q20 18 20 40 Z"/></symbol>`;
+// Crowd figure: the head takes the <use>'s color (skin), the body its fill (shirt).
+const QP = `<symbol id="q-p" viewBox="0 0 20 40"><path d="M0 40 Q0 18 10 17 Q20 18 20 40 Z"/><circle cx="10" cy="8" r="7" fill="currentColor"/></symbol>`;
 const shelfCups = (x0) => Array.from({ length: 5 }, (_, i) => `<use href="#cup" x="${x0 + i * 16}" y="174" width="14" height="24"/>`).join('');
 
 export const SHOP_SVG = `<svg class="shop-svg" viewBox="0 0 360 640" preserveAspectRatio="xMidYMid slice" overflow="visible" aria-hidden="true">
@@ -587,6 +589,62 @@ function woodLines() {
   return out.join(' ');
 }
 
+// ─── In-store queue (counter front, §2.8) ──────────────────────────────────────────────────────
+// Three people seen from behind (q-p1..q-p3, near to far), waiting and looking up at the clerk, plus a far
+// crowd row that thickens with the queue (q-c1..q-c3). Varied shirts, skin, hair and small props (phone,
+// cup, headphones, backpack, cap); nobody is drawn as a joke. Farther figures are shaded toward ink for
+// depth (solid colors, no opacity), every ink line has the same on-screen weight.
+const SKINS = ['#F4C9A0', '#E3AE84', '#C98B62', '#9C6644'];
+const HAIR_D = {
+  short: 'M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z',
+  bun: 'M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z M15.5 4 a4.5 4.5 0 1 0 9 0 a4.5 4.5 0 1 0 -9 0 Z',
+  tail: 'M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z M16.5 22 Q13 33 19 42 Q25 33 23.5 22 Z',
+  long: 'M9 15 A11 11 0 1 1 31 15 L32.5 37 Q20 40.5 7.5 37 Z',
+};
+
+// One person in a local 40x80 box (head centre 20,15), placed at (x, y) in the 360x640 frame at height
+// 80*s. look = { shirt, skin, hair, style, prop, acc }. 5–6 nodes.
+function queuePerson(cls, x, y, s, look, depth) {
+  const shirt = shade(look.shirt, depth);
+  const skin = shade(look.skin, Math.min(1, depth + 0.1));
+  const acc = shade(look.acc || GUN, depth);
+  const sw = r1(1.6 / s);
+  const line = `stroke="${INK}" stroke-width="${sw}"`;
+  let prop = '';
+  if (look.prop === 'phone') prop = `<path fill="${SKY}" ${line} d="M31 18 h6.5 v11 h-6.5 Z M30 31 a3.3 3.3 0 1 0 6.6 0 a3.3 3.3 0 1 0 -6.6 0 Z"/>`;
+  else if (look.prop === 'cup') prop = `<path fill="${CREAM}" ${line} d="M31 21 H40 L38.6 34 H32.4 Z M36 21 L38.4 13.5 M31 36 a3.4 3.4 0 1 0 6.8 0 a3.4 3.4 0 1 0 -6.8 0 Z"/>`;
+  else if (look.prop === 'phones') prop = `<path fill="none" stroke="${acc}" stroke-width="${r1(sw * 1.9)}" d="M8.6 15 A11.4 11.4 0 0 1 31.4 15"/><path fill="${acc}" ${line} d="M6.2 12.5 h4.6 v8.5 h-4.6 Z M29.2 12.5 h4.6 v8.5 h-4.6 Z"/>`;
+  else if (look.prop === 'pack') prop = `<path fill="${acc}" ${line} d="M9 45 Q9 40 14 40 H26 Q31 40 31 45 V82 H9 Z M13 56 H27"/>`;
+  else if (look.prop === 'cap') prop = `<path fill="${acc}" ${line} d="M8.8 14 A11.2 11.2 0 0 1 31.2 14 Q20 17.5 8.8 14 Z M17 19.5 H23"/>`;
+  return `<g class="${cls}" transform="translate(${r1(x)} ${r1(y)}) scale(${s})" stroke-linejoin="round" stroke-linecap="round">` +
+    `<path fill="${shirt}" ${line} d="M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z"/>` +
+    `<path fill="${shade(shirt)}" d="M31 35.4 Q42.2 40 42.2 84 H33 Q34.5 56 31 35.4 Z"/>` +
+    `<path fill="${skin}" ${line} d="M16 24 H24 V33 Q20 35 16 33 Z M6.6 17 a2.8 3.4 0 1 0 5.6 0 a2.8 3.4 0 1 0 -5.6 0 Z M27.8 17 a2.8 3.4 0 1 0 5.6 0 a2.8 3.4 0 1 0 -5.6 0 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z"/>` +
+    `<path fill="${look.hair}" d="${HAIR_D[look.style] || HAIR_D.short}"/>` + prop + '</g>';
+}
+
+// Far crowd row behind the three (cut by the subtitle band): heads seen from behind, a few caps.
+// One group per level, 3 paths each; levels show cumulatively as the queue grows (counter[data-crowd]).
+function crowdRow(cls, pts, shirt, cap) {
+  const head = (x, y, r) => `M${r1(x - r)} ${r1(y)} a${r} ${r} 0 1 0 ${r1(2 * r)} 0 a${r} ${r} 0 1 0 ${r1(-2 * r)} 0 Z`;
+  const bodies = pts.map(([x, y, r]) => `M${r1(x - r * 2)} 480 Q${r1(x - r * 2)} ${r1(y + r * 1.4)} ${r1(x)} ${r1(y + r * 1.25)} Q${r1(x + r * 2)} ${r1(y + r * 1.4)} ${r1(x + r * 2)} 480 Z`).join(' ');
+  const heads = pts.map(([x, y, r]) => head(x, y, r)).join(' ');
+  const caps = pts.filter((_, i) => i % 3 === 1).map(([x, y, r]) => `M${r1(x - r * 1.05)} ${r1(y - r * 0.15)} A${r1(r * 1.05)} ${r1(r * 1.05)} 0 0 1 ${r1(x + r * 1.05)} ${r1(y - r * 0.15)} Z`).join(' ');
+  return `<g class="${cls}" stroke="${INK}" stroke-width="1.3" stroke-linejoin="round"><path fill="${shirt}" d="${bodies}"/>` +
+    `<path fill="#3B2418" d="${heads}"/>` + (caps ? `<path fill="${cap}" d="${caps}"/>` : '') + '</g>';
+}
+
+const QUEUE_SVG =
+  `<g class="q-crowd">` +
+  crowdRow('q-c3', [[232, 458, 6.5], [292, 460, 6.5], [352, 456, 7], [176, 460, 6.5]], shade('#2FA3B8', 0.6), shade(LEMON, 0.6)) +
+  crowdRow('q-c2', [[188, 448, 7], [270, 446, 7], [340, 444, 7.5], [318, 452, 7]], shade('#FF7A1A', 0.62), shade(JADE, 0.62)) +
+  crowdRow('q-c1', [[290, 436, 8], [350, 430, 8], [222, 440, 7.5]], shade('#4F7FD8', 0.66), shade(GUN, 0.66)) +
+  `</g><g class="q-in">` +
+  queuePerson('q-p3', 299, 414, 0.95, { shirt: '#4F7FD8', skin: SKINS[2], hair: INK, style: 'short', prop: 'cap', acc: LEMON }, 0.8) +
+  queuePerson('q-p2', 239, 399, 1.15, { shirt: '#FF8FC1', skin: SKINS[0], hair: '#3B2418', style: 'long', prop: 'phone' }, 0.9) +
+  queuePerson('q-p1', 177, 382, 1.4, { shirt: JADE, skin: SKINS[1], hair: INK, style: 'bun', prop: 'pack', acc: SHUT }, 1) +
+  `</g>`;
+
 export const COUNTER_SVG = `<svg class="counter-svg" viewBox="0 0 360 640" preserveAspectRatio="xMidYMid slice" overflow="visible" aria-hidden="true">
 <g stroke-linejoin="round">
 <path fill="#6B3A1E" stroke="${INK}" stroke-width="1.6" d="M10.8 314 H349.2 L400 474 L430 700 H-70 L-40 474 Z"/>
@@ -599,13 +657,14 @@ export const COUNTER_SVG = `<svg class="counter-svg" viewBox="0 0 360 640" prese
 <path fill="${shade(LEMON)}" d="M224 352 H330 V356 H224 Z"/>
 <text class="plaque-text" x="277" y="348">现点现做</text>
 </g>
-<g class="q-in" fill="#2F2557">
-<use class="q-p1" href="#q-p" x="188" y="402" width="36" height="72" opacity=".85"/>
-<use class="q-p2" href="#q-p" x="238" y="418" width="29" height="58" opacity=".7"/>
-<use class="q-p3" href="#q-p" x="285" y="430" width="23" height="46" opacity=".55"/>
-</g>
-<g class="q-cap"><rect x="262" y="446" width="76" height="24" rx="12" fill="${INK}" stroke="#FFD23F" stroke-width="2"/><text class="q-num" x="300" y="463"></text></g>
+${QUEUE_SVG}
+<g class="q-cap"><rect x="276" y="366" width="76" height="24" rx="12" fill="${INK}" stroke="#FFD23F" stroke-width="2"/><text class="q-num" x="314" y="383"></text></g>
 </svg>`;
+
+export function queueCrowd(queue) {
+  const n = Number(queue) || 0;
+  return n >= 60 ? 3 : n >= 15 ? 2 : n > 3 ? 1 : 0;
+}
 
 export function queueCapText(queue) {
   const n = Math.floor(Number(queue) || 0);
@@ -614,20 +673,33 @@ export function queueCapText(queue) {
 
 // ─── Door monitor: five scenes (§2.8; design doc 7.1). Generic shapes only. ─────────────────────
 // viewBox 86x64 = the monitor at 1:1 on a 360px stage. Layers L0 (far) .. L3 (near) drive the
-// milestone parallax. Crowds use <use href="#q-p"> (≤ 40 per scene): every 3rd figure is 1.1x
+// milestone parallax. Crowds are the q-p figure as grouped paths (≤ 40 per scene): every 3rd figure is 1.1x
 // taller, every 4th checks a sky-blue phone.
 const MW = 86;
 const MH = 64;
-function crowd(pts, h, color = UNIFORM) {
-  const people = [];
+// Varied shirts and skin tones (fixed cycle, so the same queue always draws the same crowd).
+const CROWD_SHIRTS = [JADE, '#4F7FD8', '#FF8FC1', '#FF7A1A', CREAM, '#2FA3B8', LEMON, '#9C7BFF', '#E8402F'].map((c) => shade(c, 0.86));
+const CROWD_SKINS = ['#F4C9A0', '#E3AE84', '#C98B62', '#9C6644', '#E3AE84'].map((c) => shade(c, 0.9));
+function crowd(pts, h) {
+  // Plain paths grouped by color instead of one <use href="#q-p"> per person: every <use> builds its own
+  // shadow tree, and re-laying out up to 40 of them each time the queue changed cost long frames (A13).
+  const bodies = new Map();
+  const heads = new Map();
   const phones = [];
+  const add = (m, k, d) => m.set(k, (m.get(k) || '') + d);
   pts.slice(0, 40).forEach(([x, y], i) => {
     const hh = i % 3 === 2 ? h * 1.1 : h;
     const w = hh / 2;
-    people.push(`<use href="#q-p" x="${r1(x - w / 2)}" y="${r1(y - hh)}" width="${r1(w)}" height="${r1(hh)}"/>`);
+    const k = w / 20; // the q-p figure: 20x40 box, body from y 17, head circle (10, 8) r 7
+    const x0 = x - w / 2, y0 = y - hh;
+    add(bodies, CROWD_SHIRTS[(i * 4) % CROWD_SHIRTS.length],
+      `M${r1(x0)} ${r1(y)}Q${r1(x0)} ${r1(y0 + 18 * k)} ${r1(x)} ${r1(y0 + 17 * k)}Q${r1(x0 + w)} ${r1(y0 + 18 * k)} ${r1(x0 + w)} ${r1(y)}Z`);
+    const r = 7 * k;
+    add(heads, CROWD_SKINS[(i * 3) % CROWD_SKINS.length], `M${r1(x - r)} ${r1(y0 + 8 * k)}a${r1(r)} ${r1(r)} 0 1 0 ${r1(2 * r)} 0a${r1(r)} ${r1(r)} 0 1 0 ${r1(-2 * r)} 0Z`);
     if (i % 4 === 3) phones.push(`M${r1(x + w * 0.3)} ${r1(y - hh * 0.86)} h${r1(w * 0.18)} v${r1(hh * 0.15)} h-${r1(w * 0.18)} Z`);
   });
-  return `<g fill="${color}">${people.join('')}</g>` + (phones.length ? `<path fill="${SKY}" d="${phones.join(' ')}"/>` : '');
+  const paths = (m) => [...m].map(([c, d]) => `<path fill="${c}" d="${d}"/>`).join('');
+  return `<g>${paths(bodies)}${paths(heads)}</g>` + (phones.length ? `<path fill="${SKY}" d="${phones.join(' ')}"/>` : '');
 }
 const along = (n, x0, y0, x1, y1) =>
   Array.from({ length: n }, (_, i) => {
@@ -684,7 +756,7 @@ export const MONITOR_SCENES = [
         `<rect x="40" y="12" width="22" height="8" rx="1.5" fill="${CREAM}" stroke="${INK}" stroke-width=".8"/><rect x="64" y="12" width="8" height="8" rx="1.5" fill="${LEMON}" stroke="${INK}" stroke-width=".8"/>` +
         `<path fill="none" stroke="${INK}" stroke-width="1.2" d="M43 16 H57 M53 13.5 L57 16 L53 18.5"/></g>` +
         `<g class="L2"><path fill="#5C6676" d="M40 50 L76 24 H80 L44 50 Z"/>${crowd([...along(Math.ceil(n * 0.4), 44, 49, 76, 26), ...along(Math.floor(n * 0.6), 2, 58, 40, 52)], 10)}</g>` +
-        `<g class="L3"><use href="#q-p" x="4" y="30" width="12" height="24" fill="#2F6FA8"/><rect x="0" y="22" width="20" height="9" rx="1.5" fill="${LEMON}" stroke="${INK}" stroke-width=".8"/><path fill="none" stroke="${INK}" stroke-width="1.2" d="M4 26.5 H16 M12 24 L16 26.5 L12 29"/></g>`;
+        `<g class="L3"><use href="#q-p" x="4" y="30" width="12" height="24" fill="#2F6FA8" color="#E3AE84"/><rect x="0" y="22" width="20" height="9" rx="1.5" fill="${LEMON}" stroke="${INK}" stroke-width=".8"/><path fill="none" stroke="${INK}" stroke-width="1.2" d="M4 26.5 H16 M12 24 L16 26.5 L12 29"/></g>`;
     },
   },
   {

@@ -37,7 +37,7 @@
 <script type="module">
 import {
   CLERK_SVG, SHOP_SVG, COUNTER_SVG, customerSVG, signSVG, miniSign, KEY_ICONS, FINGER_SVG, DOOR_GATE_SVG,
-  STAR_SVG, ticketHTML, MONITOR_SCENES, monitorHTML, queueCapText,
+  STAR_SVG, ticketHTML, MONITOR_SCENES, monitorHTML, queueCapText, queueCrowd,
 } from './src/art.js';
 import { getContent } from './src/content.js';
 
@@ -65,7 +65,7 @@ function stageHTML(o) {
       <div class="shop"${o.gold ? ' data-gold' : ''}>${SHOP_SVG}</div>
       ${monitorHTML(q, lang).replace('class="monitor"', `class="monitor"${o.zoom ? ' data-zoom' : ''}`)}
       ${CLERK_SVG.replace('data-mood="idle"', `data-mood="${o.mood || 'idle'}"`).replace('class="clerk"', `class="clerk ${o.flags || ''}"`)}
-      <div class="counter${q > 3 ? ' cap' : ''}" data-q="${Math.min(3, q)}">${COUNTER_SVG.replace('<text class="q-num" x="300" y="463"></text>', `<text class="q-num" x="300" y="463">${queueCapText(q)}</text>`)}</div>
+      <div class="counter${q > 3 ? ' cap' : ''}" data-q="${Math.min(3, q)}" data-crowd="${queueCrowd(q)}">${COUNTER_SVG.replace('<text class="q-num" x="314" y="383"></text>', `<text class="q-num" x="314" y="383">${queueCapText(q)}</text>`)}</div>
       <div class="cust-wrap${o.custCls ? ' ' + o.custCls : ''}" data-face="${o.face || ''}"><div class="cust-clip">${customerSVG(cust, 0, { fixed: o.fixed, gray: !!o.gray })}</div></div>
       ${sign}
     </div>

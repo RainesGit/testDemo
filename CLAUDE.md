@@ -33,7 +33,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/hant.js           Simplified → Traditional display conversion (zh-TW / zh-HK / zh-MO), generated with OpenCC,
                         plus Taiwan wording (TW_PHRASES; see docs/localization-tw.md)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
-  src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, Web Speech fallback, bleep
+  src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, runtime voice
+                        punch chain (VOICE_FX; ?punchfx=0 turns it off), Web Speech fallback, bleep
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
   src/main.js           Wires everything together (start → opening → days)
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration)

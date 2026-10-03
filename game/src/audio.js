@@ -4,7 +4,7 @@
 // the browser lacks support. Nothing makes sound until unlock() runs inside a user gesture.
 //
 // Pure helpers (stripStage, splitForBleep, styleParams, chuuniSplit, buildSpeechPlan, splitPunch,
-// ttsText, zhNumber, enNumber, estimateSpeechMs, timingsFromManifest) have no DOM/audio dependency
+// ttsText, zhNumber, enNumber, estimateSpeechMs, voicePlan, timingsFromManifest) have no DOM/audio dependency
 // and are unit-tested in test/audio.test.mjs.
 //
 // createAudio() → audio. First-minute additions (docs/first-minute-spec.md 8.5):
@@ -19,6 +19,7 @@
 //   loop(name, opts) → { stop(ms), detune(cents) }   'musicbox' | 'hum';  stopLoop(name, ms), stopLoops(ms)
 //   sfx(name, opts)           + gate slam boom whoosh press pop card tick tap ding coin bell dingdong stamp clock
 //                               sigh scratch feedback sparkle drumroll crowdOh huh (all synthesized)
+//   setVoiceFx(on | tuning) / voiceFx, setLite(on)   runtime voice punch (VOICE_FX, voicePlan); createAudio({ voiceFx })
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -174,17 +175,109 @@ export function estimateSpeechMs(text, lang = 'zh') {
   return Math.round(60 + 190 * chars);
 }
 
-const PUNCH_RATE = { normal: 1, curse: 1, mega: 0.94 };
+export const PUNCH_RATE = { normal: 1, curse: 1, mega: 0.94 };
+/** playbackRate of whole clips per delivery style (forced-polite voice a little higher and faster, etc.). */
+export const CLIP_RATE = { polite: 1.08, cold: 0.97, rage: 1.04 };
+
+export const dbToGain = (db) => Math.pow(10, db / 20);
+
+/**
+ * Runtime "voice punch" (Kokoro has no emotion control, so the hit is made in the mix). When enabled, the
+ * hit half of a clerk line (normally the part after '|'; the half with the curse word when the curse comes
+ * first, as in "调你妈！|黄金比例最好喝！"), rage lines and the 调你妈 climax go through:
+ *   [megaphone blend, rage only] → WaveShaper (gentle; curse/mega/rage: the spec 8.5 k = 8 curve)
+ *   → +driveDb → DynamicsCompressor (fast attack) → +makeupDb   (mega adds the spec's 70 ms / 25 % echo)
+ * played at playbackRate punchRate (mega keeps PUNCH_RATE.mega, the slow-motion climax), with a synthesized
+ * impact (low thump + slap) at the exact onset. A line without a setup gets breathMs of silence before the
+ * hit. The polite setup half stays clean and setupDb softer. Durations reported by timingsFromManifest()
+ * include every rate change and the breath. Lite mode keeps rate, level, impact and breath (so timing does
+ * not depend on it) but drops the compressor, shaper and megaphone filters. enabled: false (or ?punchfx=0)
+ * restores the plain spec 8.5 chain.
+ */
+export const VOICE_FX = {
+  enabled: true,
+  punchRate: 1.06,   // playbackRate of the hit (about +1 semitone; mega keeps 0.94)
+  driveDb: 5,        // into the compressor; +1 dB more when hot (curse / mega / rage)
+  liteDriveDb: 3,    // lite mode has no compressor: less drive
+  makeupDb: 3,
+  setupDb: -1.5,     // polite setup half, clean and slightly softer
+  breathMs: 60,      // silence before a hit that has no setup (rage lines, 调你妈)
+  gentleK: 1.8,      // tanh saturation amount for ordinary punch halves
+  impact: true,      // synthesized thump + slap at the onset of the hit
+  impactGain: 0.7,   // 1.0 for mega
+  megaphone: true,   // subtle band-passed blend during rage
+  compressor: { threshold: -20, knee: 4, ratio: 5, attack: 0.001, release: 0.09 },
+};
+
+const HOT_STYLES = new Set(['rage', 'curse']);
+/** True when the text contains a default bleep word (used to find which half of a line is the curse). */
+export const hasCurse = (text) => splitForBleep(stripStage(text), DEFAULT_BLEEP_WORDS).some((s) => s.type === 'bleep');
+
+function fxConfig(voiceFx) {
+  if (!voiceFx) return null;
+  const cfg = voiceFx === true ? VOICE_FX : { ...VOICE_FX, ...voiceFx };
+  return cfg.enabled === false ? null : cfg;
+}
+
+/**
+ * How each half of a line is played (pure). Returns { hit: 'setup'|'punch'|null, breathMs, setup, punch };
+ * setup is null when the line has no setup half. Each half: { rate, gainDb, chain: null|'legacy'|'punch', fx,
+ * driveDb, makeupDb, saturation: 0|k|'hot', compress, megaphone, echo, impact, impactGain }.
+ *   via: 'clerk' (playClerk; the legacy chain always runs on the punch) | 'speak' (speak() of a whole line).
+ *   voiceFx: false = legacy (spec 8.5 chain only), true = VOICE_FX, or an object merged over VOICE_FX.
+ */
+export function voicePlan(text, { fx = 'normal', style, voiceFx = false, lite = false, via = 'clerk' } = {}) {
+  const [setup, punch] = splitPunch(text);
+  const hasSetup = !!stripStage(setup);
+  const base = CLIP_RATE[style] || 1;
+  const clean = (gainDb = 0) => ({ rate: base, gainDb, chain: null });
+  const legacyPunch = via === 'clerk'
+    ? { rate: fx === 'mega' ? PUNCH_RATE.mega : base, gainDb: 0, chain: 'legacy', fx }
+    : clean();
+  const cfg = fxConfig(voiceFx);
+  if (!cfg || style === 'polite') {
+    return { hit: null, breathMs: 0, setup: hasSetup ? clean() : null, punch: legacyPunch };
+  }
+  let hit = null;
+  if (hasSetup) hit = hasCurse(setup) && !hasCurse(punch) ? 'setup' : 'punch';
+  else if (fx === 'mega' || fx === 'curse' || HOT_STYLES.has(style)) hit = 'punch';
+  if (!hit) return { hit: null, breathMs: 0, setup: null, punch: legacyPunch };
+  const hot = fx === 'curse' || fx === 'mega' || HOT_STYLES.has(style);
+  const impact = !!cfg.impact && (hasSetup || fx === 'mega' || style === 'rage');
+  const hitPlan = {
+    rate: fx === 'mega' ? PUNCH_RATE.mega : Math.max(base, cfg.punchRate),
+    gainDb: 0,
+    chain: 'punch',
+    fx,
+    driveDb: lite ? cfg.liteDriveDb : cfg.driveDb + (hot ? 1 : 0),
+    makeupDb: lite ? 0 : cfg.makeupDb,
+    saturation: lite ? 0 : hot ? 'hot' : cfg.gentleK,
+    compress: !lite,
+    megaphone: !lite && !!cfg.megaphone && style === 'rage',
+    echo: fx === 'mega',
+    impact,
+    impactGain: fx === 'mega' ? 1 : cfg.impactGain,
+  };
+  if (!hasSetup) return { hit, breathMs: impact ? cfg.breathMs : 0, setup: null, punch: hitPlan };
+  return hit === 'punch'
+    ? { hit, breathMs: 0, setup: clean(cfg.setupDb), punch: hitPlan }
+    : { hit, breathMs: 0, setup: hitPlan, punch: clean() }; // curse first: the professional half stays clean
+}
 
 /**
  * Timing of a line from a voice-pack manifest (pure; audio.voiceTimings() wraps it with the loaded pack).
  * Returns { setupMs, gapMs, punchStartMs, punchMs, totalMs, clips: { setup, punch } } in ms.
- * Lines without '|' are all punch (setupMs 0, no gap). Missing clips fall back to estimateSpeechMs().
+ * Lines without '|' are all punch (setupMs 0, no gap; with the voice punch on, a hit without a setup starts
+ * after VOICE_FX.breathMs, reported as gapMs). Every playbackRate change from voicePlan() (style, mega,
+ * punchRate) is applied, so the numbers match what plays. Missing clips fall back to estimateSpeechMs().
  */
-export function timingsFromManifest(manifest, lang, text, { punchGapMs = 200, punchFx = 'normal', rate = 1, bleep = false } = {}) {
+export function timingsFromManifest(manifest, lang, text, {
+  punchGapMs = 200, punchFx = 'normal', rate = 1, bleep = false, style, voiceFx = false, lite = false,
+} = {}) {
   const l = lang === 'en' ? 'en' : 'zh';
   const clips = manifest?.langs?.[l]?.clips || {};
   const [setup, punch] = splitPunch(text);
+  const plan = voicePlan(text, { fx: punchFx, style, voiceFx, lite });
   const len = (part, r) => {
     if (!stripStage(part)) return { ms: 0, clip: false };
     const c0 = clips[clipKey(l, part)];
@@ -192,9 +285,9 @@ export function timingsFromManifest(manifest, lang, text, { punchGapMs = 200, pu
     if (c) return { ms: Math.round((c.d * 1000) / r), clip: true };
     return { ms: Math.round(estimateSpeechMs(part, l) / r), clip: false };
   };
-  const s = len(setup, rate);
-  const p = len(punch, rate * (PUNCH_RATE[punchFx] || 1));
-  const gapMs = s.ms > 0 && p.ms > 0 ? punchGapMs : 0;
+  const s = len(setup, rate * (plan.setup?.rate || 1));
+  const p = len(punch, rate * plan.punch.rate);
+  const gapMs = s.ms > 0 && p.ms > 0 ? punchGapMs : (s.ms === 0 && p.ms > 0 ? plan.breathMs : 0);
   const punchStartMs = s.ms + gapMs;
   return {
     setupMs: s.ms, gapMs, punchStartMs, punchMs: p.ms, totalMs: punchStartMs + p.ms,
@@ -303,7 +396,7 @@ export function buildSpeechPlan(text, { style = 'real', rate, pitch, bleep = fal
 // Audio engine
 // ---------------------------------------------------------------------------
 
-export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } = {}) {
+export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, voiceFx = true } = {}) {
   const g = globalThis;
   const AC = g.AudioContext || g.webkitAudioContext;
   const synth = g.speechSynthesis || null;
@@ -327,7 +420,9 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
   let packBase = '';
   const chunkCache = new Map(); // "lang:index" -> Promise<AudioBuffer|null>
   const speechSources = new Set();
-  const CLIP_RATE = { polite: 1.08, cold: 0.97, rage: 1.04 };
+  // Voice punch (VOICE_FX): false, true or an object merged over VOICE_FX; lite mode trims the chain.
+  let fxCfg = voiceFx;
+  let liteOn = false;
 
   // ---- voices ----
   const loadVoices = () => { try { voices = synth ? synth.getVoices() || [] : []; } catch { voices = []; } };
@@ -917,7 +1012,6 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
     if (!bedBus) bedBus = gain(master, 1);
     return bedBus;
   }
-  const dbToGain = (db) => Math.pow(10, db / 20);
   /** Press the bed (crowd + rhythm) down to toDb within ms. Default: the spec's "silence" (-60 dB in 30 ms). */
   function duck(toDb = -60, ms = 30) {
     if (!unlocked || !ensureCtx()) return;
@@ -1114,11 +1208,10 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
     for (let i = 0; i < n; i++) await chunk(l, i);
   }
 
-  // Punch chain (spec 8.5 item 2): +4 dB; curse adds a WaveShaper (k = 8); mega adds a 70 ms echo (25 % wet).
+  // Legacy punch chain (spec 8.5 item 2): +4 dB; curse adds a WaveShaper (k = 8); mega adds a 70 ms echo
+  // (25 % wet). Used when the voice punch (VOICE_FX) is off, and for whole lines that are not a hit.
   let punchCurve = null;
-  function punchChain(fx, dest) {
-    const out = gain(dest, 1.585);
-    if (fx !== 'curse' && fx !== 'mega') return out;
+  function hotCurve() {
     if (!punchCurve) {
       const n = 1024;
       const k = 8;
@@ -1128,8 +1221,13 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
         punchCurve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
       }
     }
+    return punchCurve;
+  }
+  function punchChain(fx, dest) {
+    const out = gain(dest, 1.585);
+    if (fx !== 'curse' && fx !== 'mega') return out;
     const shaper = ctx.createWaveShaper();
-    shaper.curve = punchCurve;
+    shaper.curve = hotCurve();
     shaper.oversample = '2x';
     shaper.connect(out);
     const pre = gain(shaper, 0.7); // keep the clipped level close to the clean one
@@ -1142,25 +1240,109 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
     return pre;
   }
 
+  // Voice punch chain (VOICE_FX): [megaphone blend] → shaper → drive → compressor (fast attack) → makeup → dest,
+  // plus the mega echo tapped after the compressor. Returns the input node.
+  const gentleCurves = new Map();
+  function gentleCurve(k) {
+    if (!gentleCurves.has(k)) {
+      const n = 1024;
+      const c = new Float32Array(n);
+      const norm = Math.tanh(k);
+      for (let i = 0; i < n; i++) c[i] = Math.tanh(k * ((i / (n - 1)) * 2 - 1)) / norm;
+      gentleCurves.set(k, c);
+    }
+    return gentleCurves.get(k);
+  }
+  function voiceChain(plan, dest) {
+    const c = (fxConfig(fxCfg) || VOICE_FX).compressor || VOICE_FX.compressor;
+    const makeup = gain(dest, dbToGain(plan.makeupDb || 0));
+    let head = makeup;
+    if (plan.compress) {
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = c.threshold;
+      comp.knee.value = c.knee;
+      comp.ratio.value = c.ratio;
+      comp.attack.value = c.attack;
+      comp.release.value = c.release;
+      comp.connect(head);
+      head = comp;
+    }
+    if (plan.echo) {
+      const delay = ctx.createDelay(0.5);
+      delay.delayTime.value = 0.07;
+      delay.connect(gain(dest, 0.25));
+      makeup.connect(delay);
+    }
+    head = gain(head, dbToGain(plan.driveDb || 0));
+    if (plan.saturation) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = plan.saturation === 'hot' ? hotCurve() : gentleCurve(plan.saturation);
+      shaper.oversample = '2x';
+      shaper.connect(head);
+      // the k = 8 curve is loud on its own: trim into it like the legacy chain
+      head = plan.saturation === 'hot' ? gain(shaper, 0.7) : shaper;
+    }
+    if (!plan.megaphone) return head;
+    // Subtle megaphone: 65 % dry + a 600 Hz–3.2 kHz band with a 1.8 kHz bump.
+    const input = ctx.createGain();
+    input.connect(gain(head, 0.65));
+    const peak = ctx.createBiquadFilter();
+    peak.type = 'peaking';
+    peak.frequency.value = 1800;
+    peak.Q.value = 1.2;
+    peak.gain.value = 6;
+    peak.connect(gain(head, 0.55));
+    input.connect(filter('highpass', 600, 0.7, filter('lowpass', 3200, 0.7, peak)));
+    return input;
+  }
+
+  // Impact transient layered on the onset of a hit: low thump (sine 120 → 45 Hz, 120 ms) + slap (noise burst
+  // band-passed at 2.2 kHz, 30 ms). Registered as a speech source so cut() also silences a pending one.
+  function impact(t, k = 1, gen = speechGen) {
+    if (gen !== speechGen) return;
+    const out = gain(master, 1);
+    const g1 = gain(out);
+    env(g1, t, { a: 0.002, peak: 0.55 * k, d: 0.12 });
+    const thump = osc('sine', 120, t, t + 0.13, g1);
+    thump.frequency.exponentialRampToValueAtTime(45, t + 0.11);
+    const g2 = gain(out);
+    env(g2, t, { a: 0.0008, peak: 0.42 * k, d: 0.03 });
+    const slap = noise(t, t + 0.035, filter('bandpass', 2200, 0.9, g2));
+    const entry = {
+      fadeGain: out,
+      stop(at) { try { thump.stop(at); } catch { /* ended */ } try { slap.stop(at); } catch { /* ended */ } },
+    };
+    speechSources.add(entry);
+    setTimeout(() => speechSources.delete(entry), Math.max(0, (t - now()) * 1000) + 400);
+  }
+
   // Plays one clip. Speech clips are cancelled by stopSpeech()/cut(); announcer clips are not.
   // at: absolute AudioContext time (overrides delay). rate: playback rate (customers' 4.2 speed-up).
-  async function playClip(clip, { style, delay = 0, at, speech = true, gen = speechGen, gainValue = 1, rate, fx, buffer } = {}) {
+  // plan: one half from voicePlan() (rate, level, chain, impact); fx: legacy punch chain without a plan.
+  async function playClip(clip, { style, delay = 0, at, speech = true, gen = speechGen, gainValue = 1, rate, fx, plan, buffer } = {}) {
     buffer = buffer || await chunk(lang, clip.c);
     if (!buffer || (speech && gen !== speechGen)) return;
     if (ctx.state === 'suspended') ctx.resume();
     await new Promise((resolve) => {
       const src = ctx.createBufferSource();
       src.buffer = buffer;
-      src.playbackRate.value = rate ?? (fx === 'mega' ? PUNCH_RATE.mega : CLIP_RATE[style] || 1);
-      const g = gain(master, gainValue);
-      src.connect(fx ? punchChain(fx, g) : g);
+      src.playbackRate.value = rate ?? plan?.rate ?? (fx === 'mega' ? PUNCH_RATE.mega : CLIP_RATE[style] || 1);
+      const g = gain(master, gainValue * dbToGain(plan?.gainDb || 0));
+      const legacyFx = plan ? (plan.chain === 'legacy' ? plan.fx : null) : fx;
+      let input = g;
+      try {
+        if (plan?.chain === 'punch') input = voiceChain(plan, g);
+        else if (legacyFx) input = punchChain(legacyFx, g);
+      } catch { input = g; } // a missing node type never costs the line
+      src.connect(input);
       src.fadeGain = g; // stopSpeech() / cut() fade this out instead of cutting mid-syllable
-      const startAt = at ?? now() + delay;
+      const startAt = Math.max(at ?? now() + delay, now());
       const done = () => { speechSources.delete(src); clearTimeout(timer); resolve(); };
       src.onended = done;
       const timer = setTimeout(done, ((startAt - now()) + clip.d / src.playbackRate.value) * 1000 + 800);
       if (speech) speechSources.add(src);
-      src.start(Math.max(startAt, now()), clip.o, clip.d);
+      src.start(startAt, clip.o, clip.d);
+      if (plan?.impact) { try { impact(startAt, plan.impactGain ?? 1, gen); } catch { /* ignore */ } }
     });
   }
 
@@ -1180,8 +1362,9 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
 
   /** Clip-based timing of a line in the current language (sync; estimates when a clip is missing). */
   function voiceTimings(text, opts = {}) {
-    return timingsFromManifest(pack, opts.lang || lang, text, { bleep: bleepOn, ...opts });
+    return timingsFromManifest(pack, opts.lang || lang, text, { bleep: bleepOn, voiceFx: fxCfg, lite: liteOn, ...opts });
   }
+  const planFor = (text, opts) => voicePlan(text, { voiceFx: fxCfg, lite: liteOn, ...opts });
 
   const withTiming = (promise, timing) => Object.assign(promise, timing);
 
@@ -1189,11 +1372,14 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
    * Clerk line with a '|' cut point (spec 8.5 item 1). Setup clip → punchGapMs of silence (the bed is
    * pressed to -60 dB in 30 ms at the end of the setup) → punch clip through the punch chain; the bed comes
    * back bedBackMs after the punch ends. Without '|' the whole line is the punch (setupMs 0, no ducking).
+   * With the voice punch on (VOICE_FX), the hit half gets the punch chain, punchRate and an impact at its
+   * onset, the polite setup plays clean and softer, and a hit without a setup waits breathMs (see voicePlan()).
    * Cuts any speech already playing. Returns a Promise (resolves when the line ends) that also carries
    * { setupMs, gapMs, punchStartMs, punchMs, totalMs } synchronously.
    */
   function playClerk(text, { punchGapMs = 200, punchFx = 'normal', bedBackMs = 200, style, duckBed = true } = {}) {
-    const timing = voiceTimings(text, { punchGapMs, punchFx });
+    const timing = voiceTimings(text, { punchGapMs, punchFx, style });
+    const plan = planFor(text, { fx: punchFx, style });
     if (!unlocked) return withTiming(Promise.resolve(timing), timing);
     stopSpeech();
     const gen = speechGen;
@@ -1219,22 +1405,27 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
           d.exponentialRampToValueAtTime(0.001, te + 0.03);
         }
         const jobs = [];
-        if (cs && bs) jobs.push(playClip(cs, { at: t0, gen, buffer: bs, style }));
-        if (cp && bp) jobs.push(playClip(cp, { at: tp, gen, buffer: bp, fx: punchFx, style }));
+        if (cs && bs) jobs.push(playClip(cs, { at: t0, gen, buffer: bs, plan: plan.setup }));
+        if (cp && bp) jobs.push(playClip(cp, { at: tp, gen, buffer: bp, plan: plan.punch }));
         if (hasSetup && duckBed) restore(200, timing.totalMs + bedBackMs);
         await Promise.all(jobs);
         return timing;
       }
       // Some half has no clip: play part by part (Web Speech where needed).
       const opts = { style: style || (punchFx === 'curse' ? 'curse' : 'real') };
+      // Web Speech cannot go through WebAudio: a hit half spoken by it still gets its impact.
+      const speakHalf = (part, p) => {
+        if (p?.impact) { try { impact(now(), p.impactGain ?? 1, gen); } catch { /* ignore */ } }
+        return sayFallback(part, opts, gen);
+      };
       if (hasSetup) {
-        if (cs) await playClip(cs, { gen, style }); else await sayFallback(setup, opts, gen);
+        if (cs) await playClip(cs, { gen, plan: plan.setup }); else await speakHalf(setup, plan.setup);
         if (gen !== speechGen) return timing;
         if (duckBed) duck(-60, 30);
         await wait(punchGapMs);
-      }
+      } else if (plan.breathMs) await wait(plan.breathMs);
       if (gen !== speechGen) return timing;
-      if (cp) await playClip(cp, { gen, fx: punchFx, style }); else if (stripStage(punch)) await sayFallback(punch, opts, gen);
+      if (cp) await playClip(cp, { gen, plan: plan.punch }); else if (stripStage(punch)) await speakHalf(punch, plan.punch);
       if (hasSetup && duckBed) restore(200, bedBackMs);
       return timing;
     })().catch(() => timing);
@@ -1294,12 +1485,17 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
       await playClerk(text, { style: opts.style, punchFx: opts.style === 'curse' ? 'curse' : 'normal' });
       return;
     }
+    // Rage / curse lines (the rage chant) get the voice punch; everything else plays as before.
+    const plan = planFor(text, { style: opts.style, via: 'speak' });
+    const gen = speechGen;
     const clip = findClip(text);
     if (clip && ensureCtx()) {
-      await playClip(clip, { style: opts.style, gen: speechGen });
+      await playClip(clip, { style: opts.style, gen, plan: plan.punch, delay: plan.breathMs / 1000 });
       return;
     }
-    await sayFallback(text, opts, speechGen);
+    if (plan.breathMs) await wait(plan.breathMs);
+    if (plan.punch.impact && ensureCtx()) { try { impact(now(), plan.punch.impactGain ?? 1, gen); } catch { /* ignore */ } }
+    await sayFallback(text, opts, gen);
   }
 
   function stopSpeech() {
@@ -1336,6 +1532,11 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85 } 
     setBleep(on) { bleepOn = !!on; },
     setBleepWords(list) { words = Array.isArray(list) ? list : DEFAULT_BLEEP_WORDS; },
     setVolume(v) { volume = clamp(Number(v) || 0, 0, 1); if (master) master.gain.value = volume; },
+    /** Voice punch on/off (true / false) or tuning merged over VOICE_FX ({ punchRate: 1.04, impact: false }). */
+    setVoiceFx(v) { fxCfg = v && typeof v === 'object' ? { ...(typeof fxCfg === 'object' ? fxCfg : {}), enabled: true, ...v } : !!v; },
+    get voiceFx() { return fxConfig(fxCfg); },
+    /** Lite mode (ui K4): the voice punch drops its compressor, shaper and megaphone filters. */
+    setLite(on) { liteOn = !!on; },
     speak,
     playClerk,
     playCustomer,

@@ -27,6 +27,7 @@ URL parameters:
 | `?skipOpening=1` | Day 1 starts free play directly (QA). |
 | `?seed=N` | Seeded randomness (QA). |
 | `?lite=1` / `?lite=0` | Force the K4 lite mode (camera cuts, no idle loops) on or off; otherwise it switches on by itself on slow devices. |
+| `?punchfx=0` | Turn the runtime voice punch off (plain spec 8.5 punch chain) for A/B listening; on by default. |
 | `?debug` | Exposes `window.__250` for automated tests: getters `game`, `opening`, `day`, `info`, `lang`, plus `audio`, `ui`, `getContent`, `DAYS`, `startDay(n)` and a `durationMs` setter that shortens the next rounds. |
 
 Saved in `localStorage` (every access is wrapped in try/catch): `250cups.day` (only goes up), `250cups.openingDone`, `250cups.lang`, `250cups.bleep`.
@@ -48,7 +49,7 @@ Controls: tap the three keys, or **J / K / L**. A press resolves at once; holdin
 
 ```bash
 cd game
-node --test test/*.test.mjs        # 154 tests: engine 60, audio 21, art 16, opening 16, huazi 13, integration 9, days 8, ui 8, hant 3
+node --test test/*.test.mjs        # 162 tests: engine 60, audio 29, art 16, opening 16, huazi 13, integration 9, days 8, ui 8, hant 3
 node tools/check-content.mjs       # 23 content / design-rule checks (V2 needs a rebuilt voice pack after line changes)
 ```
 
@@ -97,7 +98,7 @@ game/
     huazi.js            花字 picking and rate limits (pure)
     hant.js             Simplified → Traditional display conversion (generated with OpenCC s2tw; pure)
     ui.js               DOM, input, camera, 花字 rendering, guidance, cards
-    audio.js            WebAudio SFX synth, bed, voice pack playback with "|" cut points, Web Speech, bleep
+    audio.js            WebAudio SFX synth, bed, voice pack playback with "|" cut points, voice punch chain, Web Speech, bleep
     content.js          getContent(lang) → { customers, system }, merges en over zh by id
     content.zh.js       100 customers + SYSTEM_ZH (incl. opening, originalCustomer, tips, unlock, start)
     content.en.js       100 customers + SYSTEM_EN (US English; 250 = "quarter-wit" slip)
@@ -127,7 +128,8 @@ Each module's full contract is in the comment at the top of its file. In short:
 - **huazi** `pickHuazi(line, ctx)`, `createHuaziTracker({ mode, lang })` (one S1 per 3 customers, no keyword twice within 5).
 - **hant** `toHant(text)` (idempotent), `PHRASES`, `HANT_CHARS`, `HANT_SAME`. Regenerate after adding text with new characters: `pip install opencc-python-reimplemented`, convert every Han character in `src/*.js` with `OpenCC('s2tw')`, keep pairs that differ, add two-character phrases where the character map disagrees with OpenCC (`test/hant.test.mjs` lists unknown characters).
 - **ui** `createUI(root, { onPress, onCharge, onStart, onToggleLang, onToggleBleep })`: HUD (`render`, `setHud`, `setQueue`, `setTicket`, `setTexts` (also relabels the scene props), `setScript('hans'|'hant')`, `queueGain(n)`), clerk (`setClerk`, `setClerkFlags`, `clerkBeat`, `clerkTap`, `resetClerk`), customer and sign (`showCustomer`, `showSign`, `signExit`, `signFx`, `startSignTimer`, `customerReact`, `customerPose`, `showPlate`), camera and fx (`camera`, `flash(ms)`, `speedLines(ms)`, `shake`, `freeze` (hit-stop: 花字 keep playing), `letterbox`, `gate`, `goldsign`), 花字 (`huazi(list, timing)`, `clearHuazi`), subtitles (`showLine`, `emphasize`), guidance (`guide`, `clearGuide`, `hintCorrect`, `tip`, `breathKey`, `coverKey`, `lockInput`, `unlockInput`, `inputLocked`), screens (`showStart`, `fontsReady`, `showClosing`, `showRecap`, `showSkip`, `showSummary`, `showMilestone`). Pure exports for tests: `createFxQueue`, `chargeLevel`, `FOCUS`, `camTransform`, `rectsOverlap`, `placeHuazi`, `hzFontSize`, `hzMaxScale`.
-- **audio** `createAudio()`: `unlock`, `setLang`, `setBleep`, `loadVoicePack`, `playClerk(text, { punchGapMs, punchFx, bedBackMs, style })` (returns a Promise carrying `{ setupMs, punchStartMs, punchMs, totalMs }`), `playCustomer(text, { rate })` (`{ ms }`), `voiceTimings`, `cut`, `hush`, `duck` / `restore`, `bed`, `loop` / `stopLoop(s)`, `sfx(name, opts)`, `crowd`, `speak`, `stopSpeech`, `announce`.
+- **audio** `createAudio()`: `unlock`, `setLang`, `setBleep`, `loadVoicePack`, `playClerk(text, { punchGapMs, punchFx, bedBackMs, style })` (returns a Promise carrying `{ setupMs, punchStartMs, punchMs, totalMs }`), `playCustomer(text, { rate })` (`{ ms }`), `voiceTimings`, `cut`, `hush`, `duck` / `restore`, `bed`, `loop` / `stopLoop(s)`, `sfx(name, opts)`, `crowd`, `speak`, `stopSpeech`, `announce`, `setVoiceFx(on | tuning)` / `voiceFx`, `setLite(on)`; `createAudio({ voiceFx })`.
+- **voice punch** (`VOICE_FX`, `voicePlan()` in `src/audio.js`; Kokoro has no emotion, so the hit is made in the mix). The hit of a clerk line (the half after `|`; the curse half when the curse comes first, as in "调你妈！\|黄金比例最好喝！"), rage lines and the 调你妈 climax play through WaveShaper saturation (gentle; curse / mega / rage use the spec's k = 8 curve) → +5 dB (+6 hot) → DynamicsCompressor (1 ms attack) → +3 dB makeup, at playbackRate 1.06 (mega keeps 0.94), with a synthesized impact (120→45 Hz thump + 2.2 kHz noise slap) at the exact onset; rage adds a subtle megaphone band (600 Hz–3.2 kHz, 1.8 kHz bump), mega keeps the 70 ms / 25 % echo. The polite setup half plays clean and 1.5 dB softer; a hit without a setup waits 60 ms (breath). The forced-polite voice is never punched. All reported durations (`playClerk`, `voiceTimings`) include these rates and the breath, so `main.js` / `opening.js` timing stays exact. Lite mode drops the compressor, shaper and megaphone (timing unchanged); `main.js` syncs it from `ui.lite` every frame. Measured in headless Chromium on r1 / r2: setup → punch contrast 7.5 dB (was 3.7), punch peaks 0.85–0.88 (the old +4 dB chain hit 1.0).
 - **content** 100 customers `{ id, cat, name, tag, cups, says, reply, alt, style, key }` per language; `reply` / `alt` of the day 1 pool carry one `|` cut point (setup | punch). Text inside `（…）` / `(…)` is a stage direction: shown small, never spoken.
 
 ### main.js integration rules
@@ -146,6 +148,7 @@ Each module's full contract is in the comment at the top of its file. In short:
 - **Performance on low-end devices (A13).** Camera glides on the SVG scene were most of the cost (about 16% long frames at 4x CPU in headless Chromium). A K4 lite mode now switches itself on when a 30-frame window has 6+ frames over 32 ms (camera cuts instead of glides, no idle loops, no spinning rays); with it the 4x-CPU opening measures 4.5–5.7% long frames (target ≤ 5%), so A13 is borderline here and needs a real-phone check. Headless runs that take many screenshots can trip lite mode too; add `?lite=0` for visual QA (`?lite=1` forces it).
 - **Google Fonts** may be blocked (the sandbox proxy here); the game falls back to system fonts.
 - **Rage may swallow the original customer** on day 3+: during rage every press is a hit, so a two-step customer standing at the counter then is resolved as a rage hit.
+- **Voice punch is a mix-stage stand-in.** It adds level, density and an impact but cannot add real anger to Kokoro's flat read. A rebuild with `export-lines.mjs --punchy` (tools/voice/README.md) can also bake faster, limited punch halves into the pack; then consider lowering `VOICE_FX.punchRate`. A recorded voice actor (docs/voice) remains the real fix.
 - **Traditional Chinese is display-only**: characters are converted (OpenCC s2tw table), wording is not localized for Taiwan; voice lines are generated from the Simplified text.
 - **Day 1 pace**: with readable subtitles a day 1 customer takes about 4–5 s (about 9–10 customers in 45 s with estimated speech lengths; the spec estimated about 13). Re-check after the voice pack rebuild.
 - **The tab must be visible.** `dt` is capped at 100 ms per frame, so a backgrounded tab effectively pauses the game.

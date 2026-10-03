@@ -28,7 +28,8 @@ Set in `export-lines.mjs` (`CAST`, `SPEED`):
 | Milestone announcer | `zf_xiaoxiao` | `af_nova` |
 
 Delivery style only changes speaking speed (and, at runtime, a small playback-rate shift for the
-forced-polite voice).
+forced-polite voice). The emphasis on the hit of a line is added at runtime by the voice punch chain in
+`src/audio.js` (`VOICE_FX`, see `game/README.md`); `?punchfx=0` turns it off for comparison.
 
 Opening routine customers (`SYSTEM.opening.c*`): zh `zm_yunxi` / `zm_yunyang` / `zf_xiaoni`, en `am_puck` /
 `am_echo` / `af_bella` (customer 3 and the day-3 original customer share one voice).
@@ -47,6 +48,32 @@ Opening routine customers (`SYSTEM.opening.c*`): zh `zm_yunxi` / `zm_yunyang` / 
   `closing`); `SYSTEM.originalCustomer` is exported; `signature250` no longer exists.
 - `node tools/check-content.mjs` V2 compares the manifest against exactly this job list. Kokoro has no emotion control, so this pack is a stand-in until a voice
 actor records `docs/voice/voice-script-*.md`.
+
+## Render profiles (per-segment settings)
+
+Each job carries its own Kokoro `speed` and, optionally, a `post` step. `export-lines.mjs` picks them from a
+profile (`RENDER_PROFILES`):
+
+| Profile | Lead half | Hit half (and 调你妈 `r4`) | Rage lines |
+|---|---|---|---|
+| `spec` (default, shipped pack, spec 8.6 item 7) | speed 1.10 | speed 0.90 | speed 1.30 |
+| `punchy` (`--punchy` or `--profile=punchy`) | speed 0.95 | speed 1.10, `post: { gainDb: 6, ceiling: 0.95 }` | speed 1.30, `post: { gainDb: 4, ceiling: 0.95 }` |
+
+- The **hit** is the punch half; with `punchy` it is the curse half when the curse comes first
+  (`调你妈！|黄金比例最好喝！`: 调你妈 is the hit, 黄金比例 is rendered as the lead), using `audio.voicePlan()`.
+  `spec` stays positional, so its job list is byte-identical to before.
+- `build_voice.py` applies `post` after normalizing: +`gainDb`, then a peak limiter (1 ms look-ahead,
+  80 ms release, hard ceiling). On the samples it raised the punch RMS by 2.7–4 dB at the same peak.
+- `post` is part of the clip hash only when present, so `--incremental` keeps existing `spec` clips and
+  re-renders exactly the punchy ones.
+- Changing speed changes clip lengths, so the opening and day pacing move with them (timings come from
+  the manifest; nothing to edit). If the pack is rebuilt with `punchy`, listen with the runtime chain on:
+  the hit then gets both the baked speed-up and `VOICE_FX.punchRate` (1.06); lower that to about 1.0 if it
+  sounds rushed.
+
+```bash
+node tools/voice/export-lines.mjs --punchy > /tmp/voice-jobs.json   # then build_voice.py as below
+```
 
 ## Regenerate (after changing any line in `src/content.*.js`)
 

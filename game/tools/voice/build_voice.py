@@ -1,8 +1,12 @@
 """build_voice.py — render the game's voice pack with Kokoro-82M (Apache-2.0), fully offline.
 
 Usage (see tools/voice/README.md for setup):
-  node tools/voice/export-lines.mjs > jobs.json
+  node tools/voice/export-lines.mjs [--punchy] > jobs.json
   python tools/voice/build_voice.py jobs.json --model kokoro-q8.onnx --voices voices.npz --out voice
+
+Per-segment render settings come from the jobs: each job carries its own Kokoro `speed`, and an optional
+`post` ({ gainDb, ceiling }, written by export-lines.mjs --punchy for the hit halves and rage lines) that is
+applied after normalizing: +gainDb, then a peak limiter (1 ms attack, 80 ms release) at `ceiling`.
 
 Output:
   <out>/manifest.json      { version, sampleRate, langs: { zh|en: { chunks: [...], clips: { key: clip } } } }
@@ -39,6 +43,34 @@ def trim(audio, thresh=0.012, keep=int(0.03 * SR)):
 def normalize(audio, peak=0.89):
     m = float(np.max(np.abs(audio))) if audio.size else 0.0
     return audio * (peak / m) if m > 1e-4 else audio
+
+
+def limit(audio, ceiling=0.95, attack=int(0.001 * SR), release_s=0.08):
+    """Peak limiter: gain = min(1, ceiling / peak) over a short look-ahead window, instant attack, smooth
+    release, then a hard safety clip at the ceiling."""
+    if audio.size == 0:
+        return audio
+    a = np.abs(audio)
+    # look-ahead peak over `attack` samples (max filter)
+    win = max(1, attack)
+    padded = np.concatenate([a, np.zeros(win, dtype=a.dtype)])
+    peak = np.max(np.lib.stride_tricks.sliding_window_view(padded, win + 1), axis=1)[: a.size]
+    target = np.minimum(1.0, ceiling / np.maximum(peak, 1e-6))
+    coef = np.exp(-1.0 / (release_s * SR))
+    gain = np.empty_like(target)
+    g = 1.0
+    for i, t in enumerate(target):  # ~20 ms per second of audio
+        g = t if t < g else t + (g - t) * coef
+        gain[i] = g
+    return np.clip(audio * gain, -ceiling, ceiling).astype(np.float32)
+
+
+def post_process(audio, post):
+    """Per-segment post (job['post']): +gainDb into the limiter. Makes a hit denser and louder."""
+    if not post or audio.size == 0:
+        return audio
+    gain = 10 ** (float(post.get('gainDb', 0)) / 20)
+    return limit(audio * gain, float(post.get('ceiling', 0.95)))
 
 
 def bleep(chars):
@@ -93,12 +125,15 @@ def job_hash(job):
     # What was rendered: changes to the TTS text (e.g. 250 -> 二百五十), speed or voice re-render the clip
     # in --incremental mode even though the key (display text) stays the same.
     src = '|'.join(str(job.get(k, '')) for k in ('text', 'speed', 'voice', 'part'))
+    if job.get('post'):  # only when present, so hashes of packs built without post stay valid
+        src += '|' + json.dumps(job['post'], sort_keys=True)
     return hashlib.sha1(src.encode('utf-8')).hexdigest()[:8]
 
 
 def render(synth, job):
     keep = _keep(job)
-    main = normalize(synth.say(job['lang'], job['text'], job['voice'], job['speed'], keep))
+    post = job.get('post')
+    main = post_process(normalize(synth.say(job['lang'], job['text'], job['voice'], job['speed'], keep)), post)
     bleeped = None
     if job.get('segments'):
         parts = []
@@ -106,7 +141,7 @@ def render(synth, job):
             if seg['type'] == 'bleep':
                 parts.append(bleep(len(seg['value'])))
             else:
-                parts.append(normalize(synth.say(job['lang'], seg['value'], job['voice'], job['speed'], keep)))
+                parts.append(post_process(normalize(synth.say(job['lang'], seg['value'], job['voice'], job['speed'], keep)), post))
         bleeped = np.concatenate(parts) if parts else None
     return main, bleeped
 

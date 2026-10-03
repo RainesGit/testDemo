@@ -1,20 +1,27 @@
 // export-lines.mjs — list every line the game speaks, as synthesis jobs for build_voice.py.
-// Run from game/:  node tools/voice/export-lines.mjs > /tmp/voice-jobs.json
+// Run from game/:  node tools/voice/export-lines.mjs [--punchy] > /tmp/voice-jobs.json
 //
-// Each job: { lang, key, role, style, voice, speed, text, part?, segments? }
+// Each job: { lang, key, role, style, voice, speed, text, part?, post?, segments? }
 //   key       clipKey(lang, line) — the same key audio.js computes at runtime (from the DISPLAYED text)
 //   text      what the TTS reads: stage directions, emoji and decorative symbols removed, and numbers
 //             rewritten by audio.ttsText (zh "250杯" → "二百五十杯", en "250" → "two-fifty"; spec K1)
 //   part      'setup' | 'punch' for lines with a '|' cut point (spec 3.1, 8.7): such a line is exported as
 //             two jobs, keyed by clipKey(lang, half), the setup at speed 1.10 and the punch at 0.90; the
 //             whole line is not exported
+//   post      only with --punchy: post-processing for the hit, { gainDb, ceiling } (build_voice.py applies
+//             +gainDb then a peak limiter at ceiling after normalizing)
 //   segments  only for lines containing bleep words: [{type:'text'|'bleep', value}]
+//
+// Render profiles (per-segment settings, RENDER_PROFILES): 'spec' (default, docs/first-minute-spec.md 8.6 item 7:
+// quick setup 1.10, heavy punch 0.90) or 'punchy' (--punchy / --profile=punchy: relaxed setup 0.95, fast punch
+// 1.10 baked +6 dB into a limiter; rage lines get +4 dB). With 'punchy' the hit is the half audio.voicePlan()
+// picks (the punch, or the curse half when the curse comes first, e.g. "调你妈！|黄金比例最好喝！").
 //
 // Order matters when two lines share a key (same text): the first job wins, so the opening routine is
 // exported first, then customers, then system lines.
 
 import { getContent } from '../../src/content.js';
-import { clipKey, stripStage, splitForBleep, splitPunch, ttsText, DEFAULT_BLEEP_WORDS } from '../../src/audio.js';
+import { clipKey, stripStage, splitForBleep, splitPunch, ttsText, voicePlan, DEFAULT_BLEEP_WORDS } from '../../src/audio.js';
 
 // Voice casting (Kokoro v1.0 voices, Apache-2.0). Customers rotate through their pool by id.
 const CAST = {
@@ -35,8 +42,18 @@ const SPEED = {
   real: 1.1, curse: 1.2, disdain: 1.0, cold: 0.88, deadpan: 1.0, chuuni: 0.95, math: 1.15,
   '250': 1.05, twist: 1.05, polite: 0.92, rage: 1.3, cust: 1.1, next: 1.15, boo: 1.2, announce: 1.1,
 };
-// Cut-point halves (spec 8.6 item 7): quick setup, heavy punch.
-const PART_SPEED = { setup: 1.10, punch: 0.90 };
+// Per-segment render settings. lead = the half before (or after) the hit; hit = the punch half, or the curse
+// half when the curse comes first. 'spec' is spec 8.6 item 7 (quick setup, heavy punch) and the shipped pack.
+export const RENDER_PROFILES = {
+  spec: { lead: { speed: 1.10 }, hit: { speed: 0.90 }, rage: {} },
+  punchy: {
+    byHit: true, // the curse half is the hit even when it comes first ('spec' stays positional)
+    lead: { speed: 0.95 },
+    hit: { speed: 1.10, post: { gainDb: 6, ceiling: 0.95 } },
+    rage: { post: { gainDb: 4, ceiling: 0.95 } },
+  },
+};
+let profile = RENDER_PROFILES.spec;
 
 // Opening routine voices: customer 1 / 2 / 3 (customer 3 keeps one voice for all three of its lines).
 const OPENING_CUST = {
@@ -62,13 +79,14 @@ function speakable(line, lang) {
 }
 
 const jobs = new Map();
-function addOne(lang, line, role, style, voice, speed, part) {
+function addOne(lang, line, role, style, voice, speed, part, post) {
   const text = speakable(line, lang);
   if (!text || !/[\p{L}\p{N}]/u.test(text)) return;
   const key = clipKey(lang, line);
   if (jobs.has(key)) return;
   const job = { lang, key, role, style, voice, speed, text };
   if (part) job.part = part;
+  if (post) job.post = post;
   const segs = splitForBleep(text, DEFAULT_BLEEP_WORDS);
   if (segs.some((x) => x.type === 'bleep')) job.segments = segs;
   jobs.set(key, job);
@@ -77,11 +95,15 @@ function add(lang, line, role, style, voice) {
   if (line == null) return;
   if (String(line).includes('|')) {
     const [setup, punch] = splitPunch(line);
-    addOne(lang, setup, role, style, voice, PART_SPEED.setup, 'setup');
-    addOne(lang, punch, role, style, voice, PART_SPEED.punch, 'punch');
+    const curseFirst = !!profile.byHit && voicePlan(line, { voiceFx: true }).hit === 'setup';
+    const s = curseFirst ? profile.hit : profile.lead;
+    const p = curseFirst ? profile.lead : profile.hit;
+    addOne(lang, setup, role, style, voice, s.speed, 'setup', s.post);
+    addOne(lang, punch, role, style, voice, p.speed, 'punch', p.post);
     return;
   }
-  addOne(lang, line, role, style, voice, SPEED[style] ?? 1);
+  const extra = style === 'rage' ? profile.rage : {};
+  addOne(lang, line, role, style, voice, extra.speed ?? SPEED[style] ?? 1, undefined, extra.post);
 }
 
 /** Every spoken line of SYSTEM.opening as [line, role, style, voiceKey]. Exported for check-content. */
@@ -111,7 +133,7 @@ function exportAll() {
     for (const [line, role, style, who] of openingLines(system.opening)) {
       const voice = role === 'customer' ? OPENING_CUST[lang][who] || cast.customers[0] : cast.clerk;
       // "调你妈！" has no setup half but is the routine's biggest punch: punch speed.
-      if (line === system.opening.r4) addOne(lang, line, role, style, voice, PART_SPEED.punch, 'punch');
+      if (line === system.opening.r4) addOne(lang, line, role, style, voice, profile.hit.speed, 'punch', profile.hit.post);
       else add(lang, line, role, style, voice);
     }
     for (const c of customers) {
@@ -138,13 +160,17 @@ function exportAll() {
   return [...jobs.values()];
 }
 
-/** All synthesis jobs (also used by tests and check-content). */
-export function exportJobs() {
+/** All synthesis jobs (also used by tests and check-content). profile: 'spec' (default) | 'punchy'. */
+export function exportJobs({ profile: name = 'spec' } = {}) {
+  if (!RENDER_PROFILES[name]) throw new Error(`unknown render profile: ${name}`);
+  profile = RENDER_PROFILES[name];
   jobs.clear();
-  return exportAll();
+  try { return exportAll(); } finally { profile = RENDER_PROFILES.spec; }
 }
 
-// CLI: print the jobs when run directly (node tools/voice/export-lines.mjs > jobs.json).
+// CLI: print the jobs when run directly (node tools/voice/export-lines.mjs [--punchy | --profile=NAME] > jobs.json).
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  process.stdout.write(JSON.stringify(exportJobs(), null, 1));
+  const arg = process.argv.find((a) => a.startsWith('--profile='));
+  const name = arg ? arg.slice('--profile='.length) : process.argv.includes('--punchy') ? 'punchy' : 'spec';
+  process.stdout.write(JSON.stringify(exportJobs({ profile: name }), null, 1));
 }

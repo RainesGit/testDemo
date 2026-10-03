@@ -249,3 +249,177 @@ test('createAudio: first-minute methods exist and degrade silently; playClerk ca
   await a.playClerk('调你妈！', { punchFx: 'mega' });
   await a.speak('还在想？|滚！', { style: 'curse' });
 });
+
+// ---- runtime voice punch (VOICE_FX / voicePlan) ----
+import { voicePlan, VOICE_FX, PUNCH_RATE, CLIP_RATE, hasCurse, dbToGain } from '../src/audio.js';
+
+test('voicePlan: off (legacy) keeps the spec 8.5 chain exactly', () => {
+  const p = voicePlan('还在想？|滚！', { fx: 'curse' });
+  assert.equal(p.hit, null);
+  assert.deepEqual(p.setup, { rate: 1, gainDb: 0, chain: null });
+  assert.deepEqual(p.punch, { rate: 1, gainDb: 0, chain: 'legacy', fx: 'curse' });
+  assert.equal(voicePlan('调你妈！', { fx: 'mega' }).punch.rate, PUNCH_RATE.mega);
+  assert.equal(voicePlan('滚！', { style: 'rage', via: 'speak' }).punch.chain, null); // speak(): no chain
+  assert.equal(voicePlan('滚！', { style: 'rage', voiceFx: { enabled: false } }).punch.chain, 'legacy');
+});
+
+test('voicePlan: the punch half of a cut-point line gets the punch chain, the polite setup stays clean and softer', () => {
+  const p = voicePlan('（盯他三秒）还在想？|滚！', { voiceFx: true });
+  assert.equal(p.hit, 'punch');
+  assert.equal(p.breathMs, 0); // the punchGapMs silence is the breath
+  assert.deepEqual(p.setup, { rate: 1, gainDb: VOICE_FX.setupDb, chain: null });
+  assert.equal(p.punch.chain, 'punch');
+  assert.equal(p.punch.rate, VOICE_FX.punchRate);
+  assert.ok(p.punch.rate >= 1.04 && p.punch.rate <= 1.08);
+  assert.ok(p.punch.driveDb >= 4 && p.punch.driveDb <= 6);
+  assert.equal(p.punch.compress, true);
+  assert.equal(p.punch.saturation, VOICE_FX.gentleK);
+  assert.equal(p.punch.impact, true);
+  assert.equal(p.punch.megaphone, false);
+  // curse / big landing: hotter (spec k = 8 curve, +1 dB)
+  const c = voicePlan('15杯？|太少，滚！', { fx: 'curse', voiceFx: true });
+  assert.equal(c.punch.saturation, 'hot');
+  assert.equal(c.punch.driveDb, VOICE_FX.driveDb + 1);
+  // English lines work the same way
+  assert.equal(voicePlan('Still thinking?|SCRAM!', { voiceFx: true }).hit, 'punch');
+});
+
+test('voicePlan: when the curse comes first, the curse half is the hit and the professional half stays clean', () => {
+  for (const line of ['调你妈！|黄金比例最好喝！', 'ADJUST your MOM!|The golden ratio is PERFECT!']) {
+    const p = voicePlan(line, { fx: 'mega', voiceFx: true });
+    assert.equal(p.hit, 'setup', line);
+    assert.equal(p.setup.chain, 'punch');
+    assert.equal(p.setup.rate, PUNCH_RATE.mega);
+    assert.equal(p.setup.echo, true);
+    assert.equal(p.setup.impact, true);
+    assert.deepEqual(p.punch, { rate: 1, gainDb: 0, chain: null });
+  }
+  assert.equal(hasCurse('调你妈！'), true);
+  assert.equal(hasCurse('黄金比例最好喝！'), false);
+});
+
+test('voicePlan: 调你妈 climax, rage lines, polite voice and plain lines', () => {
+  const mega = voicePlan('调你妈！', { fx: 'mega', voiceFx: true });
+  assert.equal(mega.hit, 'punch');
+  assert.equal(mega.setup, null);
+  assert.equal(mega.breathMs, VOICE_FX.breathMs);
+  assert.equal(mega.punch.rate, PUNCH_RATE.mega); // spec 8.5: the climax keeps its slow motion
+  assert.equal(mega.punch.echo, true);
+  assert.equal(mega.punch.impactGain, 1);
+  // rage chant (speak) and rage start (playClerk): megaphone flavour, never slower than the rage clip rate
+  for (const via of ['speak', 'clerk']) {
+    const r = voicePlan('滚滚滚！', { style: 'rage', voiceFx: true, via });
+    assert.equal(r.punch.chain, 'punch', via);
+    assert.equal(r.punch.megaphone, true);
+    assert.equal(r.punch.rate, Math.max(CLIP_RATE.rage, VOICE_FX.punchRate));
+    assert.equal(r.breathMs, VOICE_FX.breathMs);
+  }
+  // forced polite voice: never punched
+  const pol = voicePlan('您好～请问要几杯？', { style: 'polite', voiceFx: true });
+  assert.equal(pol.punch.chain, 'legacy');
+  assert.equal(pol.punch.rate, CLIP_RATE.polite);
+  // a whole line that is not a hit keeps the old treatment; a whole curse-landing line gets the chain without
+  // an impact (its first word is not necessarily the curse) and without a breath
+  assert.equal(voicePlan('两个月后过来拿。', { voiceFx: true }).punch.chain, 'legacy');
+  assert.equal(voicePlan('两个月后过来拿。', { voiceFx: true, via: 'speak' }).punch.chain, null);
+  const big = voicePlan('全糖，下一位！', { fx: 'curse', voiceFx: true });
+  assert.equal(big.punch.chain, 'punch');
+  assert.equal(big.punch.impact, false);
+  assert.equal(big.breathMs, 0);
+});
+
+test('voicePlan: lite mode drops the costly nodes but keeps rate, impact and breath (same timing)', () => {
+  const full = voicePlan('滚！', { style: 'rage', voiceFx: true });
+  const lite = voicePlan('滚！', { style: 'rage', voiceFx: true, lite: true });
+  assert.equal(lite.punch.compress, false);
+  assert.equal(lite.punch.saturation, 0);
+  assert.equal(lite.punch.megaphone, false);
+  for (const k of ['rate', 'impact', 'echo']) assert.equal(lite.punch[k], full.punch[k], k);
+  assert.equal(lite.breathMs, full.breathMs);
+  // tuning merges over VOICE_FX
+  assert.equal(voicePlan('还在想？|滚！', { voiceFx: { punchRate: 1.08, impact: false } }).punch.rate, 1.08);
+  assert.equal(voicePlan('还在想？|滚！', { voiceFx: { impact: false } }).punch.impact, false);
+  assert.ok(Math.abs(dbToGain(6) - 1.995) < 0.01);
+});
+
+test('timingsFromManifest: durations follow the voice punch playbackRate and breath', () => {
+  const man = { langs: { zh: { clips: {
+    [ck('zh', '还在想？')]: { c: 0, o: 0, d: 0.65 },
+    [ck('zh', '滚！')]: { c: 0, o: 1, d: 0.4, b: { c: 0, o: 2, d: 0.5 } },
+    [ck('zh', '调你妈！')]: { c: 0, o: 3, d: 0.6, b: { c: 0, o: 4, d: 0.7 } },
+    [ck('zh', '黄金比例最好喝！')]: { c: 0, o: 5, d: 1.1 },
+  } } } };
+  const on = { voiceFx: true };
+  const t = timingsFromManifest(man, 'zh', '还在想？|滚！', { punchGapMs: 200, ...on });
+  assert.deepEqual(t, { setupMs: 650, gapMs: 200, punchStartMs: 850, punchMs: Math.round(400 / 1.06), totalMs: 850 + Math.round(400 / 1.06), clips: { setup: true, punch: true } });
+  // bleep clip, customer-style rate multiplier and tuning all compose
+  assert.equal(timingsFromManifest(man, 'zh', '还在想？|滚！', { bleep: true, ...on }).punchMs, Math.round(500 / 1.06));
+  assert.equal(timingsFromManifest(man, 'zh', '还在想？|滚！', { rate: 2, ...on }).punchMs, Math.round(400 / 2.12));
+  assert.equal(timingsFromManifest(man, 'zh', '还在想？|滚！', { voiceFx: { punchRate: 1.08 } }).punchMs, Math.round(400 / 1.08));
+  // 调你妈 climax: breath before it, slow-motion rate
+  const m = timingsFromManifest(man, 'zh', '调你妈！', { punchFx: 'mega', ...on });
+  assert.equal(m.setupMs, 0);
+  assert.equal(m.gapMs, VOICE_FX.breathMs);
+  assert.equal(m.punchStartMs, VOICE_FX.breathMs);
+  assert.equal(m.punchMs, Math.round(600 / 0.94));
+  assert.equal(m.totalMs, VOICE_FX.breathMs + Math.round(600 / 0.94));
+  // curse first: the setup is the hit and its length scales, the professional half does not
+  const o = timingsFromManifest(man, 'zh', '调你妈！|黄金比例最好喝！', { punchFx: 'mega', ...on });
+  assert.equal(o.setupMs, Math.round(600 / 0.94));
+  assert.equal(o.punchMs, 1100);
+  assert.equal(o.punchStartMs, o.setupMs + 200);
+  // rage style: the timing matches the rate actually played (lite or not)
+  const r = timingsFromManifest(man, 'zh', '滚！', { style: 'rage', ...on });
+  assert.equal(r.punchMs, Math.round(400 / 1.06));
+  assert.deepEqual(timingsFromManifest(man, 'zh', '滚！', { style: 'rage', lite: true, ...on }), r);
+  // polite: unchanged by the voice punch, but its 1.08 clip rate is now counted
+  assert.equal(timingsFromManifest(man, 'zh', '滚！', { style: 'polite', ...on }).punchMs, Math.round(400 / 1.08));
+  // estimates (no clip) scale too
+  const e = timingsFromManifest(null, 'zh', '还在想？|滚！', on);
+  assert.equal(e.punchMs, Math.round(estimateSpeechMs('滚！') / 1.06));
+});
+
+test('createAudio: voice punch is on by default, configurable, and degrades silently without WebAudio', async () => {
+  const a = createAudio();
+  assert.equal(a.voiceFx.enabled, true);
+  const est = estimateSpeechMs('滚！');
+  assert.equal(a.voiceTimings('还在想？|滚！').punchMs, Math.round(est / VOICE_FX.punchRate));
+  const p = a.playClerk('调你妈！', { punchFx: 'mega' });
+  assert.equal(p.punchStartMs, VOICE_FX.breathMs);
+  assert.equal(p.punchMs, Math.round(estimateSpeechMs('调你妈！') / PUNCH_RATE.mega));
+  a.setVoiceFx({ punchRate: 1.04 });
+  assert.equal(a.voiceTimings('还在想？|滚！').punchMs, Math.round(est / 1.04));
+  a.setVoiceFx(false);
+  assert.equal(a.voiceFx, null);
+  assert.equal(a.voiceTimings('还在想？|滚！').punchMs, est);
+  assert.equal(a.playClerk('调你妈！', { punchFx: 'mega' }).punchStartMs, 0);
+  a.setVoiceFx(true);
+  a.setLite(true);
+  assert.equal(a.voiceTimings('还在想？|滚！').punchMs, Math.round(est / VOICE_FX.punchRate));
+  assert.equal(createAudio({ voiceFx: false }).voiceFx, null);
+  // unlocked without WebAudio / Web Speech: rage, curse and bleeped lines resolve without throwing
+  a.unlock();
+  a.setBleep(true);
+  await a.speak('滚滚滚！', { style: 'rage' });
+  await a.speak('调你妈！|黄金比例最好喝！', { style: 'curse' });
+  await a.playClerk('还在想？|滚！', { punchGapMs: 10 });
+});
+
+test('voice builder: the punchy render profile sets per-segment speed and post; spec stays as shipped', async () => {
+  const { exportJobs } = await import('../tools/voice/export-lines.mjs');
+  const find = (jobs, text, part) => jobs.find((j) => j.lang === 'zh' && j.text === text && j.part === part);
+  const spec = exportJobs();
+  assert.equal(find(spec, '滚！', 'punch').speed, 0.9);
+  assert.equal(find(spec, '还在想？', 'setup').speed, 1.1);
+  assert.ok(spec.every((j) => !j.post));
+  const punchy = exportJobs({ profile: 'punchy' });
+  assert.equal(punchy.length, spec.length);
+  assert.deepEqual(find(punchy, '滚！', 'punch').post, { gainDb: 6, ceiling: 0.95 });
+  assert.equal(find(punchy, '滚！', 'punch').speed, 1.1);
+  assert.equal(find(punchy, '还在想？', 'setup').speed, 0.95);
+  assert.equal(find(punchy, '还在想？', 'setup').post, undefined);
+  assert.equal(find(punchy, '调你妈！', 'punch').speed, 1.1); // opening r4 climax
+  assert.ok(punchy.filter((j) => j.style === 'rage').every((j) => j.post));
+  assert.deepEqual(exportJobs(), spec); // the profile does not leak into later calls
+  assert.throws(() => exportJobs({ profile: 'nope' }));
+});

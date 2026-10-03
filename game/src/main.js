@@ -791,6 +791,7 @@ function syncClock(t = now()) {
 
 function frame(t) {
   syncClock(Math.max(t, lastT));
+  audio.setLite?.(!!ui.lite); // K4 lite mode also trims the voice punch chain
   const before = game ? game.state.phase : 'idle';
   if (before === 'playing' || before === 'rage') {
     const st = game.state;
@@ -810,6 +811,7 @@ document.addEventListener('visibilitychange', () => {
 // ---------------------------------------------------------------- boot
 ui.setScript?.(script); // zh-TW / zh-HK / zh-MO: Traditional characters on screen
 if (params.has('lite')) ui.setLite?.(params.get('lite') !== '0'); // K4 lite mode; otherwise auto-detected
+if (params.has('punchfx')) audio.setVoiceFx?.(params.get('punchfx') !== '0'); // ?punchfx=0: plain spec 8.5 chain (A/B)
 applyTexts();
 // The UI flips its own bleep label on click; sync the persisted state once at boot.
 if (bleep) root.querySelector('.tog-bleep')?.click();

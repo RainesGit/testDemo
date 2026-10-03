@@ -6,9 +6,10 @@
 // Each day builds a fresh engine from configForDay(day) / poolForDay(day) (rebuild, no reconfigure).
 //
 // Per customer (4.1): arrive → head pops, sign rises (signUp) → the customer talks once the clerk is quiet
-// (max(signUp, clerk end + 120)) → t0 = min(voice end, signUp + 1600), ≥ signUp + 250 → game.speechDone()
-// → 'ready' starts the sign timer → press → clerk line (setup | silence | punch) with the three-beat face,
-// 花字 and the customer flying out → game.delayNext(punch end + L) so the laugh lands before the next one.
+// (max(signUp, clerk end + 120)) → t0 = min(voice end − talkLeadMs, signUp + 1600), ≥ signUp + 250 →
+// game.speechDone() → 'ready' starts the sign timer → press → clerk line (setup | silence | punch) with the
+// three-beat face, 花字 and the customer flying out → the next head pops in the tail of the landing
+// (game.delayNext(punch end + L − signUp)), so the laugh lands and the next sign is up when L ends.
 // A press resolves on key-down; holding on charges it up afterwards (game.charge).
 //
 // Storage (all try/catch): 250cups.day (default 1, only goes up), 250cups.openingDone, 250cups.lang, 250cups.bleep.
@@ -155,26 +156,36 @@ function estimateMs(text) {
   return 180 + 95 * [...s].filter((c) => /[\p{L}\p{N}]/u.test(c)).length;
 }
 
+// ui.customerReact: fly-out per pressed key (滚 520 / 闭嘴 390 / 收 600 ms) + 80 ms until the customer is cleared
+const FLY_CLEAR_MS = { gun: 600, shut: 470, take: 680 };
 let clerkEndAt = 0; // performance.now() when the clerk's current line ends (customers never talk over it)
 let subUntil = 0;   // performance.now() until which the clerk's subtitle must stay up (review: lines were unreadable)
 
 // Reading time of a clerk subtitle: max(1500, 140 ms per character) for Chinese, 1500 / 330 ms per word in
 // English. Stage directions are not shown in free play, so they do not count.
 const stripStageText = (t) => unpipe(t).replace(/（[^（）]*）|\([^()]*\)/g, '').trim();
-function readMs(text) {
+// A line that was just heard from the voice pack is read along with the voice, so its subtitle only has to stay
+// up until the voice ends + 300 ms (at least 1000 ms and 100 ms per character).
+function readMs(text, voiced) {
   const s = stripStageText(text);
+  if (voiced && voiced.clips && voiced.clips.punch && (voiced.clips.setup || !voiced.setupMs) && Number.isFinite(voiced.totalMs)) {
+    const n = /[A-Za-z]/.test(s) && !/[一-鿿]/.test(s) ? s.split(/\s+/).filter(Boolean).length * 3 : [...s].filter((c) => /[\p{L}\p{N}]/u.test(c)).length;
+    return Math.max(1000, 100 * n, voiced.totalMs + 300);
+  }
   if (/[A-Za-z]/.test(s) && !/[一-鿿]/.test(s)) return Math.max(1500, 330 * s.split(/\s+/).filter(Boolean).length + 300);
   return Math.max(1500, 140 * [...s].filter((c) => /[\p{L}\p{N}]/u.test(c)).length);
 }
 /** Clerk subtitle that holds the band for its reading time (customers and the closing card wait for it). */
-function clerkLine(text, opts = {}) {
+function clerkLine(text, { voiced, ...opts } = {}) {
   ui.showLine(text, { who: 'clerk', ...opts });
-  subUntil = Math.max(subUntil, now() + readMs(text));
+  subUntil = Math.max(subUntil, now() + readMs(text, voiced));
 }
 let rageGen = 0;
 
 function clerkTiming(p, line, opts) {
-  if (p && Number.isFinite(p.punchMs)) return { setupMs: p.setupMs || 0, punchStartMs: p.punchStartMs || 0, punchMs: p.punchMs };
+  if (p && Number.isFinite(p.punchMs)) {
+    return { setupMs: p.setupMs || 0, punchStartMs: p.punchStartMs || 0, punchMs: p.punchMs, totalMs: p.totalMs, clips: p.clips };
+  }
   if (typeof audio.voiceTimings === 'function') {
     try { const t = audio.voiceTimings(line, opts); if (t && Number.isFinite(t.punchMs)) return t; } catch { /* estimate */ }
   }
@@ -195,7 +206,10 @@ function sayClerk(line, { style, fx = 'normal', gap } = {}) {
   } catch { p = null; }
   const t = clerkTiming(p, line, opts);
   clerkEndAt = now() + t.punchStartMs + t.punchMs;
-  return { setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, done: Promise.resolve(p).catch(() => {}) };
+  return {
+    setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, totalMs: t.punchStartMs + t.punchMs, clips: t.clips,
+    done: Promise.resolve(p).catch(() => {}),
+  };
 }
 
 /** Customer line at the day's playbackRate. Returns its length in ms. */
@@ -485,8 +499,10 @@ function wire(g) {
     const gen = ++round.arrivals;
     round.tracker?.next();
     if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
-    // review fix: nothing of the last answer (花字, the clerk's hit / ticket pose) may land on this sign
-    ui.clearHuazi?.();
+    // review fix: nothing of the last answer (花字, the clerk's hit / ticket pose) may land on this sign. The head
+    // pops in the tail of the landing (pace), so a 花字 still fading out may finish (it ends by signUp, see
+    // onResolve); the new sign clears any in its way when it rises, and nothing new of the last answer starts.
+    ui.clearHuazi?.({ pendingOnly: true });
     ui.resetClerk?.();
     const loc = local(customer);
     const { signUpAt } = ui.showCustomer(loc, { enterMs: info.enterMs, line: false }) || { signUpAt: now() + info.enterMs + 280 };
@@ -644,7 +660,8 @@ function customerTalks(gen, loc, signUpAt) {
     if (gen !== round.arrivals || !game || !game.state.current?.speaking) return;
     if (says) ui.showLine(says, { who: 'cust', color: loc.key });
     const ms = game.state.phase === 'rage' ? 0 : sayCustomer(says);
-    const t0 = clamp(now() + ms, signUpAt + 250, signUpAt + 1600);
+    // talkLeadMs (day 1): the window opens a little before the voice ends, so a prompt answer comes right after it
+    const t0 = clamp(now() + ms - (info.talkLeadMs || 0), signUpAt + 250, signUpAt + 1600);
     later(t0 - now(), () => { if (gen === round.arrivals && game) game.speechDone(); });
   });
 }
@@ -698,8 +715,8 @@ function onResolve(e) {
   const fx = charge === 2 || e.land === 'step' ? 'mega' : big ? 'curse' : 'normal';
   const L = e.land === 'wrong' ? info.landWrongMs : e.land === 'step' ? info.landBigMs + 300 : big ? info.landBigMs : info.landMs;
 
-  clerkLine(line, { style: customer.style });
   const t = sayClerk(line, { style: customer.style, fx });
+  clerkLine(line, { style: customer.style, voiced: t });
   ui.clerkBeat?.({ setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, landMs: L, fx });
   // 5.2: the sign leaves on the press (150 ms), so the result 花字 never lands on it. A wrong answer keeps it
   // up for the 4.4 badge hint first, and its 花字 wait until the sign is gone.
@@ -738,11 +755,15 @@ function onResolve(e) {
   }
   if (perfect && !e.cutIn) ui.effect('perfect', {});
 
-  // 4.1 step 8: the next customer comes after max(punch end + L, setup end + 80). Review fixes: also after the
-  // punch 花字 has played (less the 250 ms the new head needs to pop; arrive clears whatever is left) and late
-  // enough that the clerk's subtitle is read before the next customer's sign is up.
+  // 4.1 step 8: the landing L after the punch stays silent, but the next head pops and the sign rises in its
+  // tail (pace: the entrance used to start only after L), so the sign is up when L ends: arrive at
+  // punch end + L − signUp. Never before the old customer has flown off (FLY_CLEAR_MS after the punch, or
+  // after the wrong-key hint), the setup has ended + 80, and the punch 花字 have played and the clerk's subtitle
+  // has been read by signUp (arrive only cancels 花字 that have not started; the rising sign clears its spot).
   const signUpMs = (info.enterMs ?? 300) + 280;
-  game.delayNext(Math.max(t.punchStartMs + t.punchMs + L, t.setupMs + 80, hzEndMs - 250, readMs(line) - signUpMs));
+  const flyClear = (correct ? t.punchStartMs : HINT_MS) + (FLY_CLEAR_MS[key] ?? 680);
+  game.delayNext(Math.max(t.punchStartMs + t.punchMs + L - signUpMs, flyClear, t.setupMs + 80, hzEndMs - signUpMs,
+    readMs(line, t) - signUpMs));
 
   // 4.4: three wrong answers on one sign type → a small strip in this landing pause (max 2 per round)
   if (round.pendingTip) {

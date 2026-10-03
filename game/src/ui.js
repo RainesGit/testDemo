@@ -74,7 +74,8 @@
 //                                           none before minAt (e.g. while a sign is still showing its wrong-answer hint).
 //                                           Kept ≥ 4cqw clear of the sign (push up to y 8%, then shrink to 9cqw, else the
 //                                           words are emphasised in the subtitle instead). Bleep mode: X你妈 → X你哔 (boxed).
-//   clearHuazi()                            removes visible and pending 花字
+//   clearHuazi({ pendingOnly })             removes visible and pending 花字 (pendingOnly: only those not shown yet;
+//                                           a sign that rises later still clears the visible ones in its way)
 // ---- Subtitles (2.3)
 //   showLine(text, { who = 'clerk'|'cust'|'system', color, style })   '|' removed; customer lines get a colour bar
 //                                           (color: 'gun'|'shut'|'take' or any CSS colour); long lines get .long
@@ -1438,8 +1439,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   }
 
   const hzBatches = new Set();
-  function clearHuazi() {
+  function clearHuazi({ pendingOnly = false } = {}) {
     for (const b of [...hzBatches]) b.cancel();
+    if (pendingOnly) return;
     for (const s of [...liveHz]) s._done?.();
   }
 

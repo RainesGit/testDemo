@@ -28,6 +28,7 @@ const errors = [];
 for (const seed of seeds) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, (route) => route.abort());
   page.on('pageerror', (e) => errors.push(`seed ${seed}: ${e.message}`));
   await page.goto(`${base}/index.html?debug&skipOpening=1&day=1&lite=1&seed=${seed}&lang=${lang}`);
   await page.waitForSelector('.start-screen:not(.hidden) .start-btn');

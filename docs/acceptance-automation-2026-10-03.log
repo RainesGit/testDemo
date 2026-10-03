@@ -1,0 +1,46 @@
+Acceptance target: 57eec88
+Acceptance agent: gpt-5.6-sol / medium
+Date: 2026-10-03
+
+A1  node --test test/*.test.mjs
+tests 173; pass 173; fail 0; duration_ms 212.245459
+
+A2  node tools/check-content.mjs
+23/23 checks passed
+V2-zh 442/442 (77 half-lines)
+V2-en 441/441 (78 half-lines)
+
+A3  node tools/play-integrate.mjs (zh, then en)
+zh: opening 34518 ms; first sign 2433 ms; served 11; enginePhases [idle]; signTimerSeen false;
+    cardStaysOnTap true; day2.day 2; report true; next day 2/2; overflow false; errors []
+en: opening 38656 ms; first sign 2345 ms; served 12; enginePhases [idle]; signTimerSeen false;
+    cardStaysOnTap true; day2.day 2; report true; next day 2/2; overflow false; errors []
+
+A4  node tools/qa.mjs
+26/26 checks passed
+correct 360x640: first sign 2831 ms; routine 34468 ms; no overlap/errors
+correct 390x844: first sign 2744 ms; routine 34763 ms; no overlap/errors
+mash 390x844: closing card 85303 ms; four wrong presses, zero quips later than 300 ms
+timeout 390x844: F4 67737 ms; timeouts exactly W1,W2,W3,W4
+
+A5  node tools/check-signature.mjs
+15/15 checks passed
+opening: 250 ticket/S2, 调你妈, 黄金比例, No.001 ticket, queue 2 -> 12
+free play: queueDelta 11, big landing, next customer after 2159 ms, no long scene
+day 3 original: gold 250 -> take -> purple 少甜少冰 -> shut -> finale
+
+A6  node tools/check-opening.mjs
+390x844 play/skip passed. The first combined run then hit three page.goto timeouts because the local
+server's access-log PTY filled; no page assertion ran for those three attempts. After draining/restarting
+the server, the isolated 360x640 run passed 19/19:
+first sign 2566 ms; P4 -> answerable 14683 ms; three wrong presses, zero late quips;
+49 beats with no sign/huazi overlap; skip at 1529 ms; clean carry into day 1;
+4x CPU: 1/2048 frames >32 ms (0.0%); maximum 330 SVG nodes.
+
+Day-1 pace, shipped zh voice manifest, reaction 700 ms, seeds 1,2,3
+t0: served 10,11,10; mean 10.3/45 s; zero timeouts
+sign-up: served 12,12,12; mean 12.0/45 s; zero timeouts; cut-ins 4,3,6
+
+Environment note: external Google Fonts were blocked in measure-pace.mjs so page.goto could not hang on
+the unavailable font host. The app used its declared system-font fallback; voice-manifest timing and game
+logic were unchanged.

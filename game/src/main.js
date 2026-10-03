@@ -445,6 +445,8 @@ function buildGame(n) {
   const special = dayInfo(n).original ? originalCustomer() : null;
   const extra = special ? { special: { customer: special, atMs: dayInfo(n).original.atMs } } : {};
   if (debugDurationMs > 0) extra.durationMs = debugDurationMs;
+  // ?debug&first=78,63,47: these customer ids come first (QA: a deterministic draw)
+  if (params.has('debug') && params.get('first')) extra.fixedOrder = params.get('first').split(',').map((x) => (/^\d+$/.test(x) ? Number(x) : x));
   const g = createGame({ customers: poolForDay(n, getContent('zh').customers), rng: rand, config: configForDay(n, extra) });
   wire(g);
   return g;

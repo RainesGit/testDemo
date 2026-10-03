@@ -25,6 +25,7 @@ URL parameters:
 | `?bleep=1` | Starts with bleep mode on (调你妈 → 调你哔). |
 | `?day=N` | Start on day N (1–7) instead of the saved day. |
 | `?skipOpening=1` | Day 1 starts free play directly (QA). |
+| `?debug&first=78,63,47` | The listed customer ids come first in every round (QA: a deterministic draw). |
 | `?seed=N` | Seeded randomness (QA). |
 | `?lite=1` / `?lite=0` | Force the K4 lite mode (camera cuts, no idle loops) on or off; otherwise it switches on by itself on slow devices. |
 | `?punchfx=0` | Turn the runtime voice punch off (plain spec 8.5 punch chain) for A/B listening; on by default. |

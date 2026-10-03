@@ -145,9 +145,9 @@ async function playUntil(page, want, maxMs) {
   return null;
 }
 
-// ------------------------------------------------------------------ 2. a 250-cup customer in normal play
+// ------------------------------------------------------------------ 2. a 250-cup customer in normal play (?first= puts customer 81, 250 cups, fourth)
 async function freeplay() {
-  const { page, errors } = await open('skipOpening=1&day=6&seed=5');
+  const { page, errors } = await open('skipOpening=1&day=6&seed=5&first=78,63,60,81');
   await hookEvents(page);
   await page.click('.start-screen .start-btn', { force: true });
   let cur = null;

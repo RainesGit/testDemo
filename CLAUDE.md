@@ -38,7 +38,7 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
   src/main.js           Wires everything together (start → opening → days)
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration)
-  tools/                Playwright smoke/QA scripts (screenshots and node_modules are gitignored)
+  tools/                Playwright smoke/QA scripts and the day 1 pace measurement (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
   voice/                Generated voice pack: manifest.json + mp3 sprites per language
@@ -58,7 +58,8 @@ Run from `game/`:
   `node tools/qa.mjs`; opening acceptance with a wrong press, a skip and the 4x-CPU run
   (A1–A13, screenshots `tools/shots/opening-*.png`): `node tools/check-opening.mjs`;
   the "250" signature (opening, free play, day-3 original customer):
-  `node tools/check-signature.mjs`. All take the base URL as an argument. These use the globally installed Playwright
+  `node tools/check-signature.mjs`; day 1 pace with real voice clip lengths (customers served per 45 s at a
+  fixed 700 ms reaction, `--from=t0|sign`): `node tools/measure-pace.mjs`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 

@@ -61,7 +61,8 @@ export const DEFAULT_CONFIG = {
   fixedOrder: null,       // [id, ...] the first customers of the round, in this order (day 1: [41, 46, 12])
   keyWeights: null,       // { gun, shut, take } weighted draw by answer key (day 1: .45 / .25 / .30)
   keyRunMax: 2,           // with keyWeights: the same key never comes more than this many times in a row
-  special: null,          // { customer, atMs }: one extra customer (e.g. the two-step original) once per round
+  special: null,          // { customer, atMs }: one extra customer (e.g. the two-step original) once per round;
+                          // never spawned in rage or when their arrival would start rage (deferred until it ends)
 };
 
 // Old key names (one version): patienceStartMs/EndMs → windowStartMs/EndMs; gapMs → every land*;
@@ -158,6 +159,12 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     return keys[keys.length - 1];
   }
 
+  // true when the next arrival would be in rage or would start it (spawn adds furyPerCustomer)
+  function rageAhead() {
+    if (s.phase === 'rage') return true;
+    return !!cfg.furyEnabled && s.phase === 'playing' && s.fury + cfg.furyPerCustomer >= 100;
+  }
+
   function pickCustomer() {
     // 1. fixed opening order
     if (Array.isArray(cfg.fixedOrder) && s.fixedIdx < cfg.fixedOrder.length) {
@@ -165,8 +172,10 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       const c = customers.find((x) => x === want || x.id === want);
       if (c) return take(c);
     }
-    // 2. the once-per-round special customer
-    if (cfg.special && cfg.special.customer && !s.specialDone && s.elapsedMs >= (cfg.special.atMs ?? 0)) {
+    // 2. the once-per-round special customer. Never in rage, and deferred while their own arrival would start it
+    //    (during rage every press is a rage hit, so the two-step scene would be lost): a normal customer comes
+    //    instead, rage runs, and the special one is the first pick once it is over (fury is back at 0).
+    if (cfg.special && cfg.special.customer && !s.specialDone && s.elapsedMs >= (cfg.special.atMs ?? 0) && !rageAhead()) {
       s.specialDone = true;
       return take(cfg.special.customer);
     }

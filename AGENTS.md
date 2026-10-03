@@ -23,6 +23,7 @@ node tools/play-integrate.mjs        # browser smoke: opening → day 1 → clos
 node tools/qa.mjs                    # first-minute QA (spec 1.2 A1–A11), 3 scenarios
 node tools/check-opening.mjs         # opening acceptance A1–A13 (wrong press, skip, 4x CPU)
 node tools/check-signature.mjs       # the "250" signature: opening, free play, day-3 original customer
+node tools/measure-pace.mjs          # day 1 pace: customers served in 45 s at a 700 ms reaction (real clip lengths)
 pkill -f "m http.server 876[5]"
 ```
 

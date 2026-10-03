@@ -902,6 +902,68 @@ test('the special customer waits for atMs', () => {
   assert.equal(game.state.current.customer, ORIG);
 });
 
+test('rage never swallows the special customer: deferred while their arrival would start rage, first after it', () => {
+  // fury 50 per arrival, nothing per answer: the 2nd arrival fills it. The special one is due from the 2nd arrival on.
+  const { game, of } = setup({ config: { furyPerCustomer: 50, furyCorrect: 0, special: { customer: ORIG, atMs: 1 } } });
+  game.start();
+  assert.notEqual(game.state.current.customer, ORIG, 'not due yet at 0 ms');
+  game.tick(10);
+  game.press(rightKey(game));
+  // due now, but this arrival starts rage: a normal customer comes instead
+  assert.equal(game.state.phase, 'rage');
+  assert.notEqual(game.state.current.customer, ORIG);
+  assert.ok(!of('arrive').some((a) => a.customer === ORIG));
+  for (const k of ['take', 'shut', 'gun', 'take']) assert.equal(game.press(k).rage, true);
+  game.tick(8001);
+  assert.equal(game.state.phase, 'playing');
+  game.press(rightKey(game)); // the customer who waited through rage
+  // fury is back at 0: the special customer is the next one, outside rage, and the two steps play out
+  assert.equal(game.state.current.customer, ORIG);
+  assert.equal(game.state.phase, 'playing');
+  assert.equal(game.state.fury, 50);
+  const s1 = game.press('take');
+  assert.equal(s1.step, 1);
+  game.speechDone();
+  const r = game.press('shut');
+  assert.equal(r.correct, true);
+  assert.equal(r.land, 'step');
+  assert.equal(of('arrive').filter((a) => a.customer === ORIG).length, 1);
+});
+
+test('the special customer never arrives in rage, even when due during it', () => {
+  // the first answer fills fury (rage starts with nobody at the counter); the special one is due from 2 s, in rage
+  const { game, of } = setup({ config: { furyPerCustomer: 0, furyCorrect: 100, special: { customer: ORIG, atMs: 2000 } } });
+  game.start();
+  game.press(rightKey(game));
+  assert.equal(game.state.phase, 'rage');
+  assert.equal(game.state.current, null);
+  game.tick(3000); // due now, but nobody arrives during rage
+  assert.equal(game.state.current, null);
+  assert.equal(game.press('gun').rage, true);
+  game.tick(5001); // rage ends → the next customer is the special one
+  assert.equal(game.state.phase, 'playing');
+  assert.equal(game.state.current.customer, ORIG);
+  assert.equal(of('arrive').filter((a) => a.customer === ORIG).length, 1);
+  assert.equal(game.press('take').step, 1, 'the first press is a step, not a rage hit');
+});
+
+test('the special customer at the counter can never start rage (step and arrival add no extra fury)', () => {
+  // fury 90 after the first arrival + answer: the special arrival (+6) stays below 100 and comes on time
+  const { game } = setup({ config: { furyPerCustomer: 6, furyCorrect: 84, special: { customer: ORIG, atMs: 1 } } });
+  game.start();
+  game.tick(10);
+  game.press(rightKey(game));
+  assert.equal(game.state.fury, 96);
+  assert.equal(game.state.current.customer, ORIG);
+  assert.equal(game.state.phase, 'playing');
+  game.press('take');
+  assert.equal(game.state.phase, 'playing', 'a step adds no fury');
+  game.speechDone();
+  game.press('shut'); // the finale adds furyCorrect → rage starts only now, with nobody at the counter
+  assert.equal(game.state.phase, 'rage');
+  assert.equal(game.state.current, null);
+});
+
 // ---------------------------------------------------------------- order: fixedOrder / keyWeights (8.2)
 
 test('fixedOrder: the first customers come in the given order', () => {

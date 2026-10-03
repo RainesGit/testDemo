@@ -14,6 +14,7 @@
 //   showAura / showFury (true | false | 'intro' = hidden until the day's intro shows it), pool { cats, ids, exclude },
 //   fixedFirst (first customers by id), weights (by answer key), star1 (★1 queue threshold; null = boss day),
 //   intro (id of the day's new-system intro: 'opening' | 'aura' | 'rage' | 'charge' | null),
+//   talkLeadMs (the answer window t0 opens this long before the customer's voice ends; day 1 only, for pace),
 //   original (null | { atMs }: the two-step original-film customer, once per round from atMs on)
 
 export const DAY_COUNT = 7;
@@ -47,6 +48,7 @@ const BASE = {
   weights: null,
   intro: null,
   original: null,
+  talkLeadMs: 0,
 };
 
 // 4.2 table: W / bonus / L / L+ / wrong / enter / rate / punch gap.
@@ -56,7 +58,7 @@ export const DAYS = [
     landMs: 650, landBigMs: 1100, landWrongMs: 550, enterMs: 300, custRate: 1.0, punchGapMs: 200,
     timeoutCostsAura: false, furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: false, showFury: false,
     pool: { ids: DAY1_IDS }, fixedFirst: [41, 46, 12], weights: { gun: 0.45, take: 0.30, shut: 0.25 },
-    star1: 30, intro: 'opening',
+    star1: 30, intro: 'opening', talkLeadMs: 400,
   },
   {
     ...BASE, day: 2, durationMs: 90000, windowStartMs: 2100, windowEndMs: 2100, introBonusMs: 300,

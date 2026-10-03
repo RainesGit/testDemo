@@ -24,6 +24,12 @@ test('pace never gets slower: W, bonus, L, L+, wrong landing, entrance and punch
   for (const d of DAYS) assert.ok(d.windowEndMs >= DEFAULT_CONFIG.windowFloorMs, `day ${d.day} W floor`);
 });
 
+test('talkLeadMs: only day 1 opens the window before the customer has finished (pace), and by less than W', () => {
+  assert.equal(dayInfo(1).talkLeadMs, 400);
+  for (const d of DAYS.slice(1)) assert.equal(d.talkLeadMs, 0, `day ${d.day}`);
+  for (const d of DAYS) assert.ok(d.talkLeadMs < d.windowEndMs / 4, `day ${d.day}`);
+});
+
 test('4.2 table values', () => {
   const row = (n) => { const d = dayInfo(n); return [d.durationMs, d.windowStartMs, d.introBonusMs, d.landMs, d.landBigMs, d.landWrongMs, d.enterMs, d.custRate, d.punchGapMs]; };
   assert.deepEqual(row(1), [45000, 2400, 300, 650, 1100, 550, 300, 1.0, 200]);

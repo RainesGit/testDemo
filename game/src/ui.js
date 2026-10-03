@@ -463,7 +463,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     if (pl) pl.textContent = P.plaque;
     shop.classList.toggle('latin', lang === 'en');
     counter.classList.toggle('latin', lang === 'en');
-    if (monitor && monitor.dataset.lang !== lang) { monitorQueue = -1; paintMonitor(last.queue || 0); } // 门口 / DOOR
+    if (monitor && monitor.dataset.lang !== lang) { monitorMarkup = ''; paintMonitor(last.queue || 0); } // 门口 / DOOR
   }
 
   // Traditional script (zh-TW / zh-HK / zh-MO): every text node drawn under the app is converted as it is
@@ -1581,8 +1581,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     last.queue = n;
     qNum.textContent = fmt(n);
     if (bump && n > prev) restart(qNum, 'bump');
-    // In-store silhouettes (min(queue, 3)) + "+N" capsule (art COUNTER_SVG), and the door monitor.
+    // In-store queue people (min(queue, 3)), far crowd row, "+N" capsule (art COUNTER_SVG), and the door monitor.
     counter.dataset.q = String(Math.min(3, n));
+    counter.dataset.crowd = String(art.queueCrowd(n));
     const cap = art.queueCapText(n);
     const qn = counter.querySelector('text.q-num');
     if (qn) qn.textContent = cap;
@@ -1595,13 +1596,15 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   }
 
   // Door monitor (art.monitorHTML): redrawn when the queue changes; scene follows art.monitorScene().
-  let monitorQueue = -1;
+  // Rebuilt only when the drawing changes (the crowd grows every few people), not on every +1 (A13).
+  let monitorMarkup = '';
   function paintMonitor(n) {
     const q = Math.min(n, 999999);
-    if (q === monitorQueue && monitor) return;
-    monitorQueue = q;
+    const markup = art.monitorHTML(q, lang);
+    if (markup === monitorMarkup && monitor) return;
+    monitorMarkup = markup;
     const zoom = monitor?.dataset.zoom;
-    monitorSlot.innerHTML = art.monitorHTML(q, lang);
+    monitorSlot.innerHTML = markup;
     monitor = monitorSlot.firstElementChild;
     monitor.dataset.lang = lang;
     if (zoom != null) monitor.dataset.zoom = zoom;
@@ -1743,7 +1746,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   const resolveText = (t) => (typeof t === 'function' ? t() : t) || '';
   function showMilestone(level, text) {
     bigFx.push(() => {
-      monitorQueue = -1;
+      monitorMarkup = '';
       paintMonitor(Math.max(level, last.queue || 0));
       // art contract: data-zoom on .monitor = 260 ms zoom to x 4–96% / y 8–40%, 900 ms parallax, 260 ms back.
       monitor.dataset.zoom = '1';

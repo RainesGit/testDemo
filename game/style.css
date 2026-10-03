@@ -60,10 +60,53 @@ button { font: inherit; color: inherit; }
 }
 .shaker { position: absolute; inset: 0; }
 
+/* ---------- Off-stage backdrop (screens wider than 5:8 only; phones in portrait keep plain ink bars) ----------
+   The shop front around the 9:16 stage: striped awning, string lights, 二丁掛 facade tiles and the queue
+   continuing out of frame, under a vignette. All static backgrounds (data-URI SVG tiles + gradients), painted
+   once: no filters, no animation, nothing on the stage itself except its wooden door frame. */
+@media (min-aspect-ratio: 5/8) {
+  .app {
+    --sw: min(100vw, 100dvh * 9 / 16, 540px);
+    --bd-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='32'%3E%3Crect width='48' height='32' fill='%233A2820'/%3E %3Cpath fill='%23433026' d='M1 1 H23 V7 H1 Z M25 1 H47 V7 H25 Z M-11 17 H11 V23 H-11 Z M13 17 H35 V23 H13 Z M37 17 H59 V23 H37 Z'/%3E %3Cpath fill='none' stroke='%2324180F' stroke-width='2' d='M0 0 H48 M0 16 H48 M0 32 H48 M24 0 V16 M0 0 V16 M12 16 V32 M36 16 V32'/%3E%3C/svg%3E");
+    --bd-queue: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='330' height='150'%3E%3Cg transform='translate(-3.5 32) scale(1.475)' stroke-linejoin='round'%3E%3Cpath fill='%231d6446' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%237f614b' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%231b1311' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Cpath fill='%2343317d' stroke='%23120C0A' stroke-width='1.4' d='M9 44 Q9 39 14 39 H26 Q31 39 31 44 V82 H9 Z'/%3E%3C/g%3E%3Cg transform='translate(45 18) scale(1.650)' stroke-linejoin='round'%3E%3Cpath fill='%238d5169' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%23886e59' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%23382217' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Cpath fill='%23382217' d='M9 15 A11 11 0 1 1 31 15 L32.5 37 Q20 40.5 7.5 37 Z'/%3E%3C/g%3E%3Cg transform='translate(100.5 40) scale(1.375)' stroke-linejoin='round'%3E%3Cpath fill='%23354975' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%23724f3a' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%231b1311' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Cpath fill='%23822a20' stroke='%23120C0A' stroke-width='1.4' d='M8.8 14 A11.2 11.2 0 0 1 31.2 14 Q20 17 8.8 14 Z'/%3E%3C/g%3E%3Cg transform='translate(144.5 24) scale(1.575)' stroke-linejoin='round'%3E%3Cpath fill='%238d4716' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%235c3d2b' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%23543620' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Ccircle cx='20' cy='4' r='4.5' fill='%23543620'/%3E%3C/g%3E%3Cg transform='translate(197 34) scale(1.450)' stroke-linejoin='round'%3E%3Cpath fill='%238d8477' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%237f614b' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%231b1311' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Crect x='31' y='19' width='6' height='10' fill='%239ED8FF' stroke='%23120C0A' stroke-width='1.4'/%3E%3C/g%3E%3Cg transform='translate(244 22) scale(1.600)' stroke-linejoin='round'%3E%3Cpath fill='%23255b65' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%23886e59' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%23382217' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3C/g%3E%3C/svg%3E");
+    background:
+      radial-gradient(ellipse 62% 80% at 50% 48%, transparent 40%, rgb(0 0 0 / .62) 100%),
+      radial-gradient(circle at 50% 0, #9A3326 0 58%, var(--ink) 60% 70%, transparent 72%) 0 7vh / 6vh 3vh repeat-x,
+      repeating-linear-gradient(90deg, #9A3326 0 3vh, #BFB29A 3vh 6vh) 0 0 / 100% 7vh no-repeat,
+      linear-gradient(var(--ink), var(--ink)) 0 7vh / 100% .5vh no-repeat,
+      radial-gradient(circle, #FFEBB0 0 .5vh, rgb(255 210 63 / .4) .7vh, rgb(255 210 63 / .1) 1.8vh, transparent 2.6vh) 1.5vh 12vh / 7vh 6vh repeat-x,
+      var(--bd-queue) 0 100% / auto 24vh repeat-x,
+      linear-gradient(transparent 62%, rgb(18 12 10 / .7)),
+      var(--bd-tile) 0 0 / 6vh 4vh,
+      #3A2820;
+  }
+  .stage { box-shadow: 0 0 0 .6vh var(--ink), 0 0 0 1.6vh var(--wood), 0 0 0 2.1vh var(--ink), 1.6vh 1.8vh 0 2.1vh rgb(0 0 0 / .5); }
+}
+/* vertical shop signs in the side gutters (landscape only, where they fit) */
+@media (min-aspect-ratio: 1/1) {
+  .app::before, .app::after { position: absolute; top: 19vh; width: 9vh; padding: 1.4vh 0; box-sizing: border-box; text-align: center; white-space: pre;
+    font: 900 5.4vh/1.1 var(--font-zh); color: var(--gun); background: var(--cream); border: .6vh solid var(--ink); border-radius: 1.2vh;
+    box-shadow: inset 0 -1vh 0 #E9D7B4, 1vh 1.2vh 0 rgb(0 0 0 / .5); pointer-events: none; }
+  .app::before { content: '2\A 5\A 0\A 杯'; left: calc((100vw - var(--sw)) / 4 - 4.5vh); }
+  .app::after { content: '珍\A 珠\A 奶\A 茶'; right: calc((100vw - var(--sw)) / 4 - 4.5vh); color: var(--ink); background: var(--lemon); box-shadow: inset 0 -1vh 0 var(--take-deep), 1vh 1.2vh 0 rgb(0 0 0 / .5); }
+  .app:lang(en)::before { content: '2\A 5\A 0'; font-family: var(--font-en); }
+  .app:lang(en)::after { content: 'T\A E\A A'; font-family: var(--font-en); }
+}
+
+/* A13: the camera sets --cam-ms / --cam-ease inline on .cam at every move. As ordinary (inherited) custom
+   properties they changed the computed style of every node in the scene (a full style recalc per move);
+   registered as non-inherited, only .cam itself restyles. */
+@property --cam-ms { syntax: '<time>'; inherits: false; initial-value: 0ms; }
+@property --cam-ease { syntax: '*'; inherits: false; }
+
 /* ---------- Camera layer (§2.11): .cam > .shop .monitor .clerk .counter .cust-wrap .sign ---------- */
 .cam { position: absolute; inset: 0; z-index: 1; transform-origin: 0 0; will-change: transform;
   transition: transform var(--cam-ms, 0ms) var(--cam-ease, cubic-bezier(.2, .8, .2, 1)); }
 .cam.snap { transition: none; }
+
+/* A13: SVG text keeps one glyph scale: without this every camera zoom re-laid out each <text> in the scene, and
+   every 花字 entry / wobble frame re-laid out its caption text */
+.cam svg text, .hz text { text-rendering: geometricPrecision; }
 
 /* Shop background (SHOP_SVG) */
 .shop { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
@@ -112,11 +155,16 @@ button { font: inherit; color: inherit; }
 .counter { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .plaque-text { font: 900 16px var(--font-zh); fill: var(--ink); text-anchor: middle; letter-spacing: 6px; }
 .counter.latin .plaque-text { font-size: 12px; letter-spacing: 1px; }
-.counter .q-p1, .counter .q-p2, .counter .q-p3, .counter .q-cap { display: none; }
+.counter :is(.q-p1, .q-p2, .q-p3, .q-c1, .q-c2, .q-c3, .q-cap) { display: none; }
 .counter[data-q="1"] .q-p1,
 .counter[data-q="2"] :is(.q-p1, .q-p2),
 .counter[data-q="3"] :is(.q-p1, .q-p2, .q-p3),
+.counter[data-crowd="1"] .q-c1,
+.counter[data-crowd="2"] :is(.q-c1, .q-c2),
+.counter[data-crowd="3"] :is(.q-c1, .q-c2, .q-c3),
 .counter.cap .q-cap { display: inline; }
+/* a new person steps into line (plays whenever a figure is shown; individual translate keeps the SVG transform) */
+.counter :is(.q-in, .q-crowd) > g { animation: qIn .26s cubic-bezier(.3, 1.5, .5, 1); }
 .q-num { font: 900 13px var(--font-zh); fill: var(--lemon); text-anchor: middle; }
 .counter.slam { animation: slam .28s ease-out; }
 
@@ -317,7 +365,9 @@ button { font: inherit; color: inherit; }
 .hud { position: absolute; left: 0; right: 0; top: 0; z-index: 30; padding: 1.4cqw 3cqw 0; pointer-events: none; }
 .hud button { pointer-events: auto; }
 .hud-row { display: flex; align-items: center; gap: 2cqw; min-height: 8.4cqw; }
-.hud-queue { display: flex; align-items: baseline; gap: 1.5cqw; flex: 1; min-width: 0; }
+/* queue counter on the same dark pill as the toggles (it sat bare on the wall and the label vanished on cream) */
+.hud-queue { display: flex; align-items: baseline; gap: 1.5cqw; flex: 0 1 auto; min-width: 0; margin-right: auto;
+  padding: .2cqw 3cqw .6cqw 2.6cqw; border-radius: 99px; border: .3cqw solid #fff4; background: #000a; }
 .hud-label { font: 700 3.4cqw var(--font-zh); color: var(--text-dim); white-space: nowrap; }
 .hud-qnum { font: 900 7.4cqw/1 var(--font-zh); color: var(--lemon); text-shadow: 0 .6cqw 0 #6E5418; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hud-qnum.bump { animation: bump 200ms ease-out; }
@@ -458,7 +508,7 @@ button { font: inherit; color: inherit; }
 .ticket-hole { position: absolute; top: 1cqw; left: 50%; width: 2.4cqw; height: 2.4cqw; margin-left: -1.2cqw; border-radius: 50%; background: var(--ink); }
 .ticket-no { font-size: 6.4cqw; line-height: 1; }
 .ticket-cups { font-size: 5cqw; line-height: 1.1; }
-.ticket-when { font-size: 3.6cqw; line-height: 1.1; white-space: nowrap; }
+.ticket-when { font-size: 3.6cqw; line-height: 1.1; text-align: center; } /* wraps: "Pick up in 2 months" was cut by the ticket edge */
 .ticket.glow { box-shadow: 0 1.2cqw 0 #C9A21E, 0 0 0 1.4cqw #FFE14D88; }
 
 /* Tints */
@@ -495,12 +545,16 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 2cqw 0 #000; animation: pop .3s ease-out; position: relative; }
 .card-title { margin: 2cqw 0; font: 900 13cqw/1.05 var(--font-zh); color: var(--lemon); text-shadow: 0 1.2cqw 0 #7a2c00; }
 .report { padding: 5cqw 4cqw; }
-.report .card-title { margin-top: 4cqw; font-size: 8.5cqw; }
+.report .card-title { margin-top: 4cqw; font-size: 8.5cqw; text-shadow: 0 .7cqw 0 var(--ink); } /* a deep offset shadow turned 日 into 目 */
 .report .card-sub { margin-bottom: 2cqw; }
 .card-sub { margin: 0 0 4cqw; font-size: 4cqw; color: var(--text-dim); line-height: 1.5; }
 .card-hint { margin: 4cqw 0; font-size: 3.4cqw; color: var(--text-dim); }
 .report-stamp { position: absolute; right: 4cqw; top: 3cqw; rotate: 14deg; border: .8cqw solid var(--gun); color: var(--gun); font: 900 5cqw var(--font-zh); padding: .6cqw 2cqw; border-radius: 2cqw; }
-.report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2cqw; margin: 3cqw 0; }
+.report-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2cqw; margin: 3cqw 0; }
+.report-grid > .stat { grid-column: span 2; }
+/* a last row of two (5 stats) or one (4 stats) fills the width instead of leaving a hole */
+.report-grid > .stat:nth-child(3n+1):nth-last-child(2), .report-grid > .stat:nth-child(3n+2):last-child { grid-column: span 3; }
+.report-grid > .stat:nth-child(3n+1):last-child { grid-column: 1 / -1; }
 .stat { background: #fff1; border-radius: 3cqw; padding: 1.8cqw 1cqw; min-width: 0; }
 .stat-val { font: 900 5.6cqw var(--font-zh); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-label { font-size: 3.4cqw; color: var(--text-dim); }
@@ -515,7 +569,7 @@ button { font: inherit; color: inherit; }
   background: var(--take); box-shadow: 0 1.6cqw 0 color-mix(in srgb, var(--take) 78%, #1B1311); cursor: pointer; animation: breathe .9s ease-in-out infinite alternate; }
 .big-btn:active { transform: translateY(1cqw); box-shadow: 0 .6cqw 0 color-mix(in srgb, var(--take) 78%, #1B1311); }
 .start-screen { position: absolute; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-  padding: 0 0 8cqw; background: linear-gradient(transparent 40%, #000c 75%); cursor: pointer; }
+  padding: 0 0 8cqw; background: linear-gradient(transparent 40%, rgb(27 19 17 / .8) 66%, rgb(27 19 17 / .97) 84%); cursor: pointer; } /* keys no longer peek around the button */
 .start-title { margin: 0; font: 900 14cqw/1 var(--font-zh); color: #fff; -webkit-text-stroke: 1.6cqw var(--ink); }
 .start-title .num { font-size: 22cqw; color: var(--lemon); }
 .start-tag { margin: 3cqw 0 6cqw; padding: 0 max(16px, 4cqw); text-align: center; font: 700 5.6cqw var(--font-zh); color: var(--cream); animation: fadeIn .6s .6s both; }
@@ -539,8 +593,9 @@ button { font: inherit; color: inherit; }
 .day-card .dc-inner { width: 88cqw; padding: 5cqw; background: var(--ink); border: .8cqw solid var(--lemon); border-radius: 4cqw; box-shadow: 0 2cqw 0 #000; animation: pop .3s ease-out; }
 .dc-title { margin: 0 0 4cqw; font: 900 7cqw/1.2 var(--font-zh); color: var(--cream); text-align: center; }
 .dc-title b { color: var(--lemon); }
-.dc-row { display: flex; align-items: center; gap: 3cqw; margin: 3cqw 0; font: 700 5.6cqw var(--font-zh); color: var(--cream); }
-.dc-row .sign.mini { flex: 0 0 auto; max-width: 30cqw; }
+/* fixed sign column so the three descriptions line up whatever the mini-sign width */
+.dc-row { display: grid; grid-template-columns: 20cqw minmax(0, 1fr) auto; align-items: center; gap: 2.4cqw; margin: 3cqw 0; font: 700 5.6cqw var(--font-zh); color: var(--cream); }
+.dc-row .sign.mini { justify-self: center; max-width: 23cqw; }
 .dc-row .sign.mini .sign-line { font-size: 4.6cqw; }
 .dc-text { flex: 1 1 auto; min-width: 0; line-height: 1.2; }
 .dc-row .dc-key { flex: 0 0 auto; margin-left: auto; font-weight: 900; white-space: nowrap; color: var(--kc, var(--cream)); }
@@ -554,7 +609,13 @@ button { font: inherit; color: inherit; }
 .recap-col:nth-child(3) { animation-delay: .24s; }
 .recap-arrow { width: 0; height: 0; border: 2.4cqw solid transparent; border-top: 3cqw solid var(--cream); border-bottom: 0; }
 
+/* A13: fixed-size layers whose content changes often (caption, subtitle, customer, fx, keys) are relayout
+   boundaries, so a new caption or subtitle line lays out only its own layer instead of the whole document.
+   No paint containment: content may still overflow (flying customer, captions near the edges). */
+.cust-wrap, .subs, .fx-layer, .hz-layer, .pad { contain: size layout style; }
+
 /* ---------- Keyframes ---------- */
+@keyframes qIn { from { translate: 0 24px; } }
 @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
 @keyframes pulse { to { opacity: .55; } }
 @keyframes spin { to { transform: rotate(360deg); } }

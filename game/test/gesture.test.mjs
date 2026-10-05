@@ -88,9 +88,9 @@ test('bowling: only right / up-right flings count, 1–3 heads by speed', () => 
   assert.equal(towardQueue(sw(-90, 3)), false); // down
   assert.equal(towardQueue(sw(180, 3)), false);
   assert.equal(bowlCount(sw(30, 0.5)), 0);
-  assert.equal(bowlCount(sw(30, 1)), 1);
-  assert.equal(bowlCount(sw(30, 1.8)), 2);
-  assert.equal(bowlCount(sw(30, 3)), 3);
+  assert.equal(bowlCount(sw(30, 1.2)), 1);
+  assert.equal(bowlCount(sw(30, 2.4)), 2);
+  assert.equal(bowlCount(sw(30, 3.5)), 3);
   assert.equal(bowlCount(sw(160, 3)), 0);
   assert.equal(bowlCount(null), 0);
 });

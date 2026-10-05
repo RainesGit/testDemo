@@ -751,12 +751,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       later(() => { if (!swipes.size) trailSvg.textContent = ''; }, 220);
     }
   }
+  // the recognizer is ticked every frame only while it has something to decide (a pointer down, a tap burst open)
   function gTick() {
     gLoop = 0;
     if (inputMode !== 'gesture') return;
     recog.tick(performance.now());
-    gLoop = requestAnimationFrame(gTick);
+    if (recog.pending) gLoop = requestAnimationFrame(gTick);
   }
+  const wakeGestures = () => { if (!gLoop && inputMode === 'gesture') gLoop = requestAnimationFrame(gTick); };
   function resetGestures() {
     if (recog.active || stampLevel != null) onGesture({ type: 'reset' });
     recog.reset();
@@ -771,6 +773,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     try { gsurf.setPointerCapture(e.pointerId); } catch { /* not supported */ }
     const p = ptOf(e);
     recog.down(e.pointerId, p.x, p.y, performance.now());
+    wakeGestures();
   });
   gsurf.addEventListener('pointermove', (e) => {
     if (inputMode !== 'gesture') return;
@@ -786,6 +789,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const p = ptOf(e);
     recog.tick(performance.now()); // a hold that started since the last frame starts before it ends
     recog.up(e.pointerId, p.x, p.y, performance.now());
+    wakeGestures();
   });
   gsurf.addEventListener('pointercancel', (e) => recog.cancel(e.pointerId, performance.now()));
   gsurf.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -798,7 +802,6 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     resetGestures();
     cancelAnimationFrame(gLoop);
     gLoop = 0;
-    if (inputMode === 'gesture') gLoop = requestAnimationFrame(gTick);
   }
   function setGestureHints(on) {
     stage.dataset.ghints = on ? '1' : '0';

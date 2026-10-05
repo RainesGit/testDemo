@@ -15,7 +15,7 @@
 //   towardQueue(swipe)               the fling goes right / up-right (to the queue at the right edge)
 //   bowlCount(swipe)                 queue silhouettes knocked over: 0–3 (3 = STRIKE)
 //   createRecognizer({ onGesture, opts }) → { down(id, x, y, t), move(id, x, y, t), up(id, x, y, t), cancel(id, t),
-//                                            tick(t), reset(), active }
+//                                            tick(t), reset(), active, pending }
 //       streams pointer events and emits, as soon as each gesture is unambiguous:
 //         { type: 'swipe', id, x, y, x0, y0, dir, angle, speed, dist, t }   distance > swipeMinPx (or a flick on up)
 //         { type: 'swipeMove', id, x, y, px, py, t }                          every move after that (path hit tests)
@@ -40,7 +40,7 @@ export const GESTURE = {
   holdLevels: [300, 800],
   speedWindowMs: 90,  // speed = the faster of the whole stroke and its last speedWindowMs
   queueAngle: [-30, 75], // degrees: the queue is to the right / up-right
-  bowl: [0.8, 1.5, 2.4], // px/ms: 1 / 2 / 3 heads knocked
+  bowl: [1.0, 2.0, 3.2], // px/ms: 1 / 2 / 3 heads knocked (a STRIKE needs a really hard fling)
 };
 
 const KIND_KEY = { swipe: 'gun', taps: 'shut', hold: 'take' };
@@ -230,5 +230,7 @@ export function createRecognizer({ onGesture = () => {}, opts = {} } = {}) {
       burst = { n: 0, lastT: -Infinity };
     },
     get active() { return strokes.size; },
+    /** True while tick() still has something to decide (a pointer is down or a tap burst is open). */
+    get pending() { return strokes.size > 0 || burst.n > 0; },
   };
 }

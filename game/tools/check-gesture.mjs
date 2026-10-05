@@ -105,8 +105,12 @@ async function gesture(key, p, { fast = false } = {}) {
   if (key === 'gun') {
     // fling: up-left normally, a fast up-right fling into the queue now and then (bowling)
     if (fast) await swipe(f.x - 40, f.y + 10, f.x + 170, f.y - 120, 60);
-    else await swipe(f.x + 20, f.y, f.x - 110, f.y - 70, 110);
-    if (!flingShot && p.day === 1 && !p.opening) { flingShot = true; await wait(40); await shot('fling'); }
+    else {
+      // the fling starts the moment the swipe passes 40 px: the first one is photographed mid-flight
+      const snap = !flingShot && p.day === 1 && !p.opening;
+      if (snap) flingShot = true;
+      await swipe(f.x + 20, f.y, f.x - 110, f.y - 70, 110, { midway: snap ? async () => { await wait(60); await shot('fling'); } : null });
+    }
   } else if (key === 'shut') {
     await taps(f.x, f.y, 3, 110, async (n) => { if (n === 2 && !slapShot && !p.opening) { slapShot = true; await wait(30); await shot('slap'); } });
   } else {
@@ -160,6 +164,7 @@ check('pad-hidden', afterOpen.input === 'gesture' && afterOpen.padButtons === 0 
   `default ${startInput.mode} (toggle ${startInput.tog.join(' ')}), data-input ${afterOpen.input}, visible pad buttons ${afterOpen.padButtons}`);
 
 // ---- free play: answer each customer with the gesture its sign shows (300 ms after it is answerable)
+let gunN = 0;
 async function play(untilFn, maxMs, opts = {}) {
   const tt = Date.now();
   let lastId = null;
@@ -188,7 +193,10 @@ async function play(untilFn, maxMs, opts = {}) {
       } else {
         n += 1;
         if (cur.id === 'boss' && cur.step === 7) { const q = await probe(); await hold(face(q).x, face(q).y, 1000); } // the full stamp
-        else await gesture(cur.key, await probe(), { fast: cur.key === 'gun' && n % 3 === 0 });
+        else {
+          if (cur.key === 'gun') gunN += 1;
+          await gesture(cur.key, await probe(), { fast: cur.key === 'gun' && gunN % 2 === 0 }); // every other 滚: a hard fling into the queue
+        }
       }
     }
     await wait(40);

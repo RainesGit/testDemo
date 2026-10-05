@@ -14,7 +14,8 @@ AGENTS.md               Entry point for Codex and other agents; points here and 
 docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
   gameplay-v2.md        Gameplay v2 (2026-10-05 expert panel): feel, rage rework, 7 daily rules, meta; wins over
-                        first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays)
+                        first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays);
+                        stage 1 (jab/next, speed multiplier, rage rework, forced politeness) is implemented
   first-minute-spec.md  First-minute redesign spec (art, day-1 opening script, pace, 花字, days 1–7); wins
                         over game-design.md where they conflict
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
@@ -27,7 +28,8 @@ docs/
     voice-script-en.md  English transcreated recording script (100 customers)
 game/                   Web prototype (plain HTML/CSS/ES modules, zero dependencies, no build)
   index.html, style.css (all art CSS: palette, clerk moods, signs, 花字 layer, keys, cards)
-  src/engine.js         Pure game logic (no DOM); rules + events (talking phase, landing pauses, two-step customer)
+  src/engine.js         Pure game logic (no DOM); rules + events (talking phase, landing pauses, two-step customer,
+                        v2 stage 1: jab / summon, speed multiplier, buffered presses, rage heads, forced politeness)
   src/days.js           Days 1–7 tuning, pools and unlock order (pure data)
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, signs, monitor)
@@ -40,7 +42,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
   src/main.js           Wires everything together (start → opening → days)
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration)
-  tools/                Playwright smoke/QA scripts and the day 1 pace measurement (screenshots and node_modules are gitignored)
+  tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs)
+                        (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
   voice/                Generated voice pack: manifest.json + mp3 sprites per language
@@ -61,7 +64,9 @@ Run from `game/`:
   (A1–A13, screenshots `tools/shots/opening-*.png`): `node tools/check-opening.mjs`;
   the "250" signature (opening, free play, day-3 original customer):
   `node tools/check-signature.mjs`; day 1 pace with real voice clip lengths (customers served per 45 s at a
-  fixed 700 ms reaction, `--from=t0|sign`): `node tools/measure-pace.mjs`. All take the base URL as an argument. These use the globally installed Playwright
+  fixed 700 ms reaction, `--from=t0|sign`): `node tools/measure-pace.mjs`; balance with four scripted players
+  (expert / normal / sloppy / masher, days 1–7, seeds 1–3: ★1, dead input, feedback per 10 s, rage share, early
+  closes; about 20 minutes at `--par=7`): `node tools/bots.mjs`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 

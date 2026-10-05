@@ -19,7 +19,7 @@
 //   - Speed multiplier on correct answers: cut-in ×2, < 600 ms after t0 ×1.5, < 1200 ms ×1.2, else ×1, applied to
 //     (1 + combo bonus) and rounded up; combo bonus = floor(min(combo, comboCap) / 5). A cut-in is a press while the
 //     customer talks (from cutInFromMs after arrive); a press before their line starts (the sign still rising) is an
-//     early press: ×1, not perfect. The charge bonus (reworked in stage 3) and big orders are flat on top: 100 / 251 /
+//     early press, a guess: ×1, not perfect, no big-order bonus. The charge bonus (reworked in stage 3) and big orders are flat on top: 100 / 251 /
 //     520 cups +1 / +2 / +5, 250 cups bonus250; big orders land big.
 //   - Wrong key: +wrongQueueDelta, combo frozen (no reset, no increment), no fury, no aura change.
 //   - Fury is earned by skill (cut-in / perfect / correct / paid jab); arrivals add furyPerCustomer (0 by default).
@@ -99,7 +99,7 @@ export const DEFAULT_CONFIG = {
   // charge
   chargeMidMs: 300,       // hold >= this -> charge 1
   chargeHighMs: 800,      // hold > this -> charge 2
-  chargeBonus: [0, 1, 3],
+  chargeBonus: [0, 1, 2],  // flat (stage 1; the charge is reworked in gameplay-v2 stage 3)
   chargeWindowMs: 1000,   // charge(level) upgrades a correct answer resolved within this window
   firstTimeoutFree: true, // the first timeout of a round plays the polite scene but costs no aura
   bonus250: 25,           // 250 cups
@@ -519,7 +519,9 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       ? (customer.reply2 ?? customer.reply)
       : (customer.alt && rng() < cfg.altChance ? customer.alt : customer.reply);
     const is250 = customer.style === '250' || customer.cups === 250;
-    const flat = bigBonus(customer);
+    // an early press (before the customer talks, the sign still rising) is a guess: no big-order bonus either
+    const bigOrder = bigBonus(customer);
+    const flat = early ? 0 : bigOrder;
     const forced = s.forcedLeftMs > 0;
 
     let queueDelta;
@@ -540,7 +542,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     let land = 'normal';
     if (!correct) land = 'wrong';
     else if (steps) land = 'step';
-    else if (customer.style === 'curse' || is250 || flat > 0 || charge === 2) land = 'big';
+    else if (customer.style === 'curse' || is250 || bigOrder > 0 || charge === 2) land = 'big';
 
     s.score += scoreDelta;
     s.stats.served += 1;

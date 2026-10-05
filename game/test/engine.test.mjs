@@ -153,7 +153,7 @@ test('timeout: polite event, aura -15, combo reset, next customer', () => {
   assert.notEqual(game.state.current.customer, cust);
 });
 
-test('charge levels: <300 -> 0, 300-800 -> 1, >800 -> 2 with +0/+1/+3 queue', () => {
+test('charge levels: <300 -> 0, 300-800 -> 1, >800 -> 2 with +0/+1/+2 queue', () => {
   const { game, of } = setup();
   game.start();
   const holds = [0, 299, 300, 800, 801, 2000];
@@ -166,7 +166,7 @@ test('charge levels: <300 -> 0, 300-800 -> 1, >800 -> 2 with +0/+1/+3 queue', ()
   rs.forEach((r, i) => {
     assert.equal(r.charge, expectCharge[i], `hold ${holds[i]}`);
     const comboBefore = i; // all correct, combo was i before press
-    assert.equal(r.queueDelta, 1 + Math.floor(comboBefore / 5) + [0, 1, 3][expectCharge[i]]);
+    assert.equal(r.queueDelta, 1 + Math.floor(comboBefore / 5) + [0, 1, 2][expectCharge[i]]);
   });
 });
 
@@ -579,9 +579,9 @@ test('charge(level) upgrades the last correct answer by the chargeBonus differen
   assert.equal(game.state.score, s0 + 100);
   game.tick(500);
   const c2 = game.charge(2);
-  assert.equal(c2.queueDelta, 2, 'only the difference 3 - 1 is added');
-  assert.equal(game.state.queue, q0 + 3);
-  assert.equal(game.state.score, s0 + 300);
+  assert.equal(c2.queueDelta, 1, 'only the difference 2 - 1 is added');
+  assert.equal(game.state.queue, q0 + 2);
+  assert.equal(game.state.score, s0 + 200);
   assert.equal(game.charge(2), null, 'same level twice does nothing');
   assert.equal(game.charge(1), null, 'no downgrade');
   const ev = of('charge');
@@ -596,8 +596,8 @@ test('charge jumping straight to level 2 adds the full bonus', () => {
   game.press(rightKey(game));
   const q0 = game.state.queue;
   game.tick(800);
-  assert.equal(game.charge(2).queueDelta, 3);
-  assert.equal(game.state.queue, q0 + 3);
+  assert.equal(game.charge(2).queueDelta, 2);
+  assert.equal(game.state.queue, q0 + 2);
 });
 
 test('charge is ignored after a wrong answer, outside the 1000ms window, or before any answer', () => {
@@ -1129,9 +1129,9 @@ test('the charge bonus stays flat on top of the speed multiplier', () => {
   game.press(rightKey(game)); // cut-in: ceil(1 x 2) = 2
   assert.equal(of('resolve')[0].queueDelta, 2);
   game.tick(100);
-  const c = game.charge(2); // + chargeBonus[2] = 3
-  assert.equal(c.queueDelta, 3);
-  assert.equal(game.state.queue, 5);
+  const c = game.charge(2); // + chargeBonus[2] = 2
+  assert.equal(c.queueDelta, 2);
+  assert.equal(game.state.queue, 4);
 });
 
 test('early press (before the customer starts talking, cutInFromMs): no cut-in, x1, not perfect, correct fury', () => {
@@ -1148,6 +1148,20 @@ test('early press (before the customer starts talking, cutInFromMs): no cut-in, 
   const r2 = of('resolve')[1];
   assert.deepEqual([r2.early, r2.cutIn, r2.perfect, r2.mult], [false, true, true, 2]);
   assert.equal(game.state.fury, 20);
+});
+
+test('early press on a big order: still a big landing, but no big-order bonus (a guess)', () => {
+  const big = [{ id: 1, style: 'real', key: 'take', cups: 250, reply: 'x' }, { id: 2, style: 'cold', key: 'take', cups: 520, reply: 'y' }];
+  const { game, of } = v2({ cutInFromMs: 500 }, { customers: big });
+  game.start();
+  game.tick(300);
+  game.press('take');
+  assert.deepEqual([of('resolve')[0].queueDelta, of('resolve')[0].land, of('resolve')[0].big], [1, 'big', 0]);
+  nextCustomer(game);
+  game.tick(500);
+  game.press('take'); // cut-in: ceil(1 x 2) + big bonus
+  const r = of('resolve')[1];
+  assert.equal(r.queueDelta, 2 + (r.customer.cups === 250 ? 25 : 5));
 });
 test('combo bonus is capped: floor(min(combo, 50) / 5), at most +10', () => {
   const { game, of } = setup({ config: { auraStart: 100 } });

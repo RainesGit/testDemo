@@ -38,7 +38,11 @@ test('4.2 table values', () => {
   assert.deepEqual(row(4), [90000, 1650, 200, 380, 750, 320, 200, 1.06, 160]);
   assert.deepEqual(row(5), [90000, 1450, 200, 320, 650, 280, 180, 1.08, 140]);
   assert.deepEqual(row(7).slice(1), [1400, 200, 320, 650, 280, 180, 1.08, 140]);
-  assert.deepEqual(DAYS.map((d) => d.star1), [30, 35, 40, 45, 50, 55, null]);
+  // ★1 re-tuned for gameplay v2 stage 1 with tools/bots.mjs (masher below, normal above on seeds 1–3)
+  assert.deepEqual(DAYS.map((d) => d.star1), [30, 80, 105, 100, 115, 120, null]);
+  // hold-to-charge only pays from day 4, the day that introduces it (7)
+  assert.deepEqual(DAYS.map((d) => d.chargeBonus[2]), [0, 0, 0, 2, 2, 2, 2]);
+  assert.deepEqual(configForDay(4).chargeBonus, [0, 1, 2]);
 });
 
 test('system unlock order (7): day 1 hides aura/fury and timeouts are free; day 2 aura; day 3 rage; day 4 charge', () => {

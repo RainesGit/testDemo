@@ -3,7 +3,7 @@
 //                收 → "好，250杯什么？" (D8), the trap and "调你妈！" (E4) with the purple sign shattering,
 //                "黄金比例最好喝！" with the lit menu box (E6), the ticket "No.001 / 250杯 / 两个月后取餐" stuck
 //                on the forehead (E12), the queue +10 (bonus250, E13), keys locked from E4 to the recap.
-//   2. freeplay  a 250-cup customer in normal play (R13): 收 adds bonus250 (+10) and plays NO long scene —
+//   2. freeplay  a 250-cup customer in normal play (R13): 收 adds bonus250 (+25 since gameplay v2) and plays NO long scene —
 //                the engine never pauses and the next customer arrives within the normal landing pause.
 //   3. original  the two-step original-film customer on day 3 (7): 收 → 'step' (the sign flips to a purple
 //                闭嘴 sign, "好，250杯什么？") → 闭嘴 → resolve with the big landing (land 'step', +bonus250).

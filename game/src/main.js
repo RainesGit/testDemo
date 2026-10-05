@@ -12,6 +12,17 @@
 // (game.delayNext(punch end + L − signUp)), so the laugh lands and the next sign is up when L ends.
 // A press resolves on key-down; holding on charges it up afterwards (game.charge).
 //
+// Gameplay v2 stage 1 (docs/gameplay-v2.md 3–4): no dead input. A press while the answered customer flies (from
+// the answer until the punch line ends + 200 ms) is a jab (game.jab: kick, shake, slam, S4 word; no clerk voice,
+// the line is never cut). The first press after that is "下一位。" (SYSTEM.next, the clip of '（不抬头）下一位。')
+// and game.summon() brings the next customer at once (the line always finished). A press up to 150 ms before the
+// next customer is answerable is buffered by the engine. The sign corner shows the speed multiplier (×2 while the
+// customer talks, ×1.5 / ×1.2 as the timer shrinks). A full fury bar glows; the next press starts rage: silent
+// heads every 300 ms, each press sends the current one flying the pressed key's way, the chant follows the
+// pressed key (rageLines grouped by key, RAGE_GROUPS), and rage ends with a 0.5 s pause and a polite "下一位".
+// Too slow: aura 0 → 10 s of forced politeness (every reply is a service line), never an early close.
+// window.__250.inputs (debug) counts press outcomes for tools/bots.mjs.
+//
 // Storage (all try/catch): 250cups.day (default 1, only goes up), 250cups.openingDone, 250cups.lang, 250cups.bleep.
 // URL params: ?lang=zh|en  ?bleep=1  ?day=N  ?skipOpening=1  ?seed=N  ?debug (window.__250 for automated tests)
 //
@@ -122,6 +133,8 @@ const zh = () => lang === 'zh';
 
 // Texts D adds to content (SYSTEM.unlock / tips / daySlow); built-in fallbacks keep main.js running without them.
 function unlockText(which) {
+  // v2: no early close any more; the content text ('气势没了＝提早打烊') is replaced here until the stage 2 content pass
+  if (which === 'aura') return zh() ? '气势没了＝被迫营业' : 'No swagger = forced politeness';
   const u = sys().unlock;
   const order = ['aura', 'rage', 'rageTip', 'charge'];
   const fb = zh()
@@ -231,18 +244,36 @@ function cutVoice() {
   else audio.stopSpeech();
 }
 
-// Short rage lines for the level-2 charge shout (shorter half of rageLines).
-function shortRageLine() {
-  const lines = [...(sys().rageLines || [])].sort((a, b) => a.length - b.length);
-  return pick(lines.slice(0, Math.max(1, Math.ceil(lines.length / 2))));
+// SYSTEM.rageLines (voice-bible 4.5 SBR01–SBR36) come in key groups: 10 滚, 10 闭嘴, 10 收, then 6 general
+// (same order in zh and en). The rage chant follows the key the player pressed last.
+const RAGE_GROUPS = { gun: [0, 10], shut: [10, 20], take: [20, 30], any: [30, 36] };
+function rageLinesFor(key) {
+  const all = sys().rageLines || [];
+  const [a, b] = RAGE_GROUPS[key] || RAGE_GROUPS.any;
+  const group = all.length >= 36 ? all.slice(a, b) : all;
+  return group.length ? group : all;
 }
 
+// "下一位。" for the jab → next beat: the SYSTEM.next line whose clip is '下一位。' / 'Next.' (the stage direction
+// '（不抬头）' is not spoken), else the first one.
+const noStage = (t) => String(t ?? '').replace(/（[^（）]*）|\([^()]*\)/g, '').trim();
+function nextLine() {
+  const list = sys().next || [];
+  return list.find((t) => /^(下一位。|Next\.)$/.test(noStage(t))) || list[0] || (zh() ? '下一位。' : 'Next.');
+}
+// rage end: a sigh and a polite "下一位" ('（叹气）……下一位。'), the clerk is back to professional
+function rageCloseLine() {
+  const list = sys().next || [];
+  return list.find((t) => /^……下一位。$|^…Next\.$/.test(noStage(t))) || nextLine();
+}
+
+let rageKey = 'any';
 async function rageChant() {
   const g = ++rageGen;
   const lines = sys().rageLines || [];
   if ((!audio.canSpeak && !audio.hasVoicePack) || !audio.unlocked || !lines.length) return;
   while (g === rageGen && game && game.state.phase === 'rage') {
-    const line = pick(sys().rageLines);
+    const line = pick(rageLinesFor(rageKey));
     ui.showLine(line, { style: 'curse', who: 'clerk' });
     const t0 = now();
     await audio.speak(line, { style: 'rage' });
@@ -263,6 +294,33 @@ function clearRoundTimers() {
   roundTimers = [];
 }
 
+// ---------------------------------------------------------------- jab / next (gameplay-v2 3)
+// Press outcomes of this round (debug: window.__250.inputs, read by tools/bots.mjs).
+let inputs = {};
+// The landing pause after an answer, a timeout or rage: its line ends at lineEndAt (performance.now()).
+let landing = null; // { lineEndAt, kind: 'answer' | 'polite' | 'rage' }
+const JAB_TO_NEXT_MS = 200; // presses until the punch end + this are jabs; the first one after it calls the next
+
+/** A press while nobody is at the counter: a jab while the customer flies, "下一位" once the line is over. */
+function landingPress(key) {
+  const t = now();
+  if (landing && t >= landing.lineEndAt + JAB_TO_NEXT_MS) return callNext() ? 'next' : 'dead';
+  if (landing && landing.kind === 'answer' && game.jab(key)) return 'jab';
+  return 'dead';
+}
+
+function callNext() {
+  if (!game || game.state.current || game.state.phase !== 'playing') return false;
+  const line = nextLine();
+  landing = null;
+  subUntil = now(); // the clerk's last subtitle has been heard; "下一位。" replaces it
+  clerkLine(line, { style: 'real' });
+  const t = sayClerk(line, { style: 'real' });
+  // the next customer may start talking on the tail of "下一位。" (calling the next must save time, not add a line)
+  clerkEndAt = now() + Math.max(0, t.totalMs - 350);
+  return game.summon();
+}
+
 // ---------------------------------------------------------------- UI
 const root = document.getElementById('app');
 const pressOk = {}; // key → the press that started this hold resolved a customer (so charge may apply)
@@ -275,10 +333,20 @@ const ui = createUI(root, {
     if (openingActive()) { opening.press(key); return; }
     if (!game) return;
     syncClock(); // the press lands at its real time, not at the previous frame
+    const before = game.state;
     const r = game.press(key, holdMs);
+    let kind = 'dead';
+    if (r && r.rageStart) kind = 'rageStart';
+    else if (r && r.rage) kind = r.miss ? 'rageMiss' : 'rage';
+    else if (r && r.buffered) kind = 'buffered';
+    else if (r && 'land' in r) kind = r.correct ? 'answer' : 'wrong';
+    else if (r && r.step != null) kind = 'step';
+    else if (!r && before.phase === 'playing' && !before.current && !before.paused) kind = landingPress(key);
+    inputs[kind] = (inputs[kind] || 0) + 1;
     pressOk[key] = !!r && !r.rage && r.correct && 'land' in r; // a resolved answer (not a rage hit or a first step)
-    if (r && !r.rage) audio.sfx('press');
-    if (r && !r.rage && navigator.vibrate) { try { navigator.vibrate(10); } catch { /* optional */ } }
+    if (kind === 'answer' || kind === 'wrong' || kind === 'step' || kind === 'buffered') audio.sfx('press');
+    if (kind === 'rageMiss') audio.sfx('tap', { intensity: 0.4 });
+    if (kind !== 'dead' && navigator.vibrate) { try { navigator.vibrate(10); } catch { /* optional */ } }
     ui.render(game.state);
   },
   onCharge(key, level) {
@@ -468,6 +536,11 @@ function startRound({ carry = 0 } = {}) {
     chargeIntroDone: false, charge2Done: false, rageHits: 0, suppressMilestone: false, takes: 0,
   });
   subUntil = 0;
+  inputs = {};
+  landing = null;
+  rageKey = 'any';
+  ui.setSignMult?.('');
+  ui.setForced?.(false);
   // day 1 after the opening: the shut key may still be covered and guides may linger
   ui.coverKey?.('shut', false, { animate: false });
   ui.clearGuide?.();
@@ -507,6 +580,8 @@ function wire(g) {
     ui.clearHuazi?.({ pendingOnly: true });
     ui.resetClerk?.();
     const loc = local(customer);
+    landing = null;
+    ui.setSignMult?.(game && game.config.speedCutIn > 1 ? '×' + game.config.speedCutIn : ''); // ×2 while they talk
     const { signUpAt } = ui.showCustomer(loc, { enterMs: info.enterMs, line: false }) || { signUpAt: now() + info.enterMs + 280 };
     audio.sfx('pop');
     const key = customer.key;
@@ -529,7 +604,7 @@ function wire(g) {
   });
 
   g.on('ready', ({ patienceMs }) => {
-    ui.startSignTimer?.(patienceMs);
+    ui.startSignTimer?.(patienceMs, { steps: g.config.speedSteps });
   });
 
   g.on('step', (e) => onStep(e));
@@ -545,11 +620,7 @@ function wire(g) {
         round.charge2Done = true;
         ui.huazi([{ text: unlockText('charge'), style: 'S1', seg: 'punch', ratio: 0 }]);
       }
-      const shout = shortRageLine();
-      if (shout) {
-        ui.showLine(shout, { style: 'curse', who: 'clerk' });
-        sayClerk(shout, { style: 'rage', fx: 'mega' });
-      }
+      // v2: no shout here any more: it cut the customer's own punch line (fx 'mega' plays it in full)
     }
   });
 
@@ -563,6 +634,8 @@ function wire(g) {
     audio.sfx('boo');
     boos.slice(0, 2).forEach((b, i) => audio.announce(b, { delay: 0.2 + i * 0.5, gainValue: 0.5 }));
     const pt = sayClerk(line, { style: 'polite' });
+    ui.setSignMult?.('');
+    landing = { lineEndAt: now() + pt.punchStartMs + pt.punchMs, kind: 'polite' };
     g.delayNext(Math.max(pt.punchStartMs + pt.punchMs + 200, subUntil - now() - info.enterMs - 280));
     if (day === 1) ui.huazi([{ text: daySlowText(), style: 'S3', seg: 'setup', ratio: 0 }]);
     round.timeoutsInRow += 1;
@@ -571,7 +644,17 @@ function wire(g) {
     if (info.showAura === 'intro' && !round.auraShown) later(dayInfo(day).landPoliteMs ?? 1600, showAuraIntro);
   });
 
+  g.on('furyFull', () => {
+    audio.sfx('sparkle');
+    audio.sfx('rage', { intensity: 0.4 });
+  });
+
   g.on('rageStart', () => {
+    ui.stopSignTimer?.();
+    ui.setSignMult?.('');
+    landing = null;
+    rageKey = 'any';
+    ui.clearCustomer?.(); // a waiting customer steps aside (comes back after rage)
     if (info.intro === 'rage' && !round.rageIntroDone) {
       // 7, day 3: freeze 1000 ms, S1 "爆气！" + S3 "乱按都对！", then rage runs
       round.rageIntroDone = true;
@@ -588,23 +671,63 @@ function wire(g) {
     startRageScene();
   });
 
-  g.on('rageHit', ({ queueDelta, key }) => {
-    ui.effect('hit', { charge: queueDelta > 3 ? 2 : 1 });
-    audio.sfx('slam', { intensity: 0.8 });
+  // rage (gameplay-v2 4): a silent half-head with a sign every 300 ms; each hit sends it flying the pressed key's way
+  g.on('rageHead', ({ customer }) => {
+    ui.showCustomer(local(customer), { enterMs: 90, signDelayMs: 0, line: false });
+  });
+
+  g.on('rageHit', ({ queueDelta, key, match }) => {
+    ui.customerReact?.(key);
+    ui.effect('hit', { charge: match ? 2 : 1 });
+    audio.sfx('slam', { intensity: match ? 1 : 0.7 });
+    if (match) audio.sfx('boom', { intensity: 0.5 });
+    ui.queueGain?.(queueDelta);
     round.rageHits += 1;
+    rageKey = key;
     // 4.2: during rage one S1 every 5 hits
     if (round.rageHits % 5 === 0) ui.huazi([{ text: sys().ui?.[key] || '滚！', style: 'S1', seg: 'punch', ratio: 0 }]);
-    else ui.showLine(pick(sys().rageLines), { style: 'curse', who: 'clerk' });
+    else ui.showLine(pick(rageLinesFor(key)), { style: 'curse', who: 'clerk' });
   });
+
+  g.on('rageMiss', ({ key }) => { rageKey = key; ui.shake?.(3, 60); });
 
   g.on('rageEnd', () => {
     rageGen++;
     round.rageHits = 0;
     ui.effect('rageEnd', {});
     if (g.state.phase === 'over') return;
-    const line = pick(sys().next);
-    ui.showLine(line, { style: 'real', who: 'clerk' });
-    sayClerk(line, { style: 'real' });
+    ui.clearCustomer?.();
+    audio.cut(60);
+    // the third beat: 0.5 s of silence, then the clerk is professional again
+    const PAUSE = 500;
+    const line = rageCloseLine();
+    const t = clerkTiming(null, line, { punchGapMs: info.punchGapMs, punchFx: 'normal', style: 'polite' });
+    const lineMs = t.punchStartMs + t.punchMs;
+    landing = { lineEndAt: now() + PAUSE + lineMs, kind: 'rage' };
+    g.delayNext(PAUSE + lineMs + 150);
+    later(PAUSE, () => {
+      if (game !== g || g.state.phase !== 'playing') return;
+      ui.setClerk?.('polite', lineMs + 200);
+      clerkLine(line, { style: 'polite' });
+      sayClerk(line, { style: 'polite' });
+    });
+  });
+
+  // too slow (gameplay-v2 3): aura 0 → forced politeness for 10 s, then back to 40
+  g.on('forcedStart', () => {
+    ui.setForced?.(true);
+    ui.huazi([{ text: daySlowText(), style: 'S3', seg: 'setup', ratio: 0 }]);
+  });
+  g.on('forcedEnd', () => {
+    ui.setForced?.(false);
+    audio.sfx('rage', { intensity: 0.5 });
+  });
+
+  g.on('jab', ({ key, n, queueDelta }) => {
+    ui.kick?.(key, { word: sys().ui?.[key], n });
+    audio.sfx('slam', { intensity: 0.5 });
+    if (n === 1) audio.sfx('crowdOh', { intensity: 0.5 });
+    if (queueDelta > 0) ui.queueGain?.(queueDelta);
   });
 
   g.on('milestone', ({ level }) => {
@@ -701,9 +824,12 @@ function onResolve(e) {
   if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
   if (e.cutIn) { cutVoice(); audio.sfx('huh'); }
   const loc = local(customer);
+  ui.setSignMult?.('');
   let line;
   let isAlt = false;
-  if (customer.steps) line = loc.reply2 || e.line;
+  // forced politeness (too slow, gameplay-v2 3): every reply is a service line
+  if (e.forced) line = pick(sys().polite) || e.line;
+  else if (customer.steps) line = loc.reply2 || e.line;
   else {
     isAlt = !!customer.alt && e.line === customer.alt && e.line !== customer.reply;
     // "今天第一个" (100 杯) only for the round's first booked order (review: it came twice in 45 s)
@@ -711,25 +837,30 @@ function onResolve(e) {
     line = (isAlt ? loc.alt : loc.reply) || e.line;
   }
   if (correct && key === 'take') round.takes += 1;
-  if (scoreDelta > bestLineMeta.score) bestLineMeta = { id: customer.id, alt: isAlt, score: scoreDelta };
+  if (!e.forced && scoreDelta > bestLineMeta.score) bestLineMeta = { id: customer.id, alt: isAlt, score: scoreDelta };
 
   const big = e.land === 'big' || e.land === 'step';
-  const fx = charge === 2 || e.land === 'step' ? 'mega' : big ? 'curse' : 'normal';
+  const style = e.forced ? 'polite' : customer.style;
+  const fx = e.forced ? 'normal' : charge === 2 || e.land === 'step' ? 'mega' : big ? 'curse' : 'normal';
   const L = e.land === 'wrong' ? info.landWrongMs : e.land === 'step' ? info.landBigMs + 300 : big ? info.landBigMs : info.landMs;
 
-  const t = sayClerk(line, { style: customer.style, fx });
-  clerkLine(line, { style: customer.style, voiced: t });
-  ui.clerkBeat?.({ setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, landMs: L, fx });
-  // 5.2: the sign leaves on the press (150 ms), so the result 花字 never lands on it. A wrong answer keeps it
-  // up for the 4.4 badge hint first, and its 花字 wait until the sign is gone.
-  const HINT_MS = 350;
-  if (correct) ui.signExit?.(key);
-  else later(HINT_MS, () => { if (gen === round.arrivals) ui.signExit?.(key); });
-  const list = round.tracker ? round.tracker.pick(line, { hua: loc.hua, exempt: charge === 2 || e.land === 'step', lang }) : [];
-  const hz = list.length ? ui.huazi(list, { setupStartMs: 0, setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, minAt: correct ? 150 : HINT_MS + 150 }) : null;
+  const t = sayClerk(line, { style, fx });
+  clerkLine(line, { style, voiced: t });
+  if (e.forced) ui.setClerk?.('polite', t.punchStartMs + t.punchMs + 200);
+  else ui.clerkBeat?.({ setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, landMs: L, fx });
+  // jab → next: presses until the punch end + 200 ms are jabs, the first one after it calls the next customer
+  const punchEnd = t.punchStartMs + t.punchMs;
+  // a wrong key: the right key flashes after the line (HINT_AFTER_MS), and the next sign waits for it
+  const HINT_AFTER_MS = 400;
+  landing = { lineEndAt: now() + punchEnd + (correct ? 0 : HINT_AFTER_MS), kind: 'answer' };
+  // 5.2: the sign leaves on the press (150 ms), so the result 花字 never lands on it. v2: a wrong key also
+  // flies the customer on the punch; the 4.4 hint (right key flash) comes after the line.
+  ui.signExit?.(key);
+  const list = !e.forced && round.tracker ? round.tracker.pick(line, { hua: loc.hua, exempt: charge === 2 || e.land === 'step', lang }) : [];
+  const hz = list.length ? ui.huazi(list, { setupStartMs: 0, setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, minAt: 150 }) : null;
   const hzEndMs = hz && Number.isFinite(hz.endMs) ? hz.endMs : 0;
   // 3: the queue jumps where the player looks: "+N" flies from the counter into the door monitor
-  if (e.queueDelta > 0) later(correct ? t.punchStartMs : HINT_MS, () => ui.queueGain?.(e.queueDelta));
+  if (e.queueDelta > 0) later(t.punchStartMs, () => ui.queueGain?.(e.queueDelta));
 
   const punchAt = t.punchStartMs / 1000;
   if (correct) {
@@ -744,10 +875,11 @@ function onResolve(e) {
     later(t.punchStartMs, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
     round.timeoutsInRow = 0;
   } else {
-    // 4.4: no "wrong" feedback on the pressed key; the right badge and key flash, then the customer leaves
+    // 4.4: no "wrong" feedback on the pressed key. v2: the customer flies the pressed key's way on the punch like any
+    // curse; the right key flashes after the line (not before it: that read as an answer key)
     const right = customer.steps ? customer.steps[e.step] : customer.key;
-    ui.hintCorrect?.(right);
-    later(HINT_MS, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+    later(t.punchStartMs, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+    later(punchEnd, () => { if (gen === round.arrivals) ui.hintCorrect?.(right); });
     round.wrongByKey[right] = (round.wrongByKey[right] || 0) + 1;
     if (round.wrongByKey[right] >= 3 && !round.tipped.has(right) && round.tipsShown < 2) {
       round.tipped.add(right);
@@ -763,9 +895,11 @@ function onResolve(e) {
   // after the wrong-key hint), the setup has ended + 80, and the punch 花字 have played and the clerk's subtitle
   // has been read by signUp (arrive only cancels 花字 that have not started; the rising sign clears its spot).
   const signUpMs = (info.enterMs ?? 300) + 280;
-  const flyClear = (correct ? t.punchStartMs : HINT_MS) + (FLY_CLEAR_MS[key] ?? 680);
+  const flyClear = t.punchStartMs + (FLY_CLEAR_MS[key] ?? 680);
+  // a wrong key: the right key's flash after the line must not land on the next sign (its colour shows at enter + 120)
+  const hintClear = correct ? 0 : punchEnd + HINT_AFTER_MS - ((info.enterMs ?? 300) + 120);
   game.delayNext(Math.max(t.punchStartMs + t.punchMs + L - signUpMs, flyClear, t.setupMs + 80, hzEndMs - signUpMs,
-    readMs(line, t) - signUpMs));
+    readMs(line, t) - signUpMs, hintClear));
 
   // 4.4: three wrong answers on one sign type → a small strip in this landing pause (max 2 per round)
   if (round.pendingTip) {
@@ -850,6 +984,7 @@ if (params.has('debug')) {
     set day(n) { day = clampDay(n); info = dayInfo(day); },
     get info() { return info; },
     get lang() { return lang; },
+    get inputs() { return inputs; }, // press outcomes this round (answer / wrong / jab / next / rage / buffered / dead …)
     script,
     audio, ui, getContent, DAYS,
     startRound,

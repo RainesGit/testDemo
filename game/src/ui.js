@@ -44,8 +44,15 @@
 //                                           shrinking scribble under a 闭嘴 sign). 'rotX' on a visible sign = page turn.
 //   signFx(kind)                            'shatter' (E4, 6 shards) | 'hint' (corner badge pulse)
 //   hideSign()
-//   startSignTimer(ms) / stopSignTimer()    bar on the sign's lower edge, right to left, .blink in the last 600 ms;
-//                                           render(state) keeps it in step with state.current.patienceMs
+//   startSignTimer(ms, { steps }) / stopSignTimer()   bar on the sign's lower edge, right to left, .blink in the last
+//                                           600 ms; render(state) keeps it in step with state.current.patienceMs.
+//                                           steps [[ms, mult], ...] (engine speedSteps): the corner tag follows the bar
+//                                           (×1.5 → ×1.2 → none) as time since t0 passes
+//   setSignMult(text)                       speed multiplier tag on the sign corner ('×2' while the customer talks;
+//                                           '' hides it); kept for the next sign that mounts
+//   kick(face, { word, n })                 jab while the answered customer flies (gameplay-v2 3): the customer flies
+//                                           40% farther (+180° for 滚), shake 4 px / 80 ms, freeze 30 ms, S4 word
+//   setForced(on)                           forced politeness (too slow): service tint, polite clerk until off
 //   signExit(face)                          the sign leaves now (5.2: on the press, 150 ms, before the result 花字):
 //                                           'gun' crumple | 'gun2' to the monitor | 'shut' strike + sink | 'take' stamp + slide
 //   customerReact(face)                     'gun'|'gun2'|'shut'|'take' (fly-out, plus signExit if the sign is still up)
@@ -873,8 +880,28 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     signSlot.innerHTML = signMarkup(spec);
     sign = signSlot.firstElementChild;
     clearHuaziNear(sign);
+    paintMult();
     return sign;
   }
+
+  // Speed multiplier tag on the sign corner (gameplay-v2 3): ×2 while the customer talks, then ×1.5 / ×1.2 as the
+  // timer shrinks (startSignTimer steps), none at ×1.
+  let multText = '';
+  function paintMult() {
+    if (!sign) return;
+    let tag = sign.querySelector('.sign-mult');
+    if (!multText) { tag?.remove(); return; }
+    if (!tag) tag = el('b', 'sign-mult', sign.querySelector('.sign-card') || sign);
+    if (tag.textContent !== multText) {
+      tag.textContent = multText;
+      restart(tag, 'pop');
+    }
+  }
+  function setSignMult(text) {
+    multText = text ? String(text) : '';
+    paintMult();
+  }
+  const multLabel = (m) => (m > 1 ? '×' + m : '');
   // A new sign has priority (5.2 "绝不压在牌子上"): a 花字 still showing where it rises ends now.
   function clearHuaziNear(node) {
     if (!liveHz.size) return;
@@ -979,7 +1006,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   // Sign timer: created only when the window opens (t0) — none during the opening (A2).
   // art contract: <i class="sign-timer"> in .sign-card, style.transform = scaleX(left / total), class blink for the last 600 ms.
   let timer = null; // { el, start, ms, raf }
-  function startSignTimer(ms) {
+  function startSignTimer(ms, { steps } = {}) {
     stopSignTimer();
     if (!sign || !(ms > 0)) return;
     const node = el('i', 'sign-timer', sign.querySelector('.sign-card') || sign);
@@ -987,9 +1014,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     timer = { el: node, start: performance.now(), ms, raf: 0 };
     const tick = () => {
       if (!timer || timer.el !== node) return;
+      const used = timer.ms - Math.max(0, timer.ms - (performance.now() - timer.start));
       const left = Math.max(0, timer.ms - (performance.now() - timer.start));
       node.style.transform = `scaleX(${(left / timer.ms).toFixed(4)})`;
       node.classList.toggle('blink', left <= 600);
+      if (Array.isArray(steps)) {
+        const st = steps.find(([t]) => used < t);
+        setSignMult(multLabel(st ? st[1] : 1));
+      }
       if (left > 0) timer.raf = requestAnimationFrame(tick);
     };
     timer.raf = requestAnimationFrame(tick);
@@ -1027,6 +1059,36 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
       if (face === 'gun2') custLater(starPop, FLY_MS.gun2);
     }
     custLater(() => { if (gen === custGen) clearCustomer(); }, (FLY_MS[face] || 520) + 80);
+  }
+
+  // Jab (gameplay-v2 3): the flying customer gets kicked again: 40% farther per kick (+180° for 滚), shake
+  // 4 px / 80 ms, freeze 30 ms, the key's word as a small S4. A customer not flying yet (the clerk is still in the
+  // setup) wobbles instead.
+  const KICK = { gun: [-36, -20, -180], gun2: [-22, -34, -180], shut: [0, 14, 0], take: [32, -3, 0] };
+  function kick(face, { word, n = 1 } = {}) {
+    const clip = custWrap.querySelector('.cust-clip');
+    const flying = current && clip && custWrap.dataset.face && KICK[custWrap.dataset.face];
+    if (flying) {
+      const k0 = clip._kicks || 0;
+      const k1 = k0 + 1;
+      clip._kicks = k1;
+      const [dx, dy, r] = KICK[custWrap.dataset.face];
+      const at = (k) => `translate(${dx * k}cqw, ${dy * k}cqw) rotate(${r * k}deg)`;
+      try { clip._kickAnim?.cancel(); } catch { /* finished */ }
+      clip._kickAnim = clip.animate([{ transform: at(k0) }, { transform: at(k1) }], { duration: 120, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' });
+    } else if (current) {
+      restart(custWrap, 'wobble');
+      later(() => custWrap.classList.remove('wobble'), 450);
+    }
+    shake(4, 80);
+    if (!lite) freeze(30);
+    if (word && n <= 2) huazi([{ text: word, style: 'S4', seg: 'setup', at: 0 }]);
+  }
+
+  function setForced(on) {
+    stage.classList.toggle('forced', !!on);
+    stage.classList.toggle('polite', !!on);
+    setClerk(on ? 'polite' : 'idle');
   }
 
   function starPop() {
@@ -1625,6 +1687,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     if (!queueOverride) paintQueue(Math.floor(state.queue || 0));
     setBar(auraBar, state.aura, 'aura');
     setBar(furyBar, state.fury, 'fury');
+    const full = state.furyFull ? 'full' : '';
+    if (stage.dataset.fury !== full) stage.dataset.fury = full;
     const secs = Math.max(0, Math.ceil((state.timeLeftMs ?? 0) / 1000));
     if (last.secs !== secs) {
       last.secs = secs;
@@ -2043,8 +2107,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     // clerk
     setClerk, setClerkFlags, clerkBeat, clerkTap, resetClerk,
     // customer + sign
-    showCustomer, relabelCustomer, showSign, signFx, hideSign, startSignTimer, stopSignTimer,
-    signExit: signOut, customerReact, customerPose, showPlate, plateGlow, clearPlate, clearCustomer,
+    showCustomer, relabelCustomer, showSign, signFx, hideSign, startSignTimer, stopSignTimer, setSignMult,
+    signExit: signOut, customerReact, customerPose, showPlate, plateGlow, clearPlate, clearCustomer, kick, setForced,
     // camera + fx
     camera, flash, shake, freeze, letterbox, gate, goldsign, speedLines, setLite, get lite() { return lite; },
     // 花字

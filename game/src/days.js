@@ -10,9 +10,13 @@
 // Day object fields:
 //   day, durationMs, windowStartMs, windowEndMs (W from t0), introBonusMs (first 10 s), landMs, landBigMs,
 //   landWrongMs (landing pauses), enterMs (head pop), custRate (customer voice playbackRate), punchGapMs (silence
-//   before the punch half of a clerk line), timeoutCostsAura, furyEnabled, furyPerCustomer, furyCorrect,
+//   before the punch half of a clerk line), timeoutCostsAura, furyEnabled, furyPerCustomer, furyCorrect, furyPerfect,
+//   furyCutIn, furyJab, furyMult / furyMultUntilMs (gameplay-v2 4: fury is earned by skill; furyMult scales every
+//   gain until furyMultUntilMs),
 //   showAura / showFury (true | false | 'intro' = hidden until the day's intro shows it), pool { cats, ids, exclude },
-//   fixedFirst (first customers by id), weights (by answer key), star1 (★1 queue threshold; null = boss day),
+//   fixedFirst (first customers by id), weights (by answer key), star1 (★1 queue threshold; null = boss day; re-tuned
+//   for gameplay v2 stage 1 with tools/bots.mjs: above every masher run, below every normal run, seeds 1–3),
+//   chargeBonus (queue bonus per charge level; zero before day 4 introduces hold-to-charge),
 //   intro (id of the day's new-system intro: 'opening' | 'aura' | 'rage' | 'charge' | null),
 //   talkLeadMs (the answer window t0 opens this long before the customer's voice ends; day 1 only, for pace),
 //   original (null | { atMs }: the two-step original-film customer, once per round from atMs on)
@@ -40,8 +44,14 @@ const TRAP_249 = 48;
 const BASE = {
   timeoutCostsAura: true,
   furyEnabled: true,
-  furyPerCustomer: 6,
-  furyCorrect: 4,
+  furyPerCustomer: 0, // gameplay-v2 4: arrivals add no fury; cut-in +14, perfect +10, correct +6, jab +2
+  furyCorrect: 6,
+  furyPerfect: 10,
+  furyCutIn: 14,
+  furyJab: 2,
+  furyMult: 1,
+  furyMultUntilMs: Infinity,
+  chargeBonus: [0, 1, 2], // hold-to-charge queue bonus (level 0 / 1 / 2); 0 until day 4 introduces it (7)
   showAura: true,
   showFury: true,
   fixedFirst: null,
@@ -58,37 +68,38 @@ export const DAYS = [
     landMs: 650, landBigMs: 1100, landWrongMs: 550, enterMs: 300, custRate: 1.0, punchGapMs: 200,
     timeoutCostsAura: false, furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: false, showFury: false,
     pool: { ids: DAY1_IDS }, fixedFirst: [41, 46, 12], weights: { gun: 0.45, take: 0.30, shut: 0.25 },
-    star1: 30, intro: 'opening', talkLeadMs: 400,
+    star1: 30, intro: 'opening', talkLeadMs: 400, chargeBonus: [0, 0, 0],
   },
   {
     ...BASE, day: 2, durationMs: 90000, windowStartMs: 2100, windowEndMs: 2100, introBonusMs: 300,
     landMs: 550, landBigMs: 950, landWrongMs: 450, enterMs: 260, custRate: 1.0, punchGapMs: 200,
     furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: 'intro', showFury: false,
-    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet] }, star1: 35, intro: 'aura',
+    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet] }, star1: 80, intro: 'aura', chargeBonus: [0, 0, 0],
   },
   {
     ...BASE, day: 3, durationMs: 90000, windowStartMs: 1850, windowEndMs: 1850, introBonusMs: 200,
     landMs: 450, landBigMs: 850, landWrongMs: 380, enterMs: 230, custRate: 1.04, punchGapMs: 180,
-    furyPerCustomer: 12, furyCorrect: 8, // ×2 so the first rage comes at about 25 s
-    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping] }, star1: 40, intro: 'rage',
+    furyMult: 2, furyMultUntilMs: 30000, // the first rage (the day's new system) comes at about 25 s for a normal player
+    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping] }, star1: 105, intro: 'rage',
+    chargeBonus: [0, 0, 0],
     original: { atMs: 30000 }, // after the first rage (about 15–20 s): one new thing at a time
   },
   {
     ...BASE, day: 4, durationMs: 90000, windowStartMs: 1650, windowEndMs: 1650, introBonusMs: 200,
     landMs: 380, landBigMs: 750, landWrongMs: 320, enterMs: 200, custRate: 1.06, punchGapMs: 160,
-    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap] }, star1: 45, intro: 'charge',
+    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap] }, star1: 100, intro: 'charge',
     original: { atMs: 40000 },
   },
   {
     ...BASE, day: 5, durationMs: 90000, windowStartMs: 1450, windowEndMs: 1450, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap, CAT.rush, CAT.pay] },
-    star1: 50, original: { atMs: 40000 },
+    star1: 115, original: { atMs: 40000 },
   },
   {
     ...BASE, day: 6, durationMs: 90000, windowStartMs: 1400, windowEndMs: 1400, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
-    pool: { cats: Object.values(CAT), allow249: true }, star1: 55, original: { atMs: 40000 },
+    pool: { cats: Object.values(CAT), allow249: true }, star1: 120, original: { atMs: 40000 },
   },
   {
     ...BASE, day: 7, durationMs: 90000, windowStartMs: 1400, windowEndMs: 1400, introBonusMs: 200,
@@ -122,8 +133,16 @@ export function configForDay(n, extra = {}) {
     furyEnabled: d.furyEnabled,
     furyPerCustomer: d.furyPerCustomer,
     furyCorrect: d.furyCorrect,
+    furyPerfect: d.furyPerfect,
+    furyCutIn: d.furyCutIn,
+    furyJab: d.furyJab,
+    furyMult: d.furyMult,
+    furyMultUntilMs: d.furyMultUntilMs,
+    chargeBonus: d.chargeBonus.slice(),
     // presses count once the sign starts rising (its colour is visible); the talking fallback is signUp + 1600
     minAnswerMs: d.enterMs + 120,
+    // a cut-in (×2) needs the customer to be talking: their line starts once the sign is up
+    cutInFromMs: signUpMs,
     speakMaxMs: signUpMs + 1600,
     fixedOrder: d.fixedFirst ? d.fixedFirst.slice() : null,
     keyWeights: d.weights ? { ...d.weights } : null,

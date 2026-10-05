@@ -166,7 +166,7 @@ if (end.closing) {
   flow.day2Queue = rep.queue;
   await shot('11-day2-report');
   if (rep.summary) {
-    const passed = rep.queue >= 35; // day 2 ★1 (4.2)
+    const passed = rep.queue >= (await page.evaluate(() => window.__250.DAYS[1].star1)); // day 2 ★1 (days.js)
     await page.click('.overlay.summary .big-btn', { force: true });
     await page.waitForTimeout(700);
     const nx = await probe();

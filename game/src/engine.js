@@ -37,7 +37,8 @@
 //   - Fast mouth (快嘴): quickAt correct answers in a row → quick (event quickStart). A quick customer is silent (sign
 //     only, quickMinAnswerMs / quickCutInFromMs / quickSpeakMs) and lands in quickLandMs; main.js plays only the punch
 //     half. Every quickEvery-th customer in fast mouth, 250s, big orders, specials, groups and the boss are full
-//     (quick false: silent, but the clerk's full line). Scenes (250s, 251 / 520 orders, specials, groups) get the full
+//     (quick false: silent, but the clerk's full line). A silent customer is not talking, so a press between their sign
+//     up and t0 counts as a cut-in for the stats but pays ×1.5 (the first speed step), not ×2. Scenes (250s, 251 / 520 orders, specials, groups) get the full
 //     line too and restart that count; only the specials (two-step, change-order, boss) keep their voices. A wrong key or a timeout leaves fast mouth (quickEnd), no penalty.
 //   - specials: [{ customer, atMs } | { type: 'group', atMs }]: each once per round, deferred while rage is ahead.
 //   - Group box ({ type: 'group' }): 3–5 silent customers with the same key. Each press of that key sends one flying
@@ -48,7 +49,7 @@
 //   - Boss (customer.boss with steps): a wrong key also moves to the next step (+wrongQueueDelta, combo frozen); a
 //     timeout repeats the step (bossAgain; combo 0, never aura). With customer.holdLast the last step only resolves on
 //     a full hold of its key (press → holding, charge(2) → the final line); a release before that, or another key,
-//     repeats the step (step event with again: true).
+//     repeats the step (step event with again: true, no queue).
 //   - meter (day 4): cups accepted with 收 (correct or off-key; cups null = 1) add up; exactly meterTarget = +meterHitDelta
 //     and a full fury bar, over = reset +meterOverDelta (event meter). Charge 2 within chargeWindowMs doubles the cups.
 //   - events ([{ type, atMs }], src/events.js): a mini event starts instead of the next customer once due; presses go to
@@ -879,7 +880,8 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     let mult = 1;
     let base = 0;
     if (correct) {
-      mult = early ? 1 : speedMultFor(cutIn, reactionMs);
+      // a silent customer (fast mouth, group) is not talking: a press in the cut-in window is quick (×1.5), not 抢话 ×2
+      mult = early ? 1 : cur.silent && cutIn ? speedMultFor(false, 0) : speedMultFor(cutIn, reactionMs);
       base = 1 + Math.floor(Math.min(s.combo, cfg.comboCap) / cfg.comboStep);
       queueDelta = group
         ? forcedScale(Math.ceil(group * base * mult * cfg.groupMult - 1e-9) + cfg.chargeBonus[charge] + flat)
@@ -991,16 +993,14 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     return payload;
   }
 
-  // the last step again: a release before the full hold (tap: still +1) or another key
+  // the last step again: a release before the full hold (tap) or another key. Feedback only (his question comes
+  // again; no queue, like a jab after a wrong key), so mashing on him never pays.
   function bossRepeat(cur, key, tap) {
     const c = cur.customer;
-    const queueDelta = forcedScale(cfg.wrongQueueDelta);
-    s.score += 20;
     s.stats.cursed += 1;
     restartStep(cur);
-    const payload = { customer: c, step: cur.step, prev: cur.step, key, again: true, tap, correct: false, queueDelta, boss: true };
+    const payload = { customer: c, step: cur.step, prev: cur.step, key, again: true, tap, correct: false, queueDelta: 0, boss: true };
     emit('step', payload);
-    addQueue(queueDelta);
     return payload;
   }
 

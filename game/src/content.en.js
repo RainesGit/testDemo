@@ -555,11 +555,11 @@ export const SYSTEM_EN = {
   // ---- Gameplay v2 stage 2 (docs/gameplay-v2.md 5–6; lines from docs/lines-v2-draft.md 7–8)
   // Day name, one-line rule (day card), ★2 goal and ★3 blackboard riddle. Display only.
   days: {
-    1: { name: 'Opening Night', rule: 'Read the sign: Scram, Zip it, Booked', star2: 'Combo 10', riddle: "He hasn't finished his Ummm." },
+    1: { name: 'Opening Night', rule: 'Read the sign: Scram, Zip it, Booked', star2: 'Combo 8', riddle: "He hasn't finished his Ummm." },
     2: { name: 'Lunch Rush', rule: 'Watch the next two. 5 right in a row = Fast Mouth', star2: '15 in a row in Fast Mouth', riddle: 'The one behind is in a hurry.' },
     3: { name: 'Original Day', rule: '250-cup guy: Book him, then zip it', star2: 'Both steps right on 4 originals', riddle: 'A tribute to the original.' },
-    4: { name: '250 Day', rule: 'Book cups until the ticket hits exactly 250', star2: 'Hit exactly 250 twice', riddle: 'One short is one short.' },
-    5: { name: 'Talk-Back Day', rule: 'The ex-boss calls: two taps to hang up', star2: 'Combo 40', riddle: "He's not done talking." },
+    4: { name: '250 Day', rule: 'Book cups until the ticket hits exactly 250', star2: 'Hit exactly 250', riddle: 'One short is one short.' },
+    5: { name: 'Talk-Back Day', rule: 'The ex-boss calls: two taps to hang up', star2: 'Hang up on the ex-boss, no timeouts', riddle: "He's not done talking." },
     6: { name: '8 PM Rush', rule: 'Tap through groups. Let order-changers finish', star2: 'Clear 3 groups', riddle: 'One cup and you queued?' },
     7: { name: 'The Ex-Boss', rule: 'Answer every step. Hold the last one', star2: 'Beat the ex-boss, no timeouts', riddle: 'His last discount.' },
   },

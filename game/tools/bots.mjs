@@ -1,8 +1,9 @@
 // bots.mjs — four scripted players for balance checks (docs/gameplay-v2.md 8, acceptance metrics).
 // Opens index.html?debug&skipOpening=1&day=N&lite=1&seed=S and plays the whole day in real time with an in-page
 // bot (timers in the page, so reactions are exact). Profiles:
-//   expert  cuts in (sign up + 300 ms) with the right key, holds it 900 ms (charge 2), jabs twice while the
-//           customer flies, then presses every 120 ms until the next customer is called; mashes every 90 ms in rage
+//   expert  cuts in (sign up + 300 ms) with the right key, holds it 900 ms (charge 2; taps in fast mouth and on group
+//           boxes), jabs twice while the customer flies, then presses every 120 ms until the next customer is
+//           called; mashes every 90 ms in rage
 //   normal  answers the right key 700 ms after t0 (tap), jabs 300 and 600 ms later, then a press every 300 ms from
 //           1.2 s after the answer until the next customer comes ("下一位"); mashes every 220 ms in rage
 //   sloppy  answers 300–2700 ms after t0, 25 % with a wrong key; a press every 600 ms from 1.5 s after the
@@ -92,14 +93,19 @@ async function run({ profile, day, seed }) {
       if (!cur || cur.customer !== customer || cur.step !== step || g.state.phase !== 'playing') return;
       if (cur.speaking) L.cutIns++;
       let k = cur.key || want(customer, step);
-      // expert on the day-4 meter: book whatever makes the ticket exactly 250 (charged: cups × 2)
+      const lastBossStep = customer.boss && step === customer.steps.length - 1;
+      // the expert holds (charges) every answer except in fast mouth (speed over power) and on a group box
+      let hold = lastBossStep || (profile === 'expert' && !cur.quick && !customer.group);
+      // expert on the day-4 meter: book whatever makes the ticket exactly 250 (a full charge counts the cups twice)
       if (profile === 'expert' && info.meter && !customer.steps && !customer.group) {
         const cups = Math.max(1, Number(customer.cups) || 1);
-        if (g.state.meter + cups * 2 === 250 || (k === 'take' && g.state.meter + cups === 250)) k = 'take';
+        const m = g.state.meter;
+        if (m + cups === 250) { k = 'take'; hold = false; } else if (m + cups * 2 === 250) { k = 'take'; hold = true; }
+        // steer: with 100+ booked, take a small order off-key when it keeps the ticket at 200 or under
+        else if (k !== 'take' && customer.cups != null && cups <= 50 && m >= 100 && m + cups <= 200) { k = 'take'; hold = false; }
       }
       if (profile === 'sloppy' && rnd() < 0.25) k = KS.filter((x) => x !== k)[Math.floor(rnd() * 2)];
-      const lastBossStep = customer.boss && step === customer.steps.length - 1;
-      tap(k, profile === 'expert' || lastBossStep ? 900 : 40);
+      tap(k, hold ? 900 : 40);
     };
     // after an answer: jabs while the customer flies, then "next" presses until somebody is at the counter
     const follow = () => {
@@ -120,8 +126,11 @@ async function run({ profile, day, seed }) {
     };
     const visit = (customer) => {
       L.arrivals++;
-      const su = g.state.current?.silent ? (info.quickEnterMs ?? 180) + 280 : signUpMs;
-      if (profile === 'expert') setTimeout(() => answer(customer, 0), su + 300);
+      // a silent customer (fast mouth): the sign is up 200 ms after the pop and t0 is 120 ms later; the expert read
+      // them in the preview and cuts in 60 ms after the sign is up
+      const silent = g.state.current?.silent;
+      const su = silent ? (info.quickEnterMs ?? 180) + 200 : signUpMs;
+      if (profile === 'expert') setTimeout(() => answer(customer, 0), su + (silent ? 60 : 300));
     };
     // a group box: the same key again until every head is gone
     g.on('groupHit', ({ customer, key }) => {
@@ -152,6 +161,29 @@ async function run({ profile, day, seed }) {
       setTimeout(mash, mashMs);
     };
     setTimeout(mash, mashMs);
+    // mini events (the panel says what to do): mash any key (盖章: 收) at the profile's pace; the calculator: the expert
+    // holds 收 and lets go when the display shows 250, the others hold it for a random 0.2–1.2 s
+    const eventMs = { expert: 120, normal: 300, sloppy: 600 }[profile];
+    let calcHeld = false;
+    const onEvent = () => {
+      if (L.done) return;
+      const ev = g.state.event;
+      if (ev && eventMs && g.state.phase === 'playing') {
+        if (ev.type === 'calculator') {
+          if (!calcHeld && !ev.holding) {
+            calcHeld = true;
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: KEY.take, bubbles: true }));
+            const up = () => { calcHeld = false; window.dispatchEvent(new KeyboardEvent('keyup', { key: KEY.take, bubbles: true })); };
+            if (profile === 'expert') {
+              const watch = () => { const e2 = g.state.event; if (!e2 || e2.type !== 'calculator') return up(); if (e2.value === 250) return up(); setTimeout(watch, 15); };
+              setTimeout(watch, 30);
+            } else setTimeout(up, 200 + rnd() * 1000);
+          }
+        } else tap(ev.type === 'stamp' ? 'take' : anyKey());
+      }
+      setTimeout(onEvent, ev && ev.type === 'calculator' ? 40 : eventMs || 300);
+    };
+    if (eventMs) setTimeout(onEvent, 500);
   }, { profile, seed });
   await page.waitForFunction(() => window.__bot?.done, null, { timeout: 240000, polling: 500 });
   const L = await page.evaluate(() => window.__bot);

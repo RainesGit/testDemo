@@ -188,6 +188,7 @@ test('boss: the last step needs a full hold on 收; a tap or another key makes h
   const again = g.release('take', 100);
   assert.equal(again.again, true);
   assert.equal(again.tap, true);
+  assert.equal(again.queueDelta, 0, 'repeats never pay (no mashing on him)');
   assert.equal(g.state.current.step, 7);
   // another key
   const w = answerNow(g, 'gun');
@@ -316,12 +317,14 @@ test('stars: ★1 queue (boss day: the boss beaten), ★2 the rule goal, ★3 th
   assert.equal(evaluateDay(2, { queue: s1 - 1 }).rating, 'C');
   assert.deepEqual(evaluateDay(2, { queue: s1 }).stars, [true, false, false]);
   assert.equal(evaluateDay(2, { queue: s1 }).rating, 'B');
-  assert.equal(evaluateDay(2, { queue: Math.ceil(s1 * 1.5) }).rating, 'B');
-  assert.equal(evaluateDay(2, { queue: Math.ceil(s1 * 1.5), quickBest: 15 }).rating, 'A');
-  const top = evaluateDay(2, { queue: s1 * 2, quickBest: 20, quickCutIns: 3 });
+  assert.equal(evaluateDay(2, { queue: Math.ceil(s1 * 1.5), quickBest: 15 }).rating, 'B');
+  assert.equal(evaluateDay(2, { queue: Math.ceil(s1 * 2.5), quickBest: 15 }).rating, 'A');
+  assert.equal(evaluateDay(2, { queue: Math.ceil(s1 * 1.5), quickBest: 15, quickCutIns: 3 }).rating, 'A');
+  const top = evaluateDay(2, { queue: Math.ceil(s1 * 2.5), quickBest: 20, quickCutIns: 3 });
   assert.deepEqual([top.stars, top.count, top.rating, top.mask], [[true, true, true], 3, 'S', 7]);
   assert.equal(evaluateDay(2, { queue: 1250, quickBest: 20, quickCutIns: 3 }).gold, true);
   assert.equal(evaluateDay(2, { queue: 1251, quickBest: 20, quickCutIns: 3 }).gold, false);
+  assert.equal(evaluateDay(2, { queue: 250, quickBest: 20 }).gold, false, 'gold needs S');
   assert.equal(evaluateDay(7, { queue: 999 }).stars[0], false, 'boss day: ★1 is beating him');
   const boss = evaluateDay(7, { queue: 300, bossBeaten: true, bossTimeouts: 0, bossHagglePerfect: 1 });
   assert.deepEqual(boss.stars, [true, true, true]);

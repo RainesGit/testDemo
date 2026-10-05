@@ -748,7 +748,7 @@ function wire(g) {
     ui.showLine(pick(sys().next), { who: 'system' });
   });
 
-  g.on('arrive', ({ customer, quick, silent }) => {
+  g.on('arrive', ({ customer, silent }) => {
     const gen = ++round.arrivals;
     round.tracker?.next();
     if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
@@ -769,12 +769,20 @@ function wire(g) {
     }
     const { signUpAt } = shownC || ui.showCustomer(loc, { enterMs, line: false, signDelayMs: silent ? 40 : 120 }) || { signUpAt: now() + enterMs + 280 };
     audio.sfx('pop');
+    const key = customer.key;
+    // 7, day 4: the first big order teaches hold-to-charge
+    if (info.intro === 'charge' && !round.chargeIntroDone && key === 'take' && (customer.cups ?? 0) >= 100) {
+      round.chargeIntroDone = true;
+      round.guideActive = true;
+      ui.guide?.({ key: 'take', dimOthers: false, glow: true, finger: true });
+      ui.tip?.(unlockText('hold'), { key: 'take', ms: 1800 });
+    }
     if (silent) {
-      // fast mouth / group: nobody talks, the sign is the order (t0 comes from the engine: sign up + 200 ms)
-      if (quick && round.arrivals > 0) ui.setSignMult?.('');
+      // fast mouth / group: nobody talks, the sign is the order (t0 comes from the engine: sign up + 120 ms); no ×2 tag
+      // (a silent customer cannot be talked over: the sign timer shows ×1.5 / ×1.2 from t0)
+      ui.setSignMult?.('');
       return;
     }
-    const key = customer.key;
     // 4.4: the first sign of a type today → that key breathes once
     if (!round.seenKeys.has(key)) { round.seenKeys.add(key); ui.breathKey?.(key); }
     // 4.4: two timeouts in a row → a finger for the next customer only
@@ -782,13 +790,6 @@ function wire(g) {
       round.guideNext = false;
       round.guideActive = true;
       ui.guide?.({ key, finger: true, line: true });
-    }
-    // 7, day 4: the first big order teaches hold-to-charge
-    if (info.intro === 'charge' && !round.chargeIntroDone && key === 'take' && (customer.cups ?? 0) >= 100) {
-      round.chargeIntroDone = true;
-      round.guideActive = true;
-      ui.guide?.({ key: 'take', dimOthers: false, glow: true, finger: true });
-      ui.tip?.(unlockText('hold'), { key: 'take', ms: 1800 });
     }
     customerTalks(gen, loc, signUpAt);
   });
@@ -1115,8 +1116,8 @@ function onResolve(e) {
   // fast mouth (stage 2): only the punch half, or the key's shout when the line has no cut point
   const quick = !!e.quick && !e.forced;
   if (quick && !String(line).includes('|')) line = sys().ui?.[key] || line;
-  // fast mouth: landing L = quickLandMs after every correct answer that is not a big one
-  const fastLand = correct && !!(e.inQuick || e.quick) && !big;
+  // fast mouth: landing L = quickLandMs after every correct answer (250s and big orders too) but a full charge
+  const fastLand = correct && !!(e.inQuick || e.quick) && charge < 2 && e.land !== 'step';
   const L = fastLand ? info.quickLandMs ?? 250 : e.land === 'wrong' ? info.landWrongMs : e.land === 'step' ? info.landBigMs + 300 : big ? info.landBigMs : info.landMs;
 
   const t = sayClerk(line, { style, fx, punchOnly: quick });
@@ -1181,7 +1182,7 @@ function onResolve(e) {
   // a wrong key: the right key's flash after the line must not land on the next sign (its colour shows at enter + 120)
   const hintClear = correct ? 0 : punchEnd + HINT_AFTER_MS - ((info.enterMs ?? 300) + 120);
   const lineWait = t.punchStartMs + t.punchMs + L - signUpMs;
-  game.delayNext(Math.max(quick ? Math.min(lineWait, 300) : lineWait, flyClear, t.setupMs + 80, quick ? 0 : hzEndMs - signUpMs,
+  game.delayNext(Math.max(quick ? Math.min(lineWait, 300) : lineWait, flyClear, t.setupMs + 80, inQuick ? 0 : hzEndMs - signUpMs,
     inQuick ? 0 : readMs(line, t) - signUpMs, hintClear));
   if (customer.group) ui.groupHit?.(customer.group.length, key, { all: true });
   if (e.final) {

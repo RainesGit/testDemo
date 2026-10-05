@@ -722,12 +722,12 @@ button { font: inherit; color: inherit; }
 .preview .preview-sign[style*="--i: 1"], .preview .preview-sign[style*="--i:1"] { opacity: .8; scale: .66; }
 .preview .sign.mini .sign-face { min-width: 10cqw; }
 /* fast mouth badge (under the bars) */
-.hud-quick { position: absolute; left: 3cqw; top: 22cqw; display: flex; align-items: baseline; gap: 1cqw; padding: .6cqw 2.4cqw; border-radius: 99px;
-  background: var(--fury); color: var(--ink); font: 900 4.2cqw var(--font-zh); box-shadow: 0 .6cqw 0 #8A3A00; opacity: 0; visibility: hidden; transform: scale(.6);
+.hud-quick { position: absolute; left: 3cqw; top: 17.5cqw; display: flex; align-items: baseline; gap: 1cqw; padding: .3cqw 2.2cqw; border-radius: 99px;
+  background: var(--fury); color: var(--ink); font: 900 3.8cqw var(--font-zh); box-shadow: 0 .6cqw 0 #8A3A00; opacity: 0; visibility: hidden; transform: scale(.6);
   transition: opacity .15s, transform .15s, visibility 0s .15s; }
 .hud-quick.show { opacity: 1; visibility: visible; transform: scale(1); transition: opacity .15s, transform .15s; }
 .hud-quick.pulse { animation: bump .22s ease-out; }
-.quick-num { font-size: 5cqw; font-style: italic; }
+.quick-num { font-size: 4.4cqw; font-style: italic; }
 /* day 4 ticket meter (a lemon ticket above the counter, left of the clerk) */
 .meter { position: absolute; left: 3%; top: 45%; z-index: 7; min-width: 30cqw; padding: 1.2cqw 2.4cqw 1.6cqw; border-radius: 2cqw; pointer-events: none;
   background: var(--lemon); color: var(--ink); border: .6cqw solid var(--ink); box-shadow: 0 .8cqw 0 #6E5418; rotate: -4deg; font-family: var(--font-zh); }

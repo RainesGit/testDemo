@@ -2113,7 +2113,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     stat(t.cursedLabel || (zh ? '开骂' : 'Rants'), fmt(s.cursed) + (zh ? ' 次' : ''), 'hot');
     stat(t.queueLabel || (zh ? '排队' : 'In line'), fmt(s.queue) + (zh ? ' 人' : ''), 'gold');
     stat(t.comboLabel || (zh ? '最高连击' : 'Best combo'), '×' + fmt(s.maxCombo));
-    stat(t.scoreLabel || (zh ? '分数' : 'Score'), fmt(s.score));
+    // stage 2: the stars and the rating take the score's place
+    if (!Array.isArray(t.stars)) stat(t.scoreLabel || (zh ? '分数' : 'Score'), fmt(s.score));
     if (s.polite) stat(zh ? '被迫客气' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
     stat(zh ? '接客' : 'Served', fmt(s.served));
     // stage 2: stars (★1 / ★2 / ★3 with their goals), the rating (C/B/A/S, gold 250), record, ★3 riddle, tomorrow

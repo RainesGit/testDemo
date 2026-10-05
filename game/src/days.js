@@ -14,8 +14,9 @@
 //   furyCutIn, furyJab, furyMult / furyMultUntilMs (gameplay-v2 4: fury is earned by skill; furyMult scales every
 //   gain until furyMultUntilMs),
 //   showAura / showFury (true | false | 'intro' = hidden until the day's intro shows it), pool { cats, ids, exclude },
-//   fixedFirst (first customers by id), weights (by answer key), star1 (★1 queue threshold; null = boss day; re-tuned
-//   for gameplay v2 stage 1 with tools/bots.mjs: above every masher run, below every normal run, seeds 1–3),
+//   fixedFirst (first customers by id), weights (by answer key), star1 (★1 queue threshold; null = boss day: ★1 is
+//   beating the boss; re-tuned for gameplay v2 stage 2 with tools/bots.mjs: above every masher run, below every normal
+//   run, seeds 1–3),
 //   chargeBonus (queue bonus per charge level; zero before day 4 introduces hold-to-charge),
 //   intro (id of the day's new-system intro: 'opening' | 'aura' | 'rage' | 'charge' | null),
 //   talkLeadMs (the answer window t0 opens this long before the customer's voice ends; day 1 only, for pace),
@@ -99,13 +100,13 @@ export const DAYS = [
     timeoutCostsAura: false, furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: false, showFury: false,
     pool: { ids: DAY1_IDS }, fixedFirst: [41, 46, 12], weights: { gun: 0.45, take: 0.30, shut: 0.25 },
     star1: 30, intro: 'opening', talkLeadMs: 400, chargeBonus: [0, 0, 0],
-    rule: 'open', star2: { stat: 'maxCombo', min: 10 }, star3: { stat: 'cutInHesitant', min: 1 },
+    rule: 'open', star2: { stat: 'maxCombo', min: 8 }, star3: { stat: 'cutInHesitant', min: 1 },
   },
   {
     ...BASE, day: 2, durationMs: 90000, windowStartMs: 2100, windowEndMs: 2100, introBonusMs: 300,
     landMs: 550, landBigMs: 950, landWrongMs: 450, enterMs: 260, custRate: 1.0, punchGapMs: 200,
     furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: 'intro', showFury: false,
-    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet] }, star1: 80, intro: 'aura', chargeBonus: [0, 0, 0],
+    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet] }, star1: 130, intro: 'aura', chargeBonus: [0, 0, 0],
     ...V2, rule: 'quick', events: [{ type: 'megaphone', atMs: 45000 }],
     star2: { stat: 'quickBest', min: 15 }, star3: { stat: 'quickCutIns', min: 3 },
   },
@@ -113,7 +114,7 @@ export const DAYS = [
     ...BASE, day: 3, durationMs: 90000, windowStartMs: 1850, windowEndMs: 1850, introBonusMs: 200,
     landMs: 450, landBigMs: 850, landWrongMs: 380, enterMs: 230, custRate: 1.04, punchGapMs: 180,
     furyMult: 2, furyMultUntilMs: 30000, // the first rage (the day's new system) comes at about 25 s for a normal player
-    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping] }, star1: 105, intro: 'rage',
+    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping] }, star1: 130, intro: 'rage',
     chargeBonus: [0, 0, 0],
     original: { atMs: 30000 }, // after the first rage (about 15–20 s): one new thing at a time
     ...V2, rule: 'original',
@@ -125,26 +126,26 @@ export const DAYS = [
   {
     ...BASE, day: 4, durationMs: 90000, windowStartMs: 1650, windowEndMs: 1650, introBonusMs: 200,
     landMs: 380, landBigMs: 750, landWrongMs: 320, enterMs: 200, custRate: 1.06, punchGapMs: 160,
-    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap] }, star1: 100, intro: 'charge',
+    pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap] }, star1: 150, intro: 'charge',
     original: { atMs: 40000 },
     ...V2, rule: 'meter', meter: true, specials: [{ type: 'original', atMs: 40000 }],
     events: [{ type: 'calculator', atMs: 52000 }],
-    star2: { stat: 'meterHits', min: 2 }, star3: { stat: 'meter249plus1', min: 1 },
+    star2: { stat: 'meterHits', min: 1 }, star3: { stat: 'meter249plus1', min: 1 },
   },
   {
     ...BASE, day: 5, durationMs: 90000, windowStartMs: 1450, windowEndMs: 1450, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap, CAT.rush, CAT.pay] },
-    star1: 115, original: { atMs: 40000 },
+    star1: 140, original: { atMs: 40000 },
     // 回嘴日: the comeback mechanic is stage 3; the ex-boss's phone call is the day's event
     ...V2, rule: 'phone', specials: [{ type: 'original', atMs: 60000 }],
     events: [{ type: 'phone', atMs: 38000 }],
-    star2: { stat: 'maxCombo', min: 40 }, star3: { stat: 'phoneFast', min: 1 },
+    star2: { all: [{ stat: 'phoneHungUp', min: 1 }, { stat: 'polite', max: 0 }] }, star3: { stat: 'phoneFast', min: 1 },
   },
   {
     ...BASE, day: 6, durationMs: 90000, windowStartMs: 1400, windowEndMs: 1400, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
-    pool: { cats: Object.values(CAT), allow249: true }, star1: 120, original: { atMs: 40000 },
+    pool: { cats: Object.values(CAT), allow249: true }, star1: 170, original: { atMs: 40000 },
     // 晚八点人潮: group boxes and change-order customers (and the 249 trap in the pool)
     ...V2, rule: 'crowd',
     specials: [
@@ -163,7 +164,7 @@ export const DAYS = [
     events: [{ type: 'stamp', atMs: 70000 }],
     star2: { all: [{ stat: 'bossBeaten', min: 1 }, { stat: 'bossTimeouts', max: 0 }] },
     star3: { stat: 'bossHagglePerfect', min: 1 },
-    ratingRef: 130,
+    ratingRef: 100,
   },
 ];
 
@@ -247,8 +248,10 @@ export function meets(cond, summary = {}) {
 
 /**
  * Stars and rating of a finished day (gameplay-v2 6). ★1: the queue threshold (boss day: the boss beaten); ★2 the day's
- * rule goal; ★3 the blackboard riddle. Rating: C below ★1; then one point each for queue ≥ ref, ≥ 1.5 ref, ≥ 2 ref, ★2
- * and ★3: B (1–2), A (3), S (4–5). Gold "250": S and the queue ends in 250.
+ * rule goal; ★3 the blackboard riddle. Rating: C below ★1; then one point each for queue ≥ 1.5 ref, ≥ 2.5 ref,
+ * ≥ 3.5 ref (ref = ★1, or ratingRef on the boss day), ★2 and ★3: B (0–2), A (3), S (4–5). Tuned with tools/bots.mjs: a
+ * player who reads every sign and answers 0.7 s after t0 gets B (A with the riddle), one who cuts in gets A–S.
+ * Gold "250": S and the queue ends in 250.
  */
 export function evaluateDay(n, summary = {}) {
   const d = dayInfo(n);
@@ -259,7 +262,7 @@ export function evaluateDay(n, summary = {}) {
   const ref = d.star1 ?? d.ratingRef ?? 100;
   let rating = 'C';
   if (s1) {
-    const pts = (queue >= ref) + (queue >= 1.5 * ref) + (queue >= 2 * ref) + s2 + s3;
+    const pts = (queue >= 1.5 * ref) + (queue >= 2.5 * ref) + (queue >= 3.5 * ref) + s2 + s3;
     rating = pts >= 4 ? 'S' : pts >= 3 ? 'A' : 'B';
   }
   const gold = rating === 'S' && queue % 1000 === 250;

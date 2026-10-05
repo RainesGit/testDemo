@@ -46,6 +46,7 @@ import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
 import { configForDay, poolForDay, dayInfo, clampDay, DAYS, evaluateDay, specialsForDay } from './days.js';
 import { createHuaziTracker } from './huazi.js';
+import { swipeCharge, bowlCount } from './gesture.js';
 import * as art from './art.js';
 
 const params = new URLSearchParams(location.search);
@@ -53,6 +54,9 @@ const LANG_KEY = '250cups.lang';
 const BLEEP_KEY = '250cups.bleep';
 const DAY_KEY = '250cups.day';
 const OPENING_KEY = '250cups.openingDone';
+const INPUT_KEY = '250cups.input';
+// gesture mode (docs/gameplay-v2.md 9) is the default; ?input=buttons (or the start card toggle) brings the pad back
+const DEFAULT_INPUT = 'gesture';
 
 function stored(key) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -101,6 +105,7 @@ function initialScript() {
 
 let lang = initialLang();
 let bleep = params.has('bleep') ? params.get('bleep') !== '0' : stored(BLEEP_KEY) === '1';
+let inputMode = initialInput(); // 'gesture' | 'buttons' (250cups.input, ?input=)
 let content = getContent(lang);
 let openingDone = stored(OPENING_KEY) === '1';
 const skipOpening = params.get('skipOpening') === '1';
@@ -168,8 +173,17 @@ function local(customer) {
 const sys = () => content.system;
 const zh = () => lang === 'zh';
 
+// Gesture mode (docs/gameplay-v2.md 9): on-screen hints that name the hand move instead of a key (display only, not
+// spoken): the rage tip and the mini-event panels.
+const GESTURE_HINTS = {
+  zh: { rageTip: '一把扫过去！', megaphone: '狂拍！', shutter: '狂拍！', phone: '甩掉电话！', calculator: '按住，停在 250 放开', stamp: '狂拍盖章！' },
+  en: { rageTip: 'Sweep them all!', megaphone: 'TAP TAP TAP!', shutter: 'TAP TAP TAP!', phone: 'Flick the phone away!', calculator: 'Hold, let go on 250', stamp: 'Tap to stamp!' },
+};
+const gestureHint = (which) => (inputMode === 'gesture' ? (GESTURE_HINTS[lang] || GESTURE_HINTS.zh)[which] : null);
+
 // Texts D adds to content (SYSTEM.unlock / tips / daySlow); built-in fallbacks keep main.js running without them.
 function unlockText(which) {
+  if (which === 'rageTip' && gestureHint('rageTip')) return gestureHint('rageTip');
   const u = sys().unlock;
   const order = ['aura', 'rage', 'rageTip', 'charge'];
   const fb = zh()
@@ -392,37 +406,353 @@ let game = null;
 let opening = null;
 const openingActive = () => !!(opening && (typeof opening.active === 'function' ? opening.active() : opening.active));
 
+// ---------------------------------------------------------------- gesture input (docs/gameplay-v2.md 9)
+// The hand acts on the customer: 甩 (swipe / flick) = 滚, 连拍 (3 taps) = 闭嘴, 按住盖章 (hold, release) = 收. ui.js
+// recognizes the strokes (src/gesture.js) and sends them here; this maps them to engine presses by context. Every
+// gesture works on every customer (an "off" gesture is an off-key curse: +1, combo frozen, never a penalty); a single
+// tap or two on a customer only slaps (squash + 啪, no answer), so a stray touch is never a wasted answer.
+const STAMP_AUTO_MS = 450;
+const RAGE_LIVE_MS = 1200; // gesture rage: a head stays hittable this long (about four in a row at one per 300 ms) // a stamp held at full charge slams by itself this long after it got there
+const gs = {
+  offset: 0,        // taps of this burst already used up (a new customer in the middle of a burst starts again)
+  resolvedAt: 0,    // the burst tap that answered (the next two are charge 1 / 2, then jabs)
+  hold: null,       // { mode: 'aim'|'late'|'press'|'opening'|'done', pressT, timer }
+  swipes: new Map(), // rage: swipe id → { e, crossed }
+  hintAt: -Infinity,
+  stats: {},        // window.__250.gestures: resolves by gesture kind (tools/check-gesture.mjs)
+};
+let gestureSrc = null; // { kind, sw } while a gesture's press runs (onResolve flings / stamps at once)
+
+function gstat(name) { gs.stats[name] = (gs.stats[name] || 0) + 1; }
+function buzz(p) { try { navigator.vibrate?.(p); } catch { /* optional */ } }
+
+function gctx() {
+  if (openingActive()) return 'opening';
+  if (!game) return 'none';
+  const st = game.state;
+  if (st.paused) return 'none';
+  if (st.phase === 'rage') return 'rage';
+  if (st.phase !== 'playing') return 'none';
+  if (st.event) return 'event';
+  if (st.shutter) return 'mash';
+  const cur = st.current;
+  if (st.furyFull && game.config.furyEnabled && !(cur && cur.customer.steps)) return 'fury';
+  if (!cur) return 'landing';
+  if (cur.customer.group) return 'group';
+  return 'customer';
+}
+
+// a press from a gesture: onResolve reacts at once (the hand already threw them)
+function gpress(kind, key, holdMs = 0, opts = {}, sw = null) {
+  gestureSrc = { kind, sw };
+  try {
+    const res = pressKey(key, holdMs, opts);
+    if (['answer', 'wrong', 'step', 'group', 'rage', 'rageStart', 'event', 'jab', 'next', 'holding'].includes(res.kind)) gstat(`${kind}:${res.kind}`);
+    return res;
+  } finally {
+    gestureSrc = null;
+  }
+}
+
+function onGesture(e) {
+  switch (e.type) {
+    case 'tap': return gTap(e);
+    case 'burstEnd': return gBurstEnd(e);
+    case 'swipe': return gSwipe(e);
+    case 'cross': return gCross(e);
+    case 'swipeEnd': return gSwipeEnd(e);
+    case 'holdStart': return gHoldStart(e);
+    case 'holdLevel': return gHoldLevel(e);
+    case 'holdEnd': return gHoldEnd(e);
+    case 'reset': return gReset();
+    default: return undefined;
+  }
+}
+
+function slapFx(n, e) {
+  ui.slap?.(n, e);
+  audio.sfx('slap', { intensity: Math.min(1, 0.55 + n * 0.15) });
+}
+
+function gTap(e) {
+  const c = gctx();
+  if (c === 'none') return;
+  if (c === 'opening') {
+    // the opening's wait points take the matching gesture: the 3rd tap is 闭嘴
+    const n = e.n - gs.offset;
+    slapFx(Math.min(5, n), e);
+    if (n === 3) { opening.press('shut'); gstat('taps:opening'); }
+    return;
+  }
+  const st = game.state;
+  // taps right after the burst answered: the 4th / 5th charge it up (闭嘴 louder), then they are jabs / "下一位"
+  if (gs.resolvedAt && e.n > gs.resolvedAt && c !== 'customer' && c !== 'group') {
+    const extra = e.n - gs.resolvedAt;
+    if (extra <= 2 && pressOk.shut) {
+      slapFx(Math.min(5, e.n), e);
+      chargeKey('shut', extra);
+      gstat(`taps:charge${extra}`);
+      return;
+    }
+  }
+  if (c === 'customer' || (c === 'group' && st.current.customer.key !== 'shut')) {
+    if (gs.resolvedAt && e.n > gs.resolvedAt) { gs.offset = e.n - 1; gs.resolvedAt = 0; } // a new customer mid-burst
+    const n = e.n - gs.offset;
+    slapFx(Math.min(5, n), e);
+    if (n >= 3) {
+      gs.resolvedAt = e.n;
+      gpress('taps', 'shut');
+    }
+    return;
+  }
+  if (c === 'group') {
+    // a 闭嘴 group: every tap shuts one of them up
+    slapFx(Math.min(5, e.n), e);
+    gpress('taps', 'shut');
+    return;
+  }
+  // nobody to answer (landing, rage, events, the shutter, a full fury bar): every tap is a press
+  const key = c === 'event' && st.event && st.event.type === 'stamp' ? 'take' : 'shut';
+  if (c === 'rage') audio.sfx('slap', { intensity: 0.8 });
+  gpress('tap', key, 0, e.head != null ? { head: e.head } : {});
+}
+
+function gBurstEnd(e) {
+  const n = e.n - gs.offset;
+  const wasAnswer = gs.resolvedAt > 0;
+  gs.offset = 0;
+  gs.resolvedAt = 0;
+  // one or two slaps on a customer and nothing else: a little hint, no answer
+  const c = gctx();
+  if (!wasAnswer && n > 0 && n < 3 && (c === 'customer' || c === 'opening') && now() - gs.hintAt > 2500) {
+    gs.hintAt = now();
+    const key = c === 'opening' ? opening.waiting : null;
+    ui.gestureHint?.(key || 'shut');
+  }
+}
+
+function gSwipe(e) {
+  const c = gctx();
+  if (c === 'none') return;
+  audio.sfx('whoosh', { duration: 0.16, intensity: Math.min(1, 0.5 + e.speed * 0.25) });
+  buzz([12, 8, 22]);
+  if (c === 'opening') {
+    ui.setFling?.(e);
+    if (opening.press('gun')) gstat('swipe:opening');
+    return;
+  }
+  if (c === 'rage') {
+    gs.swipes.set(e.id, { e, crossed: 0 });
+    return;
+  }
+  const st = game.state;
+  if (c === 'group' && st.current.customer.key === 'gun') {
+    // one swipe across the group flings them all
+    const left = st.current.customer.group.length - (st.current.hits || 0);
+    for (let i = 0; i < left && game.state.current; i++) gpress('swipe', 'gun', 0, {}, e);
+    return;
+  }
+  if (c === 'event' && st.event && st.event.type === 'phone') {
+    // swipe the phone away: both presses at once
+    gpress('swipe', 'gun');
+    if (game.state.event && game.state.event.type === 'phone') gpress('swipe', 'gun');
+    return;
+  }
+  ui.setFling?.(e);
+  const res = gpress('swipe', 'gun', 0, {}, e);
+  if (res.kind === 'answer' && res.r && res.r.correct) {
+    const lvl = swipeCharge(e.speed);
+    if (lvl > 0) chargeKey('gun', lvl);
+    // a fast fling toward the queue bowls into it: +1 per head knocked, STRIKE at 3
+    const k = bowlCount(e);
+    if (k > 0) {
+      later(220, () => {
+        if (!game || game.state.phase === 'over') return;
+        const b = game.bonus(k);
+        ui.bowl?.(k, k >= 3 ? (zh() ? '全倒！' : 'STRIKE!') : '');
+        audio.sfx('boom', { intensity: 0.4 + k * 0.15 });
+        if (k >= 3) audio.sfx('cheer', { delay: 0.1 });
+        if (b && b.queueDelta) ui.queueGain?.(b.queueDelta);
+        gstat(k >= 3 ? 'swipe:strike' : 'swipe:bowl');
+      });
+    }
+  }
+}
+
+function gCross(e) {
+  if (gctx() !== 'rage') return;
+  const sw = [...gs.swipes.values()].at(-1);
+  if (sw) sw.crossed += 1;
+  gpress('swipe', 'gun', 0, { head: e.head }, sw ? sw.e : null);
+}
+
+function gSwipeEnd(e) {
+  const sw = gs.swipes.get(e.id);
+  gs.swipes.delete(e.id);
+  // a rage swipe that crossed no head still hits the oldest one
+  if (sw && !sw.crossed && gctx() === 'rage') gpress('swipe', 'gun', 0, {}, sw.e);
+}
+
+function gHoldStart() {
+  const c = gctx();
+  clearTimeout(gs.hold?.timer);
+  gs.hold = null;
+  if (c === 'none') return;
+  if (c === 'opening') {
+    gs.hold = { mode: 'opening' };
+    ui.stampHold?.(0);
+    audio.sfx('card');
+    return;
+  }
+  const st = game.state;
+  if (c === 'customer') {
+    // the stamp hangs over the head; the customer's timer freezes until the release (game.aim)
+    gs.hold = { mode: game.aim('take') ? 'aim' : 'late' };
+    ui.stampHold?.(0);
+    audio.sfx('card');
+    buzz(10);
+    return;
+  }
+  if (c === 'group' && st.current.customer.key === 'take') {
+    // a 收 group: every short hold stamps one of them
+    gs.hold = { mode: 'done' };
+    ui.stampSlam?.();
+    audio.sfx('stamp');
+    gpress('hold', 'take');
+    return;
+  }
+  if (c === 'group') {
+    gs.hold = { mode: 'late' };
+    ui.stampHold?.(0);
+    return;
+  }
+  // an event (the calculator rolls while held), rage, a landing, the shutter, a full fury bar: press now
+  gs.hold = { mode: 'press', pressT: now() };
+  if (c === 'rage' || c === 'landing') { ui.stampSlam?.(); audio.sfx('stamp'); }
+  gpress('hold', 'take');
+}
+
+function gHoldLevel(e) {
+  const h = gs.hold;
+  if (!h || !['aim', 'late', 'opening'].includes(h.mode)) return;
+  ui.stampHold?.(e.level);
+  audio.sfx(e.level >= 2 ? 'drumroll' : 'tick', { intensity: 0.5 });
+  if (e.level >= 2 && h.mode === 'aim') {
+    h.downAt = now() - 800;
+    h.timer = later(STAMP_AUTO_MS, () => {
+      if (gs.hold !== h) return;
+      gHoldEnd({ holdMs: 800 + STAMP_AUTO_MS, auto: true });
+    });
+  }
+}
+
+function gHoldEnd(e) {
+  const h = gs.hold;
+  if (!h) return;
+  clearTimeout(h.timer);
+  gs.hold = e.auto ? { mode: 'done' } : null; // after an auto slam the real release does nothing
+  if (h.mode === 'done') return;
+  if (e.cancelled) {
+    if (h.mode === 'aim') game?.unaim?.();
+    ui.stampHold?.(null);
+    return;
+  }
+  if (h.mode === 'opening') {
+    ui.stampSlam?.();
+    audio.sfx('stamp');
+    if (opening?.press('take')) gstat('hold:opening');
+    return;
+  }
+  if (h.mode === 'press') {
+    // the calculator decides on release (held time since the press, the same clock as its display)
+    if (!game) return;
+    syncClock();
+    const r = game.release?.('take', now() - h.pressT);
+    if (r) ui.render(game.state);
+    return;
+  }
+  // aim / late: the stamp slams now and answers 收 with the hold time (charge 0 / 1 / 2)
+  if (!game) { ui.stampHold?.(null); return; }
+  const res = gpress('hold', 'take', e.holdMs);
+  if (res.r && res.r.holding) {
+    // the boss's last step wants the full hold: a short one repeats it
+    syncClock();
+    game.release?.('take', e.holdMs);
+    ui.render(game.state);
+  }
+  if (['answer', 'wrong', 'step', 'holding', 'buffered', 'group'].includes(res.kind)) {
+    ui.stampSlam?.(zh() ? '啪！两个月' : 'SLAM! 2 months');
+    audio.sfx('stamp');
+  } else ui.stampHold?.(null);
+}
+
+function gReset() {
+  if (gs.hold && gs.hold.mode === 'aim') game?.unaim?.();
+  clearTimeout(gs.hold?.timer);
+  gs.hold = null;
+  gs.swipes.clear();
+}
+
+function initialInput() {
+  const p = params.get('input');
+  if (p === 'gesture' || p === 'buttons') return p;
+  const s = stored(INPUT_KEY);
+  if (s === 'gesture' || s === 'buttons') return s;
+  return DEFAULT_INPUT;
+}
+function setInputMode(next) {
+  inputMode = next === 'buttons' ? 'buttons' : 'gesture';
+  store(INPUT_KEY, inputMode);
+  ui.setInputMode?.(inputMode);
+}
+
+// One press of a key (buttons, J/K/L, or a gesture mapped to a key). Returns { kind, r } (kind as in __250.inputs).
+function pressKey(key, holdMs = 0, opts = {}) {
+  if (openingActive()) { opening.press(key); return { kind: 'opening', r: null }; }
+  if (!game) return { kind: 'none', r: null };
+  syncClock(); // the press lands at its real time, not at the previous frame
+  const before = game.state;
+  const r = game.press(key, holdMs, opts);
+  let kind = 'dead';
+  if (r && r.rageStart) kind = 'rageStart';
+  else if (r && r.rage) kind = r.miss ? 'rageMiss' : 'rage';
+  else if (r && r.event) kind = 'event';
+  else if (r && r.buffered) kind = 'buffered';
+  else if (r && r.tooEarly) { kind = 'late'; ui.shake?.(2, 50); audio.sfx('tap', { intensity: 0.4 }); }
+  else if (r && r.holding) kind = 'holding';
+  else if (r && 'land' in r) kind = r.correct ? 'answer' : 'wrong';
+  else if (r && r.group) kind = 'group';
+  else if (r && r.step != null) kind = 'step';
+  else if (!r && before.phase === 'playing' && !before.current && !before.paused && !before.shutter) kind = landingPress(key);
+  inputs[kind] = (inputs[kind] || 0) + 1;
+  // a resolved answer (not a rage hit or a first step) may be charged; the boss's last step waits for the full hold
+  pressOk[key] = !!r && !r.rage && ((r.correct && 'land' in r) || !!r.holding);
+  if (kind === 'answer' || kind === 'wrong' || kind === 'step' || kind === 'buffered' || kind === 'group' || kind === 'holding') audio.sfx('press');
+  if (kind === 'rageMiss') audio.sfx('tap', { intensity: 0.4 });
+  if (kind !== 'dead' && navigator.vibrate) { try { navigator.vibrate(10); } catch { /* optional */ } }
+  ui.render(game.state);
+  return { kind, r };
+}
+function chargeKey(key, level) {
+  if (openingActive() || !game || !pressOk[key]) return null;
+  syncClock();
+  const r = game.charge(level);
+  ui.render(game.state);
+  return r;
+}
+
 const ui = createUI(root, {
   onPress(key, holdMs) {
-    if (openingActive()) { opening.press(key); return; }
-    if (!game) return;
-    syncClock(); // the press lands at its real time, not at the previous frame
-    const before = game.state;
-    const r = game.press(key, holdMs);
-    let kind = 'dead';
-    if (r && r.rageStart) kind = 'rageStart';
-    else if (r && r.rage) kind = r.miss ? 'rageMiss' : 'rage';
-    else if (r && r.event) kind = 'event';
-    else if (r && r.buffered) kind = 'buffered';
-    else if (r && r.tooEarly) { kind = 'late'; ui.shake?.(2, 50); audio.sfx('tap', { intensity: 0.4 }); }
-    else if (r && r.holding) kind = 'holding';
-    else if (r && 'land' in r) kind = r.correct ? 'answer' : 'wrong';
-    else if (r && r.group) kind = 'group';
-    else if (r && r.step != null) kind = 'step';
-    else if (!r && before.phase === 'playing' && !before.current && !before.paused && !before.shutter) kind = landingPress(key);
-    inputs[kind] = (inputs[kind] || 0) + 1;
-    // a resolved answer (not a rage hit or a first step) may be charged; the boss's last step waits for the full hold
-    pressOk[key] = !!r && !r.rage && ((r.correct && 'land' in r) || !!r.holding);
-    if (kind === 'answer' || kind === 'wrong' || kind === 'step' || kind === 'buffered' || kind === 'group' || kind === 'holding') audio.sfx('press');
-    if (kind === 'rageMiss') audio.sfx('tap', { intensity: 0.4 });
-    if (kind !== 'dead' && navigator.vibrate) { try { navigator.vibrate(10); } catch { /* optional */ } }
-    ui.render(game.state);
+    pressKey(key, holdMs);
   },
   onCharge(key, level) {
-    if (openingActive() || !game || !pressOk[key]) return;
-    syncClock();
-    game.charge(level);
-    ui.render(game.state);
+    chargeKey(key, level);
+  },
+  onGesture(e) {
+    onGesture(e);
+  },
+  onToggleInput(next) {
+    setInputMode(next);
   },
   // stage 2: the calculator resolves on release; a release on the boss's last step before the full hold repeats it
   onRelease(key, holdMs) {
@@ -582,6 +912,7 @@ async function runOpeningScript() {
   if (!mod || typeof mod.runOpening !== 'function') return false;
   info = dayInfo(1);
   game = buildGame(1); // built but never started: game.state.phase stays 'idle' for the whole script (A2)
+  ui.setGestureHints?.(true);
   clearRoundTimers();
   audio.crowd(0.08);
   let finished = false;
@@ -639,6 +970,7 @@ function buildGame(n) {
     if (special) extra.special = { customer: special, atMs: d.original.atMs };
   }
   if (debugDurationMs > 0) extra.durationMs = debugDurationMs;
+  if (inputMode === 'gesture') extra.rageLiveMs = RAGE_LIVE_MS; // a row of heads one swipe can cross
   // ?debug&first=78,63,47: these customer ids come first (QA: a deterministic draw)
   if (params.has('debug') && params.get('first')) extra.fixedOrder = params.get('first').split(',').map((x) => (/^\d+$/.test(x) ? Number(x) : x));
   const g = createGame({ customers: poolForDay(n, getContent('zh').customers), rng: rand, config: configForDay(n, extra) });
@@ -682,6 +1014,10 @@ function startRound({ carry = 0 } = {}) {
   clerkEndAt = 0;
   game = buildGame(day);
   ui.setHud?.(hudOpts());
+  ui.setGestureHints?.(day === 1); // the three gesture chips on the counter top: day 1 only
+  ui.stampHold?.(null);
+  ui.clearRageHeads?.();
+  gReset();
   game.start();
   if (carry > 0) {
     round.suppressMilestone = true; // already celebrated in the opening
@@ -929,12 +1265,15 @@ function wire(g) {
   });
 
   // rage (gameplay-v2 4): a silent half-head with a sign every 300 ms; each hit sends it flying the pressed key's way
-  g.on('rageHead', ({ customer }) => {
-    ui.showCustomer(local(customer), { enterMs: 90, signDelayMs: 0, line: false });
+  g.on('rageHead', ({ customer, n }) => {
+    // gesture mode: the heads pop in a row and stay a moment (one swipe can cross several)
+    if (inputMode === 'gesture') ui.rageHeadAdd?.(local(customer), n, { liveMs: RAGE_LIVE_MS });
+    else ui.showCustomer(local(customer), { enterMs: 90, signDelayMs: 0, line: false });
   });
 
-  g.on('rageHit', ({ queueDelta, key, match }) => {
-    ui.customerReact?.(key);
+  g.on('rageHit', ({ queueDelta, key, match, head }) => {
+    if (inputMode === 'gesture' && ui.rageHeadHit?.(head, key, gestureSrc && gestureSrc.sw)) { /* flung from the row */ }
+    else ui.customerReact?.(key);
     ui.effect('hit', { charge: match ? 2 : 1 });
     audio.sfx('slam', { intensity: match ? 1 : 0.7 });
     if (match) audio.sfx('boom', { intensity: 0.5 });
@@ -951,6 +1290,7 @@ function wire(g) {
   g.on('rageEnd', () => {
     rageGen++;
     round.rageHits = 0;
+    ui.clearRageHeads?.();
     ui.effect('rageEnd', {});
     if (g.state.phase === 'over' || g.state.shutter) return;
     ui.clearCustomer?.();
@@ -1144,6 +1484,8 @@ function onResolve(e) {
   if (e.queueDelta > 0) later(t.punchStartMs, () => ui.queueGain?.(e.queueDelta));
 
   const punchAt = t.punchStartMs / 1000;
+  // gesture mode: the hand already threw them — the customer flies / sinks / slides now, the line plays over it
+  const reactAt = gestureSrc ? 0 : t.punchStartMs;
   if (correct) {
     audio.sfx('slam', { intensity: 0.6 + charge * 0.2, delay: punchAt });
     if (big) audio.sfx('boom', { delay: punchAt });
@@ -1153,13 +1495,13 @@ function onResolve(e) {
     const combo = game.state.combo;
     if (combo > 0 && combo % 10 === 0) audio.sfx('cheer', { delay: punchAt + 0.15 });
     // the customer flies on the punch (the sign leaves with them)
-    later(t.punchStartMs, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+    later(reactAt, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
     round.timeoutsInRow = 0;
   } else {
     // 4.4: no "wrong" feedback on the pressed key. v2: the customer flies the pressed key's way on the punch like any
     // curse; the right key flashes after the line (not before it: that read as an answer key)
     const right = customer.steps ? customer.steps[e.step] : customer.key;
-    later(t.punchStartMs, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+    later(reactAt, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
     later(punchEnd, () => { if (gen === round.arrivals) ui.hintCorrect?.(right); });
     round.wrongByKey[right] = (round.wrongByKey[right] || 0) + 1;
     if (round.wrongByKey[right] >= 3 && !round.tipped.has(right) && round.tipsShown < 2) {
@@ -1284,7 +1626,7 @@ function onEventStart(g, { type, state }) {
   landing = null;
   if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
   const tx = evText(type);
-  ui.showEvent?.({ type, title: tx.title, hint: tx.hint, big: eventBig(state) });
+  ui.showEvent?.({ type, title: tx.title, hint: gestureHint(type) || tx.hint, big: eventBig(state) });
   shown.event = eventBig(state);
   if (type === 'megaphone') {
     ui.clearCustomer?.();
@@ -1428,6 +1770,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------------------------------------------------------------- boot
 ui.setScript?.(script); // zh-TW / zh-HK / zh-MO: Traditional characters on screen
+ui.setInputMode?.(inputMode); // gesture (default) or the button pad
 if (params.has('lite')) ui.setLite?.(params.get('lite') !== '0'); // K4 lite mode; otherwise auto-detected
 if (params.has('punchfx')) audio.setVoiceFx?.(params.get('punchfx') !== '0'); // ?punchfx=0: plain spec 8.5 chain (A/B)
 applyTexts();
@@ -1446,6 +1789,9 @@ if (params.has('debug')) {
     get info() { return info; },
     get lang() { return lang; },
     get inputs() { return inputs; }, // press outcomes this round (answer / wrong / jab / next / rage / buffered / dead …)
+    get gestures() { return gs.stats; }, // gesture mode: presses by gesture kind and outcome ('swipe:answer', 'taps:answer', …)
+    get inputMode() { return inputMode; },
+    setInputMode,
     get lastEval() { return lastEval; }, // stage 2: stars / rating of the last finished day
     evaluateDay, loadBest,
     script,

@@ -123,6 +123,25 @@ export const KEY_ICONS = {
     `<path fill="none" stroke="${INK}" stroke-width="2.6" d="M14 20 H26 M14 25 H22"/><circle cx="20" cy="15" r="1.8" fill="${INK}"/>`),
 };
 
+// Gesture icons (gesture mode, docs/gameplay-v2.md 9): the same ringed badge in the key colour, showing the hand
+// move instead of the key's picture. 甩 = an up-right fling arrow with speed lines, 连拍 = two small palms,
+// 按住盖章 = a rubber stamp pressing down.
+const palm = (x, y, s) =>
+  `<g transform="translate(${x} ${y}) scale(${s})"><path fill="${CREAM}" stroke="${INK}" stroke-width="2.2" ` +
+  `d="M-5 6 V-4 Q-5 -6 -3.4 -6 Q-1.8 -6 -1.8 -4 V-8 Q-1.8 -10 0 -10 Q1.8 -10 1.8 -8 V-4 Q1.8 -6 3.4 -6 Q5 -6 5 -4 V3 Q5 9 0 9 Q-5 9 -5 6 Z"/></g>`;
+export const GESTURE_ICONS = {
+  gun: icon('gun g-icon', GUN,
+    `<path fill="none" stroke="${INK}" stroke-width="2" d="M9 27 H15 M8 22 H13 M11 32 H17" opacity=".7"/>` +
+    `<path fill="none" stroke="${GUN}" stroke-width="4" d="M13 29 Q20 26 29 12"/>` +
+    `<path fill="${GUN}" stroke="${INK}" stroke-width="1.6" d="M23.5 11 L31 8.5 L30.5 16.5 Z"/>`),
+  shut: icon('shut g-icon', SHUT, palm(14, 21, 1.05) + palm(26, 19, 1.05) +
+    `<path fill="none" stroke="${SHUT}" stroke-width="2.4" d="M8 9 L10.5 11.5 M20 6 V9.5 M32 9 L29.5 11.5"/>`),
+  take: icon('take g-icon', '#E0A100',
+    `<path fill="${TAKE}" stroke="${INK}" stroke-width="2.2" d="M16 8 Q16 5 20 5 Q24 5 24 8 Q24 11 22 12 V17 H18 V12 Q16 11 16 8 Z"/>` +
+    `<path fill="${GUN}" stroke="${INK}" stroke-width="2.2" d="M10 18 H30 V24 H10 Z"/>` +
+    `<path fill="none" stroke="${INK}" stroke-width="2.2" d="M12 29 H28 M16 33 H24"/>`),
+};
+
 // ─── Clerk (§2.6) ──────────────────────────────────────────────────────────────────────────────
 export const CLERK_SVG = `<svg class="clerk" viewBox="0 0 240 300" overflow="visible" data-mood="idle" aria-hidden="true">
 <g class="c-all" stroke="${INK}" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round">

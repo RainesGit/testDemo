@@ -805,3 +805,92 @@ button { font: inherit; color: inherit; }
 .report-best, .report-tomorrow { margin: 0 0 1.4cqw; font: 700 3.4cqw var(--font-zh); color: var(--text-dim); }
 .report .report-grid { margin: 1.6cqw 0; }
 .report.has-stars .card-title { font-size: 7cqw; margin-right: 12cqw; }
+
+/* ---------- Gesture mode (docs/gameplay-v2.md 9): 甩 = 滚, 连拍 = 闭嘴, 按住盖章 = 收 ---------- */
+/* the gesture surface covers the stage (the HUD toggles, cards, skip and overlays sit above it) */
+.gsurf { position: absolute; inset: 0; z-index: 23; display: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.stage[data-input=gesture] .gsurf { display: block; }
+.g-trail { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.g-trail-path { fill: none; stroke: #FFF6C2; stroke-width: 2.6cqw; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+.g-trail-path.fade { opacity: 0; transition: opacity .2s; }
+/* the pad becomes a counter top (wood), the three buttons leave; tiny chips show the gestures on day 1 */
+.stage[data-input=gesture] .pad { background: repeating-linear-gradient(180deg, var(--wood-lip) 0 1.2cqw, var(--wood) 1.2cqw 7cqw, var(--wood-line) 7cqw 7.4cqw);
+  border-top: 1cqw solid var(--wood-sh); }
+.stage[data-input=gesture] .pad .btn { display: none; }
+.gchips { display: none; }
+.stage[data-input=gesture] .gchips { display: flex; flex-wrap: nowrap; justify-content: center; gap: 1.6cqw; width: 100%; visibility: hidden; }
+.stage[data-input=gesture][data-ghints="1"] .gchips, .stage[data-input=gesture] .gchips:has([data-glow]) { visibility: visible; }
+.gchip { --c: var(--gun); display: flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: .8cqw; padding: .6cqw 1.8cqw .6cqw .6cqw; border-radius: 99px;
+  background: rgb(27 19 17 / .78); border: .5cqw solid var(--c); transition: opacity .12s; }
+.gchip-shut { --c: var(--shut); }
+.gchip-take { --c: var(--take); }
+.gchip-icon, .gchip-icon svg { display: block; flex: 0 0 auto; width: 7.4cqw; height: 7.4cqw; }
+.gchip-label { font: 900 3.4cqw var(--font-zh); color: var(--cream); white-space: nowrap; }
+.gchip-label:lang(en), .pad:lang(en) .gchip-label { font-family: var(--font-en); font-weight: 400; letter-spacing: .02em; font-size: 3.4cqw; }
+.gchip[data-dim] { opacity: .35; }
+.gchip[data-glow] { animation: glowKey 600ms ease-in-out infinite alternate; box-shadow: 0 0 0 .9cqw color-mix(in srgb, var(--c) 55%, transparent); }
+.gchip.breath { animation: glowKey 300ms ease-in-out 4 alternate; }
+.gchip.hint-flash { animation: keyFlash 400ms steps(1) 1; }
+.gchip[data-covered] { opacity: .3; }
+/* the finger demonstrates the move on the customer */
+.stage[data-input=gesture] .finger[data-g=gun] { animation: gFling 900ms ease-in infinite; }
+.stage[data-input=gesture] .finger[data-g=shut] { animation: gTaps 720ms ease-in-out infinite; }
+.stage[data-input=gesture] .finger[data-g=take] { animation: gHold 1300ms ease-in-out infinite; }
+@keyframes gFling { 0% { translate: 0 0; opacity: 0; } 15% { opacity: 1; } 65% { translate: 26cqw -16cqw; opacity: 1; } 100% { translate: 32cqw -20cqw; opacity: 0; } }
+@keyframes gTaps { 0%, 33%, 66%, 100% { scale: 1; translate: 0 0; } 16%, 49%, 82% { scale: .84; translate: 0 1cqw; } }
+@keyframes gHold { 0%, 100% { scale: 1; } 18%, 82% { scale: .8; translate: 0 1.4cqw; } }
+/* a rough hold: the stamp hangs over the head and grows with the charge */
+.g-stamp { position: absolute; left: 29%; top: 41%; z-index: 9; width: 22cqw; translate: -50% -50%; scale: .72; pointer-events: none; transition: scale .12s cubic-bezier(.3, 1.6, .5, 1); }
+.g-stamp[hidden] { display: none; }
+.g-stamp-handle { width: 9cqw; height: 8cqw; margin: 0 auto; border-radius: 50% 50% 1.4cqw 1.4cqw; background: var(--take); border: .7cqw solid var(--ink); }
+.g-stamp-face { margin-top: -.6cqw; height: 11cqw; border-radius: 2cqw; background: var(--gun); border: .7cqw solid var(--ink); box-shadow: 0 1cqw 0 rgb(0 0 0 / .4);
+  color: #fff; font: 900 7cqw/9.6cqw var(--font-zh); text-align: center; white-space: nowrap; overflow: hidden; }
+.g-stamp-face:lang(en), .stage[data-lang=en] .g-stamp-face { font: 400 6cqw/9.6cqw var(--font-en); }
+.g-stamp[data-level="1"] { scale: .92; }
+.g-stamp[data-level="2"] { scale: 1.14; }
+.g-stamp[data-level="2"] .g-stamp-face { box-shadow: 0 1cqw 0 rgb(0 0 0 / .4), 0 0 0 1.2cqw rgb(255 210 63 / .6); animation: jitter .08s infinite; }
+.g-stamp.in { animation: pop .14s ease-out; }
+.g-stamp.slam { animation: gSlam .22s cubic-bezier(.6, 0, .9, .4) forwards; }
+@keyframes gSlam { 60% { top: 64%; scale: 1.1 .8; } 100% { top: 63%; scale: 1 .9; opacity: 0; } }
+/* "啪" pops: a cartoon caption where the hand lands (no marks on anyone) */
+.g-pa { position: absolute; z-index: 12; translate: -50% -50%; rotate: var(--rot, -8deg); pointer-events: none; white-space: nowrap;
+  font: 900 9cqw/1 var(--font-zh); color: var(--lemon); -webkit-text-stroke: .9cqw var(--ink); paint-order: stroke fill; animation: gPa .5s ease-out forwards; }
+.g-pa[data-n="2"] { font-size: 11cqw; }
+.g-pa[data-n="3"], .g-pa[data-n="4"], .g-pa[data-n="5"] { font-size: 13cqw; color: #fff; }
+.g-pa-stamp { font-size: 8cqw; color: var(--lemon); rotate: -6deg; animation: gPa .9s ease-out forwards; }
+.g-pa:lang(en), .stage[data-lang=en] .g-pa { font-family: var(--font-en); font-weight: 400; }
+@keyframes gPa { 0% { scale: .4; opacity: 0; } 18% { scale: 1.25; opacity: 1; } 60% { scale: 1; opacity: 1; } 100% { scale: 1.05; opacity: 0; translate: -50% -90%; } }
+.g-hint { position: absolute; left: 30%; top: 50%; z-index: 12; translate: -50% 0; padding: 1cqw 2.6cqw; border-radius: 2cqw; pointer-events: none; white-space: nowrap;
+  background: var(--ink); color: var(--cream); border: .5cqw solid var(--gun); font: 900 4.4cqw/1.2 var(--font-zh); animation: pop .16s ease-out, fadeIn .2s .85s reverse both; }
+.g-hint[data-key=shut] { border-color: var(--shut); }
+.g-hint[data-key=take] { border-color: var(--take); }
+/* the queue at the right edge (bowling pins for a fling that way) */
+.g-pins { position: absolute; right: 0; top: 35.5%; width: 19%; height: 10.5%; z-index: 2; display: none; pointer-events: none; }
+.stage[data-input=gesture] .g-pins { display: block; }
+.g-pin { position: absolute; bottom: 0; left: calc(var(--i) * 30%); width: 40%; transform-origin: 50% 100%; }
+.g-pin svg { display: block; width: 100%; height: auto; }
+.g-pin.down { animation: pinDown 1.2s var(--d, 0ms) both; }
+@keyframes pinDown { 0% { rotate: 0deg; } 14% { rotate: 84deg; translate: 20% 0; } 72% { rotate: 84deg; translate: 20% 0; opacity: 1; } 80% { opacity: 0; rotate: 0deg; translate: 0 40%; } 100% { opacity: 1; rotate: 0deg; translate: 0 0; } }
+/* gesture rage: a row of half heads, one swipe can cross several */
+.rage-row { position: absolute; left: 0; top: 59%; width: 100%; height: 24cqw; z-index: 8; pointer-events: none; }
+.stage.rage .preview { opacity: 0; }
+.rage-head { position: absolute; left: calc(var(--i) * 24cqw - 1cqw); top: calc(mod(var(--i), 2) * 2.4cqw); width: 28cqw; height: 18cqw; animation: custPop .16s cubic-bezier(.2, 1.5, .5, 1); }
+.rage-head .cust-clip { width: 100%; height: 100%; overflow: hidden; }
+.rage-head .cust-clip svg { width: 100%; height: auto; display: block; }
+.rage-head .rage-mini { position: absolute; left: 50%; top: -5cqw; translate: -50% 0; scale: .5; }
+.rage-head.out .cust-clip { overflow: visible; }
+.rage-head.gone { animation: groupSink .25s ease-in forwards; }
+.rage-head.out { animation: groupOut .5s cubic-bezier(.3, 0, .8, .4) forwards; }
+.rage-head.out[data-face=shut] { animation-name: groupSink; }
+.rage-head.out[data-face=take] { animation-name: groupSlide; }
+.rage-head.out.phys { animation: none; }
+.cust-wrap.physics .cust { animation: none !important; }
+/* start card: controls toggle */
+.input-tog { display: flex; align-items: center; gap: 2cqw; margin-top: 4cqw; font: 700 3.6cqw var(--font-zh); color: var(--text-dim); }
+.it-opt { min-height: 9cqw; padding: 1cqw 3.4cqw; border-radius: 99px; border: .5cqw solid var(--cream); background: transparent; color: var(--cream);
+  font: 900 3.8cqw var(--font-zh); cursor: pointer; }
+.it-opt[aria-pressed=true] { background: var(--cream); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  .stage[data-input=gesture] .finger { animation: none !important; }
+  .g-stamp[data-level="2"] .g-stamp-face { animation: none; }
+}

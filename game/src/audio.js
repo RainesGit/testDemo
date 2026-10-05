@@ -18,7 +18,7 @@
 //   duck(toDb = -60, ms = 30) / restore(ms = 200, delayMs = 0)   bed level
 //   bed(on = true, level)     crowd murmur + 110 BPM rhythm (-18 dB)
 //   loop(name, opts) → { stop(ms), detune(cents) }   'musicbox' | 'hum';  stopLoop(name, ms), stopLoops(ms)
-//   sfx(name, opts)           + gate slam boom whoosh press pop card tick tap ding coin bell dingdong stamp clock
+//   sfx(name, opts)           + gate slam boom whoosh press pop card tick tap ding coin bell dingdong stamp slap clock
 //                               sigh scratch feedback sparkle drumroll crowdOh huh (all synthesized)
 //   setVoiceFx(on | tuning) / voiceFx, setLite(on)   runtime voice punch (VOICE_FX, voicePlan); createAudio({ voiceFx })
 
@@ -834,6 +834,18 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
         });
       });
       return end;
+    },
+    // Cartoon slap "啪" (gesture taps): a bright clap of high-passed noise over a short low knock.
+    slap(t, o) {
+      const k = o.intensity ?? 1;
+      const g1 = gain(master);
+      const e1 = env(g1, t, { a: 0.001, peak: 0.9 * k, d: 0.045 });
+      noise(t, e1, filter('highpass', 1800, 0.8, g1));
+      const g2 = gain(master);
+      const e2 = env(g2, t, { a: 0.001, peak: 0.5 * k, d: 0.06 });
+      const s = osc('triangle', 260, t, e2, g2);
+      s.frequency.exponentialRampToValueAtTime(140, t + 0.06);
+      return Math.max(e1, e2);
     },
     // Rubber stamp: dull thump + paper slap.
     stamp(t) {

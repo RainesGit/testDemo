@@ -1277,3 +1277,70 @@ test('a buffered press waits through a pause and answers at minAnswerMs after it
   game.tick(80);
   assert.equal(of('resolve').length, 1);
 });
+
+// ---- gesture mode (docs/gameplay-v2.md 9): stamp aim, live rage heads
+test('gesture aim: a stamp hold freezes the timer and the release is timed from the hold start', () => {
+  const { game, of } = setup({ config: { speedCutIn: 2, speedSteps: [[600, 1.5], [1200, 1.2]], patienceStartMs: 2400, patienceEndMs: 2400 } });
+  game.start();
+  while (rightKey(game) !== 'take') game.press(rightKey(game));
+  game.tick(100);
+  assert.equal(game.aim('take'), true);
+  assert.equal(game.state.current.aiming, true);
+  const left = game.state.current.patienceMs;
+  game.tick(1500);
+  assert.equal(game.state.current.patienceMs, left, 'the timer is frozen while the stamp is held');
+  assert.equal(of('polite').length, 0);
+  const r = game.press('take', 900);
+  assert.equal(r.correct, true);
+  assert.equal(r.charge, 2, 'held 900 ms = charge 2');
+  assert.equal(r.mult, 1.5, 'timed from the aim (100 ms after t0), not from the release');
+  // unaim drops it: the timer runs again
+  game.tick(1000);
+  assert.equal(game.aim('take'), true);
+  assert.equal(game.unaim(), true);
+  const p0 = game.state.current.patienceMs;
+  game.tick(100);
+  assert.ok(game.state.current.patienceMs < p0);
+});
+
+test('gesture aim: refused with nobody at the counter, in an event or on a full fury bar', () => {
+  const { game } = setup({ config: { furyCorrect: 100, furyPerfect: 100 } });
+  assert.equal(game.aim('take'), false, 'idle');
+  game.start();
+  game.press(rightKey(game));
+  assert.equal(game.state.furyFull, true);
+  assert.equal(game.aim('take'), false, 'the next press starts rage instead');
+});
+
+test('gesture rage: with rageLiveMs a row of heads stays hittable; a head can be targeted, each only once', () => {
+  const { game } = setup({ config: { furyCorrect: 100, furyPerfect: 100, rageLiveMs: 1200 } });
+  game.start();
+  game.press(rightKey(game));
+  game.press('gun'); // rage
+  game.tick(300);
+  game.tick(300);
+  game.tick(300);
+  const live = game.state.rageLive.map((h) => h.n);
+  assert.deepEqual(live, [1, 2, 3, 4]);
+  const a = game.press('gun', 0, { head: 3 });
+  assert.equal(a.head, 3);
+  assert.equal(a.miss, undefined);
+  assert.equal(game.press('gun', 0, { head: 3 }).miss, true, 'one hit per head');
+  const b = game.press('shut'); // no target: the oldest live head
+  assert.equal(b.head, 1);
+  assert.deepEqual(game.state.rageLive.map((h) => h.n), [2, 4]);
+  game.tick(300);
+  game.tick(300);
+  game.tick(300);
+  game.tick(300); // heads 2 and 4 are older than 1200 ms now
+  assert.ok(!game.state.rageLive.some((h) => h.n === 2), 'expired heads leave the row');
+  // button mode (rageLiveMs 0): only the newest head
+  const btn = setup({ config: { furyCorrect: 100, furyPerfect: 100 } }).game;
+  btn.start();
+  btn.press(rightKey(btn));
+  btn.press('gun');
+  btn.tick(300);
+  assert.equal(btn.press('gun').head, 2);
+  assert.equal(btn.press('gun').miss, true);
+  assert.equal(btn.state.rageLive.length, 0);
+});

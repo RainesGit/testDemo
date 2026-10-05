@@ -1,6 +1,6 @@
 // 《来250杯！》/ "250 Cups!" — pure game logic. No DOM, no audio.
 // Contract: createGame({ customers, rng, config }) ->
-//   { start, tick, press, jab, summon, charge, speechDone, delayNext, pause, resume, bonus, on, off, state, config,
+//   { start, tick, press, jab, summon, charge, aim, unaim, release, speechDone, delayNext, pause, resume, bonus, on, off, state, config,
 //     patienceFor, speedMultFor }
 //
 // Per-customer timeline (docs/first-minute-spec.md 4.1):
@@ -94,6 +94,8 @@ export const DEFAULT_CONFIG = {
   rageHitDelta: 1,        // any key
   rageMatchDelta: 2,      // the key matches the head's sign
   rageEndMs: 1400,        // empty counter after rage: 500 ms pause + the clerk's polite close (main may lengthen)
+  rageLiveMs: 0,          // gesture mode (docs/gameplay-v2.md 9): unhit heads stay hittable this long (a row of heads one
+                          // swipe can cross); 0 = only the newest head (button mode)
   // jab / next (gameplay-v2 3)
   jabPaidMax: 2,          // the first N jabs of a landing count
   jabQueueDelta: 1,
@@ -221,7 +223,8 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       current: null,
       rageLeftMs: 0,
       rageSpawnLeftMs: 0,
-      rageHead: null,   // { customer, hit, n } the head at the counter during rage
+      rageHead: null,   // { customer, hit, n, bornMs } the head at the counter during rage
+      rageLive: [],     // gesture mode (rageLiveMs): the heads still hittable, oldest first
       rageCombo: 0,     // hits in this rage (separate from the normal combo)
       rageQueue: 0,
       rageHeads: 0,
@@ -597,6 +600,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     s.rageQueue = 0;
     s.rageHeads = 0;
     s.rageHead = null;
+    s.rageLive = [];
     s.gapLeftMs = 0;
     s.buffered = null;
     s.landKind = null;
@@ -611,7 +615,11 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     const list = cands.length ? cands : customers;
     const customer = list[Math.floor(rng() * list.length) % list.length];
     s.rageHeads += 1;
-    s.rageHead = { customer, hit: false, n: s.rageHeads };
+    s.rageHead = { customer, hit: false, n: s.rageHeads, bornMs: s.elapsedMs };
+    if (cfg.rageLiveMs > 0) {
+      s.rageLive = s.rageLive.filter((h) => !h.hit && s.elapsedMs - h.bornMs < cfg.rageLiveMs);
+      s.rageLive.push(s.rageHead);
+    }
     emit('rageHead', { customer, n: s.rageHeads });
   }
 
@@ -621,6 +629,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     s.fury = 0;
     s.furyFull = false;
     s.rageHead = null;
+    s.rageLive = [];
     s.current = null;
     s.landStartMs = s.elapsedMs;
     s.landKind = 'rage';
@@ -716,6 +725,8 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       rageLeftMs: s.rageLeftMs,
       rageCombo: s.rageCombo,
       rageHead: h ? Object.freeze({ customer: h.customer, hit: h.hit, n: h.n }) : null,
+      rageLive: Object.freeze((s.rageLive || []).filter((x) => !x.hit && s.elapsedMs - x.bornMs < cfg.rageLiveMs)
+        .map((x) => Object.freeze({ customer: x.customer, n: x.n }))),
       gapLeftMs: s.gapLeftMs,
       landKind: s.landKind,
       jabs: s.jabs,
@@ -726,7 +737,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         ? Object.freeze({
           customer: c.customer, patienceMs: c.patienceMs, patienceMaxMs: c.patienceMaxMs,
           speaking: c.speaking, step: c.step, sinceArriveMs: c.sinceArriveMs,
-          quick: c.quick, silent: c.silent, hits: c.hits, flipped: c.flipped, holding: !!c.holding,
+          quick: c.quick, silent: c.silent, hits: c.hits, flipped: c.flipped, holding: !!c.holding, aiming: !!c.aim,
           key: wantOf(c),
         })
         : null,
@@ -818,7 +829,9 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
   function answer(key, holdMs) {
     const cur = s.current;
     const { customer } = cur;
-    const t = timingOf(cur);
+    // gesture mode: a stamp hold answers on release, timed from when the hold started (aim)
+    const t = cur.aim ? cur.aim.t : timingOf(cur);
+    cur.aim = null;
     const want = wantOf(cur);
     const correct = key === want;
     const steps = isTwoStep(customer) ? customer.steps : null;
@@ -1013,8 +1026,16 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     return resolveAnswer(cur, key, true, tt, 0, { charge: c.holdLast ? 2 : 0, flat: cfg.bonus250, final: true });
   }
 
-  function rageHit(key) {
-    const h = s.rageHead;
+  // gesture mode (rageLiveMs > 0): `head` (its n) picks one of the live heads; otherwise the oldest live unhit head
+  function liveHead(head) {
+    if (!(cfg.rageLiveMs > 0)) return s.rageHead;
+    const live = s.rageLive.filter((x) => !x.hit && s.elapsedMs - x.bornMs < cfg.rageLiveMs);
+    if (head != null) return live.find((x) => x.n === head) || null;
+    return live[0] || null;
+  }
+
+  function rageHit(key, head) {
+    const h = liveHead(head);
     if (!h || h.hit) {
       emit('rageMiss', { key });
       return { rage: true, miss: true, queueDelta: 0, key };
@@ -1027,7 +1048,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     s.stats.cursed += 1;
     s.stats.rageHits += 1;
     s.score += queueDelta * 100;
-    const payload = { rage: true, queueDelta, key, customer: h.customer, match, n: s.rageCombo };
+    const payload = { rage: true, queueDelta, key, customer: h.customer, match, n: s.rageCombo, head: h.n };
     emit('rageHit', payload);
     addQueue(queueDelta);
     return payload;
@@ -1133,7 +1154,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         return;
       }
 
-      if (s.current.holding) return; // the boss's last step: a held key freezes the timer
+      if (s.current.holding || s.current.aim) return; // the boss's last step / a gesture stamp hold freezes the timer
       s.current.patienceMs -= dt;
       if (s.current.patienceMs <= 0 && s.current.customer.boss) {
         // the boss never leaves: he asks again (combo 0, no aura)
@@ -1167,9 +1188,9 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     // starts rage (not while a two-step customer is at the counter). With a customer at the counter: the answer
     // (a press up to bufferMs before minAnswerMs is kept and answers at minAnswerMs). Otherwise null — main.js
     // turns a press in the landing pause into jab() / summon().
-    press(key, holdMs = 0) {
+    press(key, holdMs = 0, opts = {}) {
       if (s.paused) return null;
-      if (s.phase === 'rage') return rageHit(key);
+      if (s.phase === 'rage') return rageHit(key, opts && opts.head);
       if (s.phase !== 'playing') return null;
       if (s.event) {
         const type = s.event.type;
@@ -1195,6 +1216,23 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         return null;
       }
       return answer(key, holdMs);
+    },
+
+    // Gesture mode (docs/gameplay-v2.md 9): the player starts a stamp hold on the customer at the counter. Their timer
+    // freezes (like the boss's held last step) and the answer that follows on release — press(key, holdMs) — is timed
+    // from now (speed multiplier, cut-in, perfect). unaim() drops it. False when nobody answerable is at the counter.
+    aim(key) {
+      if (s.paused || s.phase !== 'playing' || s.event || s.shutter) return false;
+      const cur = s.current;
+      if (!cur || cur.holding || cur.sinceArriveMs < cur.minAnswerMs) return false;
+      if (s.furyFull && cfg.furyEnabled && !isTwoStep(cur.customer)) return false;
+      cur.aim = { key, t: timingOf(cur) };
+      emit('aim', { customer: cur.customer, key });
+      return true;
+    },
+    unaim() {
+      if (s.current && s.current.aim) { s.current.aim = null; return true; }
+      return false;
     },
 
     // A key released after holdMs (main.js forwards every release). The boss's last step: a release before the full

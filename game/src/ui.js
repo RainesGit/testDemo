@@ -2,7 +2,7 @@
 // No game logic lives here: the UI only draws what it is told and forwards input.
 // Spec: docs/first-minute-spec.md (2.3 layout, 2.6–2.8 art hooks, 2.11 camera, 3.1–3.8, 4.4, 5, 6, 8.8).
 //
-// createUI(root, { onPress, onCharge, onRelease, onStart, onToggleLang, onToggleBleep }) → ui
+// createUI(root, { onPress, onCharge, onRelease, onGesture, onStart, onToggleLang, onToggleBleep, onToggleInput }) → ui
 //
 // Callbacks
 //   onPress(key, 0)          key 'gun'|'shut'|'take'; fired on pointerdown / J K L keydown (ignored while inputLocked())
@@ -11,7 +11,22 @@
 //   onStart()                start card button / tap (also the default for the closing / summary cards)
 //   onToggleLang(nextLang)   'zh'|'en' (UI flips its own label too)
 //   onToggleBleep(nextOn)    boolean
+//   onGesture(e)             gesture mode only (docs/gameplay-v2.md 9): every event of src/gesture.js createRecognizer
+//                            (swipe / swipeMove / swipeEnd / tap / burstEnd / holdStart / holdLevel / holdEnd) in stage px,
+//                            plus { type: 'cross', head } when a swipe crosses a rage head and e.head on a tap on one
+//   onToggleInput(next)      'gesture'|'buttons' from the start card toggle
 //
+// ---- Gesture mode (docs/gameplay-v2.md 9)
+//   setInputMode('gesture'|'buttons') / inputMode   gesture: the button pad turns into a counter top, the whole play area
+//                                           (scene + counter top) takes pointer gestures; J/K/L keep working in both modes
+//   setGestureHints(on)                     the three tiny gesture chips on the counter top (day 1 / opening)
+//   slap(n, { x, y })                       a tap on the face: squash + "啪" pop (n = taps in the burst so far)
+//   stampHold(level | null)                 the gold stamp above the customer's head grows (0 / 1 / 2); null hides it
+//   stampSlam(text)                         the stamp slams onto the forehead with the caption ("啪！两个月")
+//   setFling({ dir, speed } | null)         the next customerReact('gun'|'gun2') flings the customer that way (physics)
+//   bowl(n, text)                           n (1–3) queue silhouettes at the right edge topple; 3 = STRIKE text
+//   rageHeadAdd(customer, n, { liveMs }) / rageHeadHit(n, key) / clearRageHeads()   rage heads in a row (gesture rage)
+//   gestureHint(key, text)                  the gesture chip of key pulses with a short text above it
 // ---- HUD / texts
 //   render(state, hud?)                     hud = { showAura = true, showFury = true, showTime = true } (remembered)
 //                                           queue number, combo (only shown at combo >= 5), bars, sign timer sync
@@ -126,6 +141,7 @@
 
 import * as art from './art.js';
 import { toHant } from './hant.js';
+import { createRecognizer } from './gesture.js';
 
 const KEYS = ['gun', 'shut', 'take'];
 const KEYBOARD = { j: 'gun', k: 'shut', l: 'take' };
@@ -146,6 +162,14 @@ const EASE_FAST = 'cubic-bezier(.5,0,.2,1)';
 const DECOR = {
   zh: { rage: '爆气！', boo: ['嘘～～', '好软喔', '退钱！'], skip: '跳过 ▸', firstStart: '点一下 开店', day: (n) => `开店（第 ${n} 天）`, sub: '嚣张店员，越骂越多人排队。', queueFmt: (t, n) => `${t} ｜ 门口排了 ${n} 人`, tap: '点一下继续' },
   en: { rage: 'RAGE!', boo: ['Booo~', 'So soft!', 'Refund!'], skip: 'Skip ▸', firstStart: 'Tap to open', day: (n) => `Open (Day ${n})`, sub: 'Rude clerk. The ruder, the longer the line.', queueFmt: (t, n) => `${t} | ${n} in line`, tap: 'Tap to continue' },
+};
+
+// gesture mode labels (not spoken): the chip verbs, the slap / stamp captions, the start card toggle, hints
+const GESTURE_TEXT = {
+  zh: { verb: { gun: '甩', shut: '连拍', take: '按住' }, slap: '啪', stamp: '啪！两个月', strike: '全倒！', input: '操作', gesture: '手势', buttons: '按键',
+    hint: { shut: '连拍三下！', gun: '甩出去！', take: '按住盖章！' } },
+  en: { verb: { gun: 'Flick', shut: 'Tap×3', take: 'Hold' }, slap: 'SLAP', stamp: 'SLAM! 2 months', strike: 'STRIKE!', input: 'Controls', gesture: 'Gestures', buttons: 'Buttons',
+    hint: { shut: 'Tap 3 times!', gun: 'Flick them out!', take: 'Hold to stamp!' } },
 };
 
 const DEFAULT_UI = {
@@ -316,7 +340,7 @@ const normStyle = (s) => (typeof s === 'number' ? 'S' + s : /^[1-5]$/.test(Strin
 
 // ---------------------------------------------------------------- createUI
 
-export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {} } = {}) {
+export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onGesture = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {}, onToggleInput = () => {} } = {}) {
   let lang = 'zh';
   let script = 'hans'; // 'hant': Traditional characters on screen (setScript)
   let extLocked = false; // lockInput()
@@ -419,6 +443,15 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (key === 'shut') html(el('span', 'key-lock', b), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3" fill="none" stroke="#FFF4DC" stroke-width="2.6" stroke-linecap="round"/><rect x="4.5" y="11" width="15" height="10" rx="2.5" fill="#FFF4DC" stroke="#1B1311" stroke-width="1.6"/><circle cx="12" cy="16" r="1.8" fill="#1B1311"/></svg>');
     buttons[key] = { b, ring, icon, label, down: 0, raf: 0, src: null, level: 0 };
   });
+  // gesture mode: the pad is a counter top with three tiny gesture chips (day 1 only; guides light them up)
+  const chips = {};
+  const chipRow = el('div', 'gchips', pad);
+  KEYS.forEach((key) => {
+    const c = el('div', 'gchip gchip-' + key, chipRow);
+    c.dataset.key = key;
+    html(el('span', 'gchip-icon', c), art.GESTURE_ICONS[key]);
+    chips[key] = { c, label: el('span', 'gchip-label', c) };
+  });
 
   // Guidance + overlays
   const guideSvg = svgEl('svg', { class: 'guide-line', 'aria-hidden': 'true' }, stage);
@@ -467,6 +500,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       lab.classList.toggle('long', w > 6 && w <= 9);
       lab.classList.toggle('xlong', w > 9);
     }
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    for (const k of KEYS) chips[k].label.textContent = `${gt.verb[k]} ${String(texts[k] ?? '')}`;
     langBtn.innerHTML = lang === 'zh' ? '<b>中</b>/EN' : '中/<b>EN</b>';
     bleepBtn.textContent = texts.bleep;
     bleepBtn.classList.toggle('on', bleepOn);
@@ -556,6 +591,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     extLocked = true;
     clearTimeout(extTimer);
     KEYS.forEach((k) => endHold(k));
+    resetGestures();
     if (ms > 0) extTimer = setTimeout(unlockInput, ms);
     syncLock();
   }
@@ -638,6 +674,281 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => KEYS.forEach((k) => endHold(k)));
+
+  // ---------- Gesture input (docs/gameplay-v2.md 9) ----------
+  // The surface covers the play area (scene + counter top) above the subtitles and the pad; it only takes pointers in
+  // gesture mode. src/gesture.js decides each stroke (swipe at 40 px, hold at 180 ms, tap on up); ui.js adds what is
+  // under the finger (rage heads) and draws the trail; main.js maps the gestures to the engine keys.
+  const gsurf = el('div', 'gsurf', stage);
+  const trailSvg = svgEl('svg', { class: 'g-trail', 'aria-hidden': 'true' }, gsurf);
+  const stampEl = el('div', 'g-stamp', cam);
+  stampEl.hidden = true;
+  html(el('div', 'g-stamp-handle', stampEl), '');
+  const stampFace = el('div', 'g-stamp-face', stampEl);
+  const pinsEl = el('div', 'g-pins', cam);
+  for (let i = 0; i < 3; i++) {
+    const pin = el('div', 'g-pin', pinsEl);
+    pin.style.setProperty('--i', String(i));
+    html(pin, `<svg viewBox="0 0 40 60" aria-hidden="true"><circle cx="20" cy="15" r="11" fill="#2A1D19" stroke="#1B1311" stroke-width="2"/>
+<path d="M3 60 Q3 30 20 30 Q37 30 37 60 Z" fill="#2A1D19" stroke="#1B1311" stroke-width="2"/></svg>`);
+  }
+  const rageRow = el('div', 'rage-row', cam);
+  const recog = createRecognizer({ onGesture: recognized });
+  const swipes = new Map(); // pointer id → { pts: [[x, y]], heads: Set }
+  let gLoop = 0;
+
+  const ptOf = (e) => { const s = stageRect(); return { x: e.clientX - s.left, y: e.clientY - s.top }; };
+  function liveHeads() {
+    return [...rageRow.querySelectorAll('.rage-head:not(.out):not(.gone)')].map((h) => ({ n: Number(h.dataset.n), r: relRect(h) }));
+  }
+  const inRect = (x, y, r, pad = 0) => x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad;
+  function headAt(x, y) {
+    const hit = liveHeads().find((h) => inRect(x, y, h.r, 6));
+    return hit ? hit.n : null;
+  }
+  // the heads a swipe segment crosses (sampled every 6 px)
+  function crossHeads(px, py, x, y, seen, out) {
+    const heads = liveHeads();
+    if (!heads.length) return;
+    const n = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / 6));
+    for (let i = 0; i <= n; i++) {
+      const sx = px + ((x - px) * i) / n;
+      const sy = py + ((y - py) * i) / n;
+      for (const h of heads) if (!seen.has(h.n) && inRect(sx, sy, h.r, 4)) { seen.add(h.n); out.push(h.n); }
+    }
+  }
+  function drawTrail() {
+    trailSvg.textContent = '';
+    const s = stageRect();
+    trailSvg.setAttribute('viewBox', `0 0 ${s.width.toFixed(0)} ${s.height.toFixed(0)}`);
+    for (const sw of swipes.values()) {
+      if (sw.pts.length < 2) continue;
+      const d = sw.pts.slice(-14).map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+      svgEl('path', { d, class: 'g-trail-path' }, trailSvg);
+    }
+  }
+  function recognized(e) {
+    if (inputMode !== 'gesture') return;
+    if (e.type === 'swipe') swipes.set(e.id, { pts: [[e.x0, e.y0], [e.x, e.y]], heads: new Set() });
+    if (e.type === 'tap') {
+      const h = headAt(e.x, e.y);
+      if (h != null) e.head = h;
+    }
+    onGesture(e);
+    if (e.type === 'swipeMove') {
+      const sw = swipes.get(e.id);
+      if (!sw) return;
+      sw.pts.push([e.x, e.y]);
+      drawTrail();
+      const crossed = [];
+      crossHeads(e.px, e.py, e.x, e.y, sw.heads, crossed);
+      for (const head of crossed) onGesture({ type: 'cross', head, id: e.id });
+    }
+    if (e.type === 'swipeEnd') {
+      swipes.delete(e.id);
+      const old = trailSvg.querySelectorAll('.g-trail-path');
+      old.forEach((p) => p.classList.add('fade'));
+      later(() => { if (!swipes.size) trailSvg.textContent = ''; }, 220);
+    }
+  }
+  function gTick() {
+    gLoop = 0;
+    if (inputMode !== 'gesture') return;
+    recog.tick(performance.now());
+    gLoop = requestAnimationFrame(gTick);
+  }
+  function resetGestures() {
+    if (recog.active || stampLevel != null) onGesture({ type: 'reset' });
+    recog.reset();
+    swipes.clear();
+    trailSvg.textContent = '';
+    stampHold(null);
+  }
+  gsurf.addEventListener('pointerdown', (e) => {
+    if (inputMode !== 'gesture') return;
+    e.preventDefault();
+    if (inputLocked()) return;
+    try { gsurf.setPointerCapture(e.pointerId); } catch { /* not supported */ }
+    const p = ptOf(e);
+    recog.down(e.pointerId, p.x, p.y, performance.now());
+  });
+  gsurf.addEventListener('pointermove', (e) => {
+    if (inputMode !== 'gesture') return;
+    const list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    for (const c of list.length ? list : [e]) {
+      const p = ptOf(c);
+      recog.move(e.pointerId, p.x, p.y, performance.now());
+    }
+  });
+  gsurf.addEventListener('pointerup', (e) => {
+    if (inputMode !== 'gesture') return;
+    e.preventDefault();
+    const p = ptOf(e);
+    recog.tick(performance.now()); // a hold that started since the last frame starts before it ends
+    recog.up(e.pointerId, p.x, p.y, performance.now());
+  });
+  gsurf.addEventListener('pointercancel', (e) => recog.cancel(e.pointerId, performance.now()));
+  gsurf.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  let inputMode = 'buttons';
+  function setInputMode(mode) {
+    inputMode = mode === 'gesture' ? 'gesture' : 'buttons';
+    stage.dataset.input = inputMode;
+    KEYS.forEach((k) => endHold(k));
+    resetGestures();
+    cancelAnimationFrame(gLoop);
+    gLoop = 0;
+    if (inputMode === 'gesture') gLoop = requestAnimationFrame(gTick);
+  }
+  function setGestureHints(on) {
+    stage.dataset.ghints = on ? '1' : '0';
+  }
+  const vibe = (p) => { try { navigator.vibrate?.(p); } catch { /* optional */ } };
+
+  // 连拍: each tap is a cartoon slap on the counter-side of the face: a squash, a "啪" pop, a tiny shake. No marks.
+  function slap(n = 1, { x, y } = {}) {
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    const clip = custWrap.querySelector('.cust-clip');
+    if (clip && current && !custWrap.dataset.face) {
+      clip.animate([{ transform: 'scale(1,1)' }, { transform: `scale(${1.1 + n * 0.03},${0.86 - n * 0.03}) translateX(${n % 2 ? 3 : -3}%)` }, { transform: 'scale(1,1)' }],
+        { duration: 160, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    }
+    const p = Number.isFinite(x) ? { x, y } : (() => { const r = relRect(custWrap); return { x: r.x + r.w * 0.5, y: r.y + r.w * 0.2 }; })();
+    const pa = el('div', 'g-pa', fx, gt.slap);
+    pa.dataset.n = String(Math.min(5, n));
+    Object.assign(pa.style, { left: p.x + 'px', top: p.y + 'px' });
+    pa.style.setProperty('--rot', `${(n % 2 ? -1 : 1) * (8 + n * 3)}deg`);
+    later(() => pa.remove(), 520);
+    shake(2 + Math.min(4, n), 60);
+    vibe(n >= 3 ? [12, 30, 12] : 8);
+  }
+
+  // 按住盖章: the stamp grows above the head while held (charge 0 / 1 / 2); null hides it
+  let stampLevel = null;
+  function stampHold(level) {
+    if (level == null) {
+      stampLevel = null;
+      stampEl.hidden = true;
+      stampEl.className = 'g-stamp';
+      return;
+    }
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    if (stampLevel == null) {
+      stampFace.textContent = texts.take ? String(texts.take).replace(/[！!]/g, '') : gt.verb.take;
+      stampEl.hidden = false;
+      restart(stampEl, 'in');
+    }
+    stampLevel = level;
+    stampEl.dataset.level = String(level);
+    if (level >= 2) vibe([20, 20, 20]);
+    else if (level === 1) vibe(15);
+  }
+  function stampSlam(text) {
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    if (stampEl.hidden) { stampHold(0); }
+    stampEl.classList.remove('in');
+    restart(stampEl, 'slam');
+    later(() => stampHold(null), 260);
+    const r = relRect(custWrap);
+    const pa = el('div', 'g-pa g-pa-stamp', fx, text || gt.stamp);
+    Object.assign(pa.style, { left: r.x + r.w * 0.5 + 'px', top: r.y + r.w * 0.12 + 'px' });
+    later(() => pa.remove(), 900);
+    shake(8, 160);
+    vibe([30, 40, 60]);
+  }
+
+  // 甩: the next fly-out follows the swipe (initial velocity from its speed, spin, gravity, off screen)
+  let pendingFling = null;
+  function setFling(sw) {
+    pendingFling = sw && sw.dir ? { dir: sw.dir, speed: sw.speed || 1, at: performance.now() } : null;
+  }
+  function takeFling() {
+    const f = pendingFling;
+    pendingFling = null;
+    return f && performance.now() - f.at < 4000 ? f : null;
+  }
+  function physics(node, { dir, speed }, onDone) {
+    const v = Math.max(0.9, Math.min(2.6, speed * 0.9));
+    // a 50 ms hit-stop (squashed the way of the swipe) before the flight: the hand connects, then they go
+    const HIT_STOP = lite ? 0 : 50;
+    const t0 = performance.now() + HIT_STOP;
+    const st = { x: 0, y: 0, vx: dir.x * v, vy: dir.y * v - 0.25, r: 0, w: (dir.x >= 0 ? 1 : -1) * (0.5 + speed * 0.35), t0, last: t0 };
+    if (HIT_STOP) node.style.transform = `translate(${(dir.x * 6).toFixed(1)}px, ${(dir.y * 6).toFixed(1)}px) scale(${1 + Math.abs(dir.x) * 0.12}, ${1 - Math.abs(dir.x) * 0.1})`;
+    node._phys = st;
+    const W = stage.clientWidth;
+    const H = stage.clientHeight;
+    const step = (now) => {
+      if (now < st.t0) { st.raf = requestAnimationFrame(step); return; }
+      const dt = Math.min(40, now - st.last);
+      st.last = now;
+      st.vy += 0.0042 * dt;
+      st.x += st.vx * dt;
+      st.y += st.vy * dt;
+      st.r += st.w * dt;
+      node.style.transform = `translate(${st.x.toFixed(1)}px, ${st.y.toFixed(1)}px) rotate(${st.r.toFixed(1)}deg)`;
+      if (now - st.t0 > 1100 || Math.abs(st.x) > W * 1.3 || st.y > H || st.y < -H) { node._phys = null; onDone?.(); return; }
+      st.raf = requestAnimationFrame(step);
+    };
+    st.raf = requestAnimationFrame(step);
+    return st;
+  }
+
+  // the queue at the right edge: a fling that way knocks over 1–3 of them (3 = STRIKE)
+  function bowl(n = 1, text) {
+    const pins = [...pinsEl.querySelectorAll('.g-pin')];
+    pins.slice(0, Math.max(0, Math.min(3, n))).forEach((p, i) => {
+      p.style.setProperty('--d', `${120 + i * 70}ms`);
+      restart(p, 'down');
+      later(() => p.classList.remove('down'), 1300);
+    });
+    if (n >= 3) {
+      const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+      later(() => huazi([{ text: text || gt.strike, style: 'S2', seg: 'punch', ratio: 0 }]), 260);
+      vibe([20, 30, 20, 30, 60]);
+    }
+  }
+
+  // gesture rage: half heads pop in a row; one swipe can cross several
+  const RAGE_SLOTS = 4;
+  function rageHeadAdd(customer, n, { liveMs = 1200 } = {}) {
+    if (!customer) return;
+    const h = el('div', 'rage-head', rageRow);
+    h.dataset.n = String(n);
+    h.dataset.key = customer.key || 'gun';
+    const slot = String((n - 1) % RAGE_SLOTS);
+    for (const old of rageRow.querySelectorAll(`.rage-head[data-slot="${slot}"]`)) old.remove();
+    h.dataset.slot = slot;
+    h.style.setProperty('--i', slot);
+    h.innerHTML = `<div class="cust-clip">${art.customerSVG(customer, 1)}</div>`;
+    const m = miniSign(h, art.signKind ? art.signKind(customer) : customer.key, '');
+    m.classList.add('rage-mini');
+    later(() => {
+      if (!h.isConnected || h.classList.contains('out')) return;
+      h.classList.add('gone');
+      later(() => h.remove(), 260);
+    }, liveMs);
+  }
+  function rageHeadHit(n, key, sw) {
+    const h = rageRow.querySelector(`.rage-head[data-n="${n}"]`);
+    if (!h || h.classList.contains('out')) return false;
+    h.classList.add('out');
+    h.dataset.face = key;
+    if (sw && sw.dir) { h.classList.add('phys'); physics(h, sw, () => h.remove()); }
+    else later(() => h.remove(), 560);
+    return true;
+  }
+  function clearRageHeads() {
+    rageRow.textContent = '';
+  }
+
+  function gestureHint(key, text) {
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    const c = chips[key]?.c;
+    if (c) { restart(c, 'hint-flash'); later(() => c.classList.remove('hint-flash'), 420); }
+    const t = el('div', 'g-hint', fx, text || gt.hint[key] || '');
+    t.dataset.key = key;
+    later(() => t.remove(), 1100);
+  }
 
   // ---------- Lite mode (spec K4, A13) ----------
   // Slow devices get hard camera cuts instead of glides and no idle loops (clerk breathing, monitor scan /
@@ -902,9 +1213,17 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const kind = spec.kind || (spec.key && !spec.id ? (spec.key === 'take' || spec.key === 'shut' ? spec.key : 'gun') : undefined);
     return art.signSVG(spec, lang, { kind, text: spec.sign != null ? String(spec.sign) : undefined, scribble: spec.sub });
   }
+  // gesture mode: the corner badge shows the best gesture for this sign (every gesture still works)
+  function gestureBadge(node) {
+    if (inputMode !== 'gesture' || !node) return;
+    const b = node.querySelector('.sign-badge');
+    const k = node.dataset.kind === 'trap' ? 'gun' : node.dataset.kind;
+    if (b && art.GESTURE_ICONS[k]) b.innerHTML = art.GESTURE_ICONS[k];
+  }
   function mountSign(spec) {
     signSlot.innerHTML = signMarkup(spec);
     sign = signSlot.firstElementChild;
+    gestureBadge(sign);
     clearHuaziNear(sign);
     paintMult();
     return sign;
@@ -955,6 +1274,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     keep.forEach((c) => sign.classList.add(c));
     sign.dataset.kind = fresh.dataset.kind;
     sign.replaceChildren(...fresh.childNodes);
+    gestureBadge(sign);
     if (timer) (sign.querySelector('.sign-card') || sign).appendChild(timer);
   }
 
@@ -1078,10 +1398,19 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       restart(custWrap, face);
       signOut(face);
     } else {
+      // gesture mode: a swipe flings the customer its way (physics) instead of the fixed fly-out
+      const fl = inputMode === 'gesture' && (face === 'gun' || face === 'gun2') ? takeFling() : null;
       custWrap.dataset.face = FLY_MS[face] ? face : 'gun';
-      custWrap.querySelector('.cust-clip')?.classList.add('flying');
+      const clip = custWrap.querySelector('.cust-clip');
+      clip?.classList.add('flying');
       if (face === 'take') setTicket((last.ticket || 0) + 1);
       signOut(face);
+      if (fl && clip) {
+        custWrap.classList.add('physics');
+        physics(clip, fl, () => { if (gen === custGen) clearCustomer(); });
+        custLater(() => { if (gen === custGen) clearCustomer(); }, 1250);
+        return;
+      }
       if (face === 'gun2') custLater(starPop, FLY_MS.gun2);
     }
     custLater(() => { if (gen === custGen) clearCustomer(); }, (FLY_MS[face] || 520) + 80);
@@ -1094,7 +1423,12 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   function kick(face, { word, n = 1 } = {}) {
     const clip = custWrap.querySelector('.cust-clip');
     const flying = current && clip && custWrap.dataset.face && KICK[custWrap.dataset.face];
-    if (flying) {
+    if (clip && clip._phys) {
+      // a flung customer (gesture mode) gets another push the way they fly
+      clip._phys.vx *= 1.35;
+      clip._phys.vy -= 0.35;
+      clip._phys.w *= 1.4;
+    } else if (flying) {
       const k0 = clip._kicks || 0;
       const k1 = k0 + 1;
       clip._kicks = k1;
@@ -1539,8 +1873,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   let guideKey = null;
   let lineAnim = null;
   let fingerAnim = null;
+  // the element that stands for a key on screen: the button, or its gesture chip in gesture mode
+  const keyEl = (key) => (inputMode === 'gesture' ? chips[key]?.c : buttons[key]?.b);
   function keyCenter(key) {
-    const r = relRect(buttons[key].b);
+    const r = relRect(keyEl(key));
     return { x: r.x + r.w / 2, y: r.y + r.h / 2, r };
   }
   function guide({ key, dimOthers = true, glow = true, finger = false, line = false, blink = false } = {}) {
@@ -1548,12 +1884,21 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     guideKey = key;
     stage.dataset.guide = key;
     for (const k of KEYS) {
-      const b = buttons[k].b;
-      b.toggleAttribute('data-dim', dimOthers && k !== key);
-      b.toggleAttribute('data-glow', glow && k === key);
-      b.toggleAttribute('data-blink', blink && k === key);
+      for (const b of [buttons[k].b, chips[k].c]) {
+        b.toggleAttribute('data-dim', dimOthers && k !== key);
+        b.toggleAttribute('data-glow', glow && k === key);
+        b.toggleAttribute('data-blink', blink && k === key);
+      }
     }
-    if (finger) {
+    if (finger && inputMode === 'gesture') {
+      // gesture mode: the finger shows the move on the customer (fling up-right / three taps / press and hold)
+      const cr = relRect(custWrap);
+      const c = { x: cr.x + cr.w * 0.55, y: cr.y + cr.w * 0.18 };
+      fingerEl.dataset.g = key;
+      fingerEl.hidden = false;
+      Object.assign(fingerEl.style, { left: c.x + 'px', top: c.y + 'px' });
+    } else if (finger) {
+      delete fingerEl.dataset.g;
       const k0 = keyCenter(key);
       // fingertip on the upper right of the key (next to its icon): the hand then lies right of and below the
       // label, so "滚！" stays readable and the sleeve ends above the stage edge (review)
@@ -1600,13 +1945,13 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   function clearGuide() {
     guideKey = null;
     delete stage.dataset.guide;
-    for (const k of KEYS) ['data-dim', 'data-glow', 'data-blink'].forEach((a) => buttons[k].b.removeAttribute(a));
+    for (const k of KEYS) ['data-dim', 'data-glow', 'data-blink'].forEach((a) => { buttons[k].b.removeAttribute(a); chips[k].c.removeAttribute(a); });
     hideFinger();
     clearGuideLine();
   }
   function hintCorrect(key) {
     signFx('hint');
-    const b = buttons[key]?.b;
+    const b = keyEl(key);
     if (!b) return;
     restart(b, 'hint-flash');
     later(() => b.classList.remove('hint-flash'), 420);
@@ -1625,7 +1970,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
   // 4.4: a sign type's first appearance of the day makes its key breathe (600 ms x 2).
   function breathKey(key) {
-    const b = buttons[key]?.b;
+    const b = keyEl(key);
     if (!b) return;
     restart(b, 'breath');
     later(() => b.classList.remove('breath'), 1250);
@@ -1635,6 +1980,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (!b) return;
     const was = b.hasAttribute('data-covered');
     b.toggleAttribute('data-covered', !!covered);
+    chips[key]?.c.toggleAttribute('data-covered', !!covered);
     if (was && !covered && animate) {
       restart(b, 'uncover');
       later(() => b.classList.remove('uncover'), 220);
@@ -1921,6 +2267,24 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const label = firstRun ? t.start || d.firstStart : typeof t.startDay === 'function' ? t.startDay(day) : t.startDay ? String(t.startDay).replace('{n}', day) : d.day(day);
     const btn = el('button', 'start-btn', startCard, label);
     btn.type = 'button';
+    // controls toggle (docs/gameplay-v2.md 9): 手势 / 按键; does not start the shop
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    const tog = el('div', 'input-tog', startCard);
+    el('span', 'it-label', tog, gt.input);
+    for (const m of ['gesture', 'buttons']) {
+      const b = el('button', 'it-opt', tog, gt[m]);
+      b.type = 'button';
+      b.dataset.mode = m;
+      b.setAttribute('aria-pressed', String(inputMode === m));
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (inputMode === m) return;
+        onToggleInput(m);
+        setInputMode(m);
+        tog.querySelectorAll('.it-opt').forEach((o) => o.setAttribute('aria-pressed', String(o.dataset.mode === inputMode)));
+      });
+    }
     if (!reduced) h1.animate([{ translate: '0 -30cqw', scale: '1.3', opacity: 0 }, { translate: '0 1cqw', scale: '.96', opacity: 1, offset: 0.75 }, { translate: '0 0', scale: '1', opacity: 1 }], { duration: 600, easing: 'cubic-bezier(.3,1.5,.5,1)', fill: 'backwards' });
     btn.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: 1200, fill: 'backwards' });
     const since = performance.now();
@@ -2288,5 +2652,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     effect,
     // gameplay v2 stage 2
     setPreview, setMeter, setQuick, showGroup, groupHit, showEvent, updateEvent, hideEvent, shutter, dayBanner,
+    // gesture mode (docs/gameplay-v2.md 9)
+    setInputMode, get inputMode() { return inputMode; }, setGestureHints, slap, stampHold, stampSlam, setFling, bowl,
+    rageHeadAdd, rageHeadHit, clearRageHeads, gestureHint,
   };
 }

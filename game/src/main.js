@@ -23,7 +23,17 @@
 // Too slow: aura 0 → 10 s of forced politeness (every reply is a service line), never an early close.
 // window.__250.inputs (debug) counts press outcomes for tools/bots.mjs.
 //
-// Storage (all try/catch): 250cups.day (default 1, only goes up), 250cups.openingDone, 250cups.lang, 250cups.bleep.
+// Gameplay v2 stage 2 (docs/gameplay-v2.md 5–6): days 2+ show the next two customers' mini signs under the counter
+// (state.upcoming) and run fast mouth (快嘴: after five correct in a row a quick customer is silent, the clerk plays only
+// the punch half — audio playClerk punchOnly — or the key's shout for lines without '|', landing 250 ms, enter 180 ms).
+// Each day has a rule (days.js `rule`): day 3 original customers 4–6 times, day 4 the 250 ticket meter, day 5 the
+// ex-boss's phone call, day 6 group boxes and change-order customers, day 7 the ex-boss (eight steps, the last one a
+// full hold on 收). One mini event mid-round (src/events.js via the engine) and the last 5 s 拉铁门 on days 2+.
+// The day card (start card / in-round banner) shows the rule; the summary shows ★1–★3 (days.js evaluateDay), the rating
+// (C / B / A / S / gold 250), 新纪录 and the ★3 riddle.
+//
+// Storage (all try/catch): 250cups.day (default 1, only goes up), 250cups.openingDone, 250cups.lang, 250cups.bleep,
+// 250cups.best.N (best queue of day N), 250cups.stars.N (stars of day N ever reached: bit 1 = ★1, 2 = ★2, 4 = ★3).
 // URL params: ?lang=zh|en  ?bleep=1  ?day=N  ?skipOpening=1  ?seed=N  ?debug (window.__250 for automated tests)
 //
 // Opening on day 1: the first run plays it without a skip button; once it was completed
@@ -34,7 +44,7 @@ import { getContent } from './content.js';
 import { createGame } from './engine.js';
 import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
-import { configForDay, poolForDay, dayInfo, clampDay, DAYS } from './days.js';
+import { configForDay, poolForDay, dayInfo, clampDay, DAYS, evaluateDay, specialsForDay } from './days.js';
 import { createHuaziTracker } from './huazi.js';
 import * as art from './art.js';
 
@@ -119,8 +129,35 @@ function originalCustomer() {
   return { name: '', tag: '', style: '250', cups: 250, ...o, id: o.id ?? 'orig', steps, key: steps[0], reply: o.reply2 ?? o.reply };
 }
 
+// Day 6 change-order customer (SYSTEM.changeOrder): a red sign that flips to a gold 250杯 while they talk.
+function changeCustomer() {
+  const o = getContent('zh').system.changeOrder;
+  if (!o) return null;
+  return { id: 'change', name: o.name, cat: '数量', style: 'deadpan', key: 'gun', cups: null, says: o.says, sign: o.sign, reply: o.gun, alt: o.gun, flip: { key: 'take', cups: 250, atMs: 3200 } };
+}
+
+// Day 7 boss (SYSTEM.boss): eight steps; 3–6 are the haggling phrase, the last one wants a full hold on 收.
+const BOSS_KEYS = ['take', 'shut', 'gun', 'take', 'take', 'take', 'take', 'take'];
+function bossCustomer() {
+  const b = getContent('zh').system.boss;
+  if (!b || !Array.isArray(b.steps) || b.steps.length !== BOSS_KEYS.length) return null;
+  return {
+    id: 'boss', boss: true, holdLast: true, name: b.name, cat: '职场社会', style: 'cold', cups: null, steps: BOSS_KEYS.slice(),
+    key: 'take', haggle: [3, 4, 5, 6], stepSpeakMs: 9000, says: b.steps[0].says, sign: b.steps[0].sign, reply: b.steps[7].full, reply2: b.steps[7].full,
+  };
+}
+
 function local(customer) {
   if (!customer) return customer;
+  if (customer.boss) {
+    const b = content.system.boss || {};
+    return { ...customer, name: b.name || customer.name, says: b.steps?.[0]?.says ?? customer.says, sign: b.steps?.[0]?.sign ?? customer.sign };
+  }
+  if (customer.id === 'change') {
+    const o = content.system.changeOrder || {};
+    return { ...customer, name: o.name || customer.name, says: o.says ?? customer.says, sign: o.sign ?? customer.sign };
+  }
+  if (Array.isArray(customer.group)) return { ...customer, group: customer.group.map((c) => local(c)) };
   if (Array.isArray(customer.steps)) { // the two-step original customer lives in SYSTEM, not in the 100
     const o = content.system.originalCustomer || {};
     return { ...customer, ...o, id: customer.id, key: customer.key, steps: customer.steps, style: customer.style };
@@ -133,13 +170,11 @@ const zh = () => lang === 'zh';
 
 // Texts D adds to content (SYSTEM.unlock / tips / daySlow); built-in fallbacks keep main.js running without them.
 function unlockText(which) {
-  // v2: no early close any more; the content text ('气势没了＝提早打烊') is replaced here until the stage 2 content pass
-  if (which === 'aura') return zh() ? '气势没了＝被迫营业' : 'No swagger = forced politeness';
   const u = sys().unlock;
   const order = ['aura', 'rage', 'rageTip', 'charge'];
   const fb = zh()
-    ? { aura: '气势没了＝提早打烊', rage: '爆气！', rageTip: '乱按都对！', charge: '狠骂！', hold: '按住＝狠骂' }
-    : { aura: 'No swagger = early closing', rage: 'RAGE!', rageTip: 'Mash anything!', charge: 'HARDER!', hold: 'Hold = harder' };
+    ? { aura: '气势没了＝被迫营业', rage: '爆气！', rageTip: '乱按都对！', charge: '狠骂！', hold: '按住＝狠骂' }
+    : { aura: 'No swagger = forced politeness', rage: 'RAGE!', rageTip: 'Mash anything!', charge: 'HARDER!', hold: 'Hold = harder' };
   if (Array.isArray(u)) return u[order.indexOf(which)] || fb[which];
   return (u && (u[which] || (which === 'rageTip' && u.rageHint))) || fb[which];
 }
@@ -202,16 +237,20 @@ function clerkTiming(p, line, opts) {
   if (typeof audio.voiceTimings === 'function') {
     try { const t = audio.voiceTimings(line, opts); if (t && Number.isFinite(t.punchMs)) return t; } catch { /* estimate */ }
   }
+  if (opts.punchOnly) line = punchHalf(line);
   const [a, b] = String(line ?? '').includes('|') ? String(line).split('|') : ['', line];
   const setupMs = a ? estimateMs(a) : 0;
   const punchStartMs = setupMs ? setupMs + (opts.punchGapMs ?? 200) : 0;
   return { setupMs, punchStartMs, punchMs: estimateMs(b) };
 }
 
+// fast mouth: the punch half of a cut line (the whole line when it has no '|')
+const punchHalf = (t) => { const s = String(t ?? ''); const i = s.indexOf('|'); return i < 0 ? s : s.slice(i + 1); };
+
 /** Clerk line: setup | silence | punch. Returns { setupMs, punchStartMs, punchMs, done }. Cuts the previous line. */
-function sayClerk(line, { style, fx = 'normal', gap } = {}) {
+function sayClerk(line, { style, fx = 'normal', gap, punchOnly = false } = {}) {
   rageGen++; // a clerk line also ends any running rage chant loop
-  const opts = { punchGapMs: gap ?? info.punchGapMs, punchFx: fx, style };
+  const opts = { punchGapMs: gap ?? info.punchGapMs, punchFx: fx, style, punchOnly };
   let p = null;
   try {
     if (typeof audio.playClerk === 'function') p = audio.playClerk(line, opts);
@@ -309,6 +348,31 @@ function landingPress(key) {
   return 'dead';
 }
 
+// ---------------------------------------------------------------- stage 2: storage, stars, timing helpers
+const bestKey = (n) => `250cups.best.${n}`;
+const starsKey = (n) => `250cups.stars.${n}`;
+function loadBest(n) {
+  const b = Number(stored(bestKey(n)));
+  const m = Number(stored(starsKey(n)));
+  return { best: Number.isFinite(b) && b > 0 ? b : 0, mask: Number.isFinite(m) ? m & 7 : 0 };
+}
+/** Saves the day's best queue and the union of stars ever reached. Returns { newRecord, best, mask }. */
+function saveBest(n, queue, mask) {
+  const prev = loadBest(n);
+  const newRecord = queue > prev.best && prev.best > 0;
+  const best = Math.max(prev.best, queue);
+  if (queue > prev.best) store(bestKey(n), String(queue));
+  const union = prev.mask | mask;
+  if (union !== prev.mask) store(starsKey(n), String(union));
+  return { newRecord, first: prev.best === 0, best, mask: union };
+}
+const dayText = (n) => (sys().days || {})[n] || {};
+const reportText = () => sys().report || {};
+const fmtN = (t, n) => String(t ?? '').replace('{n}', n);
+// sign-up time of a customer: head pop + 120 ms + 160 ms sign flip
+// (silent customers in fast mouth / groups: the sign rises 40 ms after the head, so sign up = enter + 200)
+const signUpOf = (silent) => (silent ? (info.quickEnterMs ?? 180) + 200 : (info.enterMs ?? 300) + 280);
+
 function callNext() {
   if (!game || game.state.current || game.state.phase !== 'playing') return false;
   const line = nextLine();
@@ -338,13 +402,18 @@ const ui = createUI(root, {
     let kind = 'dead';
     if (r && r.rageStart) kind = 'rageStart';
     else if (r && r.rage) kind = r.miss ? 'rageMiss' : 'rage';
+    else if (r && r.event) kind = 'event';
     else if (r && r.buffered) kind = 'buffered';
+    else if (r && r.tooEarly) { kind = 'late'; ui.shake?.(2, 50); audio.sfx('tap', { intensity: 0.4 }); }
+    else if (r && r.holding) kind = 'holding';
     else if (r && 'land' in r) kind = r.correct ? 'answer' : 'wrong';
+    else if (r && r.group) kind = 'group';
     else if (r && r.step != null) kind = 'step';
-    else if (!r && before.phase === 'playing' && !before.current && !before.paused) kind = landingPress(key);
+    else if (!r && before.phase === 'playing' && !before.current && !before.paused && !before.shutter) kind = landingPress(key);
     inputs[kind] = (inputs[kind] || 0) + 1;
-    pressOk[key] = !!r && !r.rage && r.correct && 'land' in r; // a resolved answer (not a rage hit or a first step)
-    if (kind === 'answer' || kind === 'wrong' || kind === 'step' || kind === 'buffered') audio.sfx('press');
+    // a resolved answer (not a rage hit or a first step) may be charged; the boss's last step waits for the full hold
+    pressOk[key] = !!r && !r.rage && ((r.correct && 'land' in r) || !!r.holding);
+    if (kind === 'answer' || kind === 'wrong' || kind === 'step' || kind === 'buffered' || kind === 'group' || kind === 'holding') audio.sfx('press');
     if (kind === 'rageMiss') audio.sfx('tap', { intensity: 0.4 });
     if (kind !== 'dead' && navigator.vibrate) { try { navigator.vibrate(10); } catch { /* optional */ } }
     ui.render(game.state);
@@ -354,6 +423,13 @@ const ui = createUI(root, {
     syncClock();
     game.charge(level);
     ui.render(game.state);
+  },
+  // stage 2: the calculator resolves on release; a release on the boss's last step before the full hold repeats it
+  onRelease(key, holdMs) {
+    if (openingActive() || !game) return;
+    syncClock();
+    const r = game.release?.(key, holdMs);
+    if (r) ui.render(game.state);
   },
   onStart() {
     beginFromCard();
@@ -379,12 +455,30 @@ function startTexts() {
 }
 
 function showStartCard() {
-  ui.showStart(startTexts(), { firstRun: !openingDone, day });
+  const t = startTexts();
+  if (day > 1 || openingDone) Object.assign(t, dayCardTexts(day));
+  ui.showStart(t, { firstRun: !openingDone, day });
+}
+
+// Day card texts (stage 2): "第 N 天 · 午休潮", the rule in one line, the ★3 riddle, best queue / stars so far.
+function dayCardTexts(n) {
+  const d = dayText(n);
+  const r = reportText();
+  const { best, mask } = loadBest(n);
+  return {
+    dayTitle: d.name ? `${fmtN(r.day, n)} · ${d.name}` : '',
+    rule: d.rule || '',
+    riddle: d.riddle ? `${r.riddle || ''}：${d.riddle}`.replace(/^：/, '') : '',
+    best: best ? `${r.best || ''} ${best.toLocaleString('en-US')}` : '',
+    starMask: mask,
+  };
 }
 
 let lastSummary = null;
 let lastVerdict = '';
 let lastPassed = false;
+let lastEval = null;   // days.js evaluateDay() of the last finished day
+let lastRecord = null; // saveBest() result
 let lastDay = day;
 
 function setLang(next) {
@@ -418,7 +512,7 @@ function showReport(summary, relocalize = false) {
     const bestC = local(content.customers.find((c) => c.id === summary.bestLineId));
     const bestRaw = bestC ? (bestLineMeta.id === summary.bestLineId && bestLineMeta.alt ? bestC.alt : bestC.reply) : '';
     ui.showClosing(closingTexts(), {
-      queue: summary.queue, stars: lastPassed ? 1 : 0, star1: dayInfo(1).star1,
+      queue: summary.queue, stars: lastEval ? lastEval.count : lastPassed ? 1 : 0, star1: dayInfo(1).star1,
       plate: sys().opening?.plate, bestLine: bestRaw ? stripStageText(bestRaw) : '',
       bestLabel: zh() ? '今天最狠一句' : "Today's savagest line",
     }, () => beginFromCard());
@@ -431,7 +525,31 @@ function showReport(summary, relocalize = false) {
   const star1 = dayInfo(lastDay).star1;
   const st = sys().start || {};
   const nextLabel = st.startDay ? String(st.startDay).replace('{n}', day) : null;
-  ui.showSummary(summary, { bestLine: line ? unpipe(line) : undefined, verdict: lastVerdict, star1, again: (lastPassed && day !== lastDay && nextLabel) || sys().ui.again });
+  ui.showSummary(summary, {
+    bestLine: line ? unpipe(line) : undefined, verdict: lastVerdict, star1,
+    again: (lastPassed && day !== lastDay && nextLabel) || sys().ui.again, ...reportTexts(lastDay, summary),
+  });
+}
+
+// Stars, rating, record and the ★3 riddle for the summary card (stage 2).
+function reportTexts(n, summary) {
+  const ev = lastEval || evaluateDay(n, summary);
+  const d = dayText(n);
+  const r = reportText();
+  const info1 = dayInfo(n);
+  const lines = [
+    info1.star1 != null ? fmtN(r.star1, info1.star1.toLocaleString('en-US')) : r.star1Boss,
+    `${r.star2 || '★2 '}${d.star2 || ''}`,
+    `${r.star3 || '★3 '}${ev.stars[2] ? d.riddle || '' : '？？？'}`,
+  ];
+  const next = lastPassed && day !== n ? dayText(day) : null;
+  return {
+    title: d.name ? `${fmtN(r.day, n)} · ${d.name}` : undefined,
+    stars: ev.stars, starLines: lines, rating: ev.rating, gold: ev.gold, ratingLabel: r.rating,
+    record: lastRecord && lastRecord.newRecord ? r.newRecord : '', bestText: lastRecord ? `${r.best || ''} ${lastRecord.best.toLocaleString('en-US')}` : '',
+    hint: ev.stars[2] ? (ev.count === 3 ? r.allStars : '') : `${r.toStar3 || ''}${d.riddle || ''}`,
+    tomorrow: next && next.name ? `${r.tomorrow || ''}${next.name} · ${next.rule || ''}` : '',
+  };
 }
 
 // ---------------------------------------------------------------- start / opening / rounds
@@ -510,8 +628,15 @@ const round = {
 let bestLineMeta = { id: null, alt: false, score: -Infinity };
 
 function buildGame(n) {
-  const special = dayInfo(n).original ? originalCustomer() : null;
-  const extra = special ? { special: { customer: special, atMs: dayInfo(n).original.atMs } } : {};
+  const d = dayInfo(n);
+  const extra = {};
+  if (d.specials && d.specials.length) {
+    // stage 2: the day's specials (original / group / change-order / boss), each once at its time
+    extra.specials = specialsForDay(n, { original: originalCustomer(), change: changeCustomer(), boss: bossCustomer() });
+  } else if (d.original) {
+    const special = originalCustomer();
+    if (special) extra.special = { customer: special, atMs: d.original.atMs };
+  }
   if (debugDurationMs > 0) extra.durationMs = debugDurationMs;
   // ?debug&first=78,63,47: these customer ids come first (QA: a deterministic draw)
   if (params.has('debug') && params.get('first')) extra.fixedOrder = params.get('first').split(',').map((x) => (/^\d+$/.test(x) ? Number(x) : x));
@@ -541,6 +666,13 @@ function startRound({ carry = 0 } = {}) {
   rageKey = 'any';
   ui.setSignMult?.('');
   ui.setForced?.(false);
+  // stage 2 overlays from the last round
+  shown = { preview: '', meter: null, quick: null, event: null };
+  ui.setPreview?.([]);
+  ui.setMeter?.(info.meter ? 0 : null);
+  ui.setQuick?.(false, 0);
+  ui.hideEvent?.();
+  ui.shutter?.(false);
   // day 1 after the opening: the shut key may still be covered and guides may linger
   ui.coverKey?.('shut', false, { animate: false });
   ui.clearGuide?.();
@@ -559,6 +691,52 @@ function startRound({ carry = 0 } = {}) {
   audio.crowd(0.08);
   lastCrowd = -1;
   ui.render(game.state, hudOpts());
+  // day card (stage 2): the day's name and rule in one line, without stopping the clock
+  if (day > 1) {
+    const t = dayCardTexts(day);
+    if (t.dayTitle) ui.dayBanner?.(t.dayTitle, t.rule, 2200);
+  }
+}
+
+// What the frame loop last drew of the stage-2 state (preview, meter, fast mouth, event panel).
+let shown = { preview: '', meter: null, quick: null, event: null };
+function previewSpec(c) {
+  if (!c) return null;
+  const loc = local(c);
+  const kind = art.signKind ? art.signKind(loc) : c.key;
+  return { kind, text: signTextOf(loc) };
+}
+function syncStage2(st) {
+  // the next customers' mini signs (days 2+)
+  const ids = (st.upcoming || []).map((c) => c.id).join(',');
+  const prevKey = ids + ':' + lang;
+  if (prevKey !== shown.preview) {
+    shown.preview = prevKey;
+    ui.setPreview?.((st.upcoming || []).map(previewSpec).filter(Boolean));
+  }
+  if (info.meter && st.meter !== shown.meter) {
+    shown.meter = st.meter;
+    ui.setMeter?.(st.meter);
+  }
+  const q = st.quick ? st.quickRun : -1;
+  if (q !== shown.quick) {
+    shown.quick = q;
+    ui.setQuick?.(st.quick, st.quickRun);
+  }
+  const ev = st.event;
+  if (ev) {
+    const big = eventBig(ev);
+    if (big !== shown.event) { shown.event = big; ui.updateEvent?.({ big }); }
+  } else shown.event = null;
+}
+// the big number of the event panel
+function eventBig(ev) {
+  if (!ev) return '';
+  if (ev.type === 'calculator') return ev.value == null ? '---' : String(ev.value);
+  if (ev.type === 'stamp') return `${ev.value ?? 0}/${ev.target ?? 250}`;
+  if (ev.type === 'phone') return ev.hungUp ? '...' : `${Math.max(0, 2 - ev.count)}`;
+  if (ev.type === 'shutter') return `+${ev.count}`;
+  return `+${ev.count}`;
 }
 
 // ---------------------------------------------------------------- engine events
@@ -570,7 +748,7 @@ function wire(g) {
     ui.showLine(pick(sys().next), { who: 'system' });
   });
 
-  g.on('arrive', ({ customer }) => {
+  g.on('arrive', ({ customer, quick, silent }) => {
     const gen = ++round.arrivals;
     round.tracker?.next();
     if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
@@ -581,9 +759,21 @@ function wire(g) {
     ui.resetClerk?.();
     const loc = local(customer);
     landing = null;
+    const enterMs = silent ? info.quickEnterMs ?? 180 : info.enterMs;
     ui.setSignMult?.(game && game.config.speedCutIn > 1 ? '×' + game.config.speedCutIn : ''); // ×2 while they talk
-    const { signUpAt } = ui.showCustomer(loc, { enterMs: info.enterMs, line: false }) || { signUpAt: now() + info.enterMs + 280 };
+    let shownC = null;
+    if (Array.isArray(loc.group)) {
+      // group box: 3–5 heads with the same sign colour, one big sign "×N"
+      shownC = ui.showGroup?.(loc.group, { key: customer.key, enterMs, signDelayMs: 40, sign: fmtN((sys().eventUi || {}).group || '{n}', loc.group.length) });
+      audio.sfx('crowdOh', { intensity: 0.6 });
+    }
+    const { signUpAt } = shownC || ui.showCustomer(loc, { enterMs, line: false, signDelayMs: silent ? 40 : 120 }) || { signUpAt: now() + enterMs + 280 };
     audio.sfx('pop');
+    if (silent) {
+      // fast mouth / group: nobody talks, the sign is the order (t0 comes from the engine: sign up + 200 ms)
+      if (quick && round.arrivals > 0) ui.setSignMult?.('');
+      return;
+    }
     const key = customer.key;
     // 4.4: the first sign of a type today → that key breathes once
     if (!round.seenKeys.has(key)) { round.seenKeys.add(key); ui.breathKey?.(key); }
@@ -603,11 +793,76 @@ function wire(g) {
     customerTalks(gen, loc, signUpAt);
   });
 
-  g.on('ready', ({ patienceMs }) => {
+  g.on('ready', ({ patienceMs, customer, step }) => {
     ui.startSignTimer?.(patienceMs, { steps: g.config.speedSteps });
+    if (customer && customer.boss && customer.holdLast && step === customer.steps.length - 1) {
+      ui.guide?.({ key: 'take', dimOthers: false, glow: true, finger: true });
+      round.guideActive = true;
+      ui.tip?.(sys().boss?.hold || '', { key: 'take', ms: 1800 });
+    }
   });
 
-  g.on('step', (e) => onStep(e));
+  g.on('step', (e) => (e.boss ? onBossStep(e) : onStep(e)));
+
+  // ---- stage 2 events
+  g.on('quickStart', () => {
+    ui.huazi([{ text: sys().quick?.start || '快嘴！', style: 'S1', seg: 'punch', ratio: 0 }]);
+    audio.sfx('sparkle');
+  });
+  g.on('quickEnd', () => { ui.setQuick?.(false, 0); });
+
+  g.on('groupHit', ({ hits, key }) => {
+    ui.groupHit?.(hits, key);
+    ui.shake?.(4, 80);
+    audio.sfx('slam', { intensity: 0.7 });
+    const word = rageLinesFor('any')[hits === 1 ? 1 : 2] || sys().ui?.[key];
+    if (word) { ui.showLine(word, { style: 'curse', who: 'clerk' }); sayClerk(word, { style: 'rage' }); }
+  });
+
+  g.on('flip', () => {
+    const o = sys().changeOrder || {};
+    const gen = round.arrivals;
+    ui.showSign?.({ key: 'take', sign: o.sign2, cups: 250 }, { flip: 'rotY' });
+    audio.sfx('card');
+    if (!o.says2) return;
+    later(Math.max(0, clerkEndAt + 80 - now()), () => {
+      if (gen !== round.arrivals || !game || !game.state.current?.speaking) return;
+      ui.showLine(o.says2, { who: 'cust', color: 'take' });
+      const ms = sayCustomer(o.says2);
+      later(Math.max(250, ms), () => { if (gen === round.arrivals && game) game.speechDone(); });
+    });
+  });
+
+  g.on('holding', () => { ui.setClerk?.('perfect', 900); audio.sfx('drumroll', { intensity: 0.5 }); });
+
+  g.on('bossAgain', ({ step }) => {
+    ui.stopSignTimer?.();
+    if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
+    const b = sys().boss || {};
+    const st = (b.steps || [])[step] || {};
+    const gen = round.arrivals;
+    ui.huazi([{ text: b.again || '', style: 'S3', seg: 'setup', ratio: 0 }]);
+    audio.sfx('boo', { intensity: 0.5 });
+    later(500, () => {
+      if (gen !== round.arrivals || !game || !game.state.current?.speaking) return;
+      ui.showLine(st.says, { who: 'cust', color: BOSS_KEYS[step] });
+      const ms = sayCustomer(st.says);
+      later(Math.max(250, ms), () => { if (gen === round.arrivals && game) game.speechDone(); });
+    });
+  });
+
+  g.on('meter', (e) => onMeter(g, e));
+
+  g.on('leave', () => {
+    ui.stopSignTimer?.();
+    cutVoice();
+    ui.customerReact?.('sink');
+  });
+
+  g.on('bonus', ({ queueDelta, event }) => { if (event && queueDelta > 0) ui.queueGain?.(queueDelta); });
+  g.on('eventStart', (e) => onEventStart(g, e));
+  g.on('eventCue', (e) => onEventCue(g, e));
+  g.on('eventEnd', (e) => onEventEnd(g, e));
 
   g.on('resolve', (e) => onResolve(e));
 
@@ -695,7 +950,7 @@ function wire(g) {
     rageGen++;
     round.rageHits = 0;
     ui.effect('rageEnd', {});
-    if (g.state.phase === 'over') return;
+    if (g.state.phase === 'over' || g.state.shutter) return;
     ui.clearCustomer?.();
     audio.cut(60);
     // the third beat: 0.5 s of silence, then the clerk is professional again
@@ -748,8 +1003,12 @@ function wire(g) {
     lastSummary = summary;
     const finishedDay = day;
     lastDay = finishedDay;
-    const star1 = dayInfo(finishedDay).star1;
-    lastPassed = star1 == null ? true : summary.queue >= star1;
+    ui.hideEvent?.();
+    ui.setPreview?.([]);
+    ui.setQuick?.(false, 0);
+    lastEval = evaluateDay(finishedDay, summary);
+    lastPassed = lastEval.stars[0];
+    lastRecord = saveBest(finishedDay, summary.queue, lastEval.mask);
     // Day 1 always moves on (U6: tap into day 2); later days need ★1, otherwise the day is replayed.
     if (finishedDay === 1 || lastPassed) {
       const next = clampDay(finishedDay + 1);
@@ -785,9 +1044,15 @@ function customerTalks(gen, loc, signUpAt) {
     if (gen !== round.arrivals || !game || !game.state.current?.speaking) return;
     if (says) ui.showLine(says, { who: 'cust', color: loc.key });
     const ms = game.state.phase === 'rage' ? 0 : sayCustomer(says);
-    // talkLeadMs (day 1): the window opens a little before the voice ends, so a prompt answer comes right after it
-    const t0 = clamp(now() + ms - (info.talkLeadMs || 0), signUpAt + 250, signUpAt + 1600);
-    later(t0 - now(), () => { if (gen === round.arrivals && game) game.speechDone(); });
+    // talkLeadMs (day 1): the window opens a little before the voice ends, so a prompt answer comes right after it.
+    // The boss and the change-order customer talk longer; the change-order customer's first line ends in the flip.
+    const maxTalk = loc.boss || loc.flip ? 3600 : 1600;
+    const t0 = clamp(now() + ms - (info.talkLeadMs || 0), signUpAt + 250, signUpAt + maxTalk);
+    later(t0 - now(), () => {
+      if (gen !== round.arrivals || !game) return;
+      if (loc.flip) game.flip();
+      else game.speechDone();
+    });
   });
 }
 
@@ -829,8 +1094,13 @@ function onResolve(e) {
   let isAlt = false;
   // forced politeness (too slow, gameplay-v2 3): every reply is a service line
   if (e.forced) line = pick(sys().polite) || e.line;
+  else if (customer.boss) line = sys().boss?.steps?.[7]?.full || e.line;
   else if (customer.steps) line = loc.reply2 || e.line;
-  else {
+  else if (customer.group) line = pick(sys().group?.[key]) || e.line;
+  else if (customer.id === 'change') {
+    const o = sys().changeOrder || {};
+    line = (e.flipped ? o[key] : key === 'gun' ? o.early : o[key]) || e.line;
+  } else {
     isAlt = !!customer.alt && e.line === customer.alt && e.line !== customer.reply;
     // "今天第一个" (100 杯) only for the round's first booked order (review: it came twice in 45 s)
     if (!isAlt && correct && round.takes > 0 && /今天第一个/.test(customer.reply || '') && customer.alt) isAlt = true;
@@ -842,10 +1112,18 @@ function onResolve(e) {
   const big = e.land === 'big' || e.land === 'step';
   const style = e.forced ? 'polite' : customer.style;
   const fx = e.forced ? 'normal' : charge === 2 || e.land === 'step' ? 'mega' : big ? 'curse' : 'normal';
-  const L = e.land === 'wrong' ? info.landWrongMs : e.land === 'step' ? info.landBigMs + 300 : big ? info.landBigMs : info.landMs;
+  // fast mouth (stage 2): only the punch half, or the key's shout when the line has no cut point
+  const quick = !!e.quick && !e.forced;
+  if (quick && !String(line).includes('|')) line = sys().ui?.[key] || line;
+  // fast mouth: landing L = quickLandMs after every correct answer that is not a big one
+  const fastLand = correct && !!(e.inQuick || e.quick) && !big;
+  const L = fastLand ? info.quickLandMs ?? 250 : e.land === 'wrong' ? info.landWrongMs : e.land === 'step' ? info.landBigMs + 300 : big ? info.landBigMs : info.landMs;
 
-  const t = sayClerk(line, { style, fx });
-  clerkLine(line, { style, voiced: t });
+  const t = sayClerk(line, { style, fx, punchOnly: quick });
+  if (quick) {
+    ui.showLine(punchHalf(line), { who: 'clerk' });
+    subUntil = Math.max(subUntil, now() + t.totalMs + 150);
+  } else clerkLine(line, { style, voiced: t });
   if (e.forced) ui.setClerk?.('polite', t.punchStartMs + t.punchMs + 200);
   else ui.clerkBeat?.({ setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, landMs: L, fx });
   // jab → next: presses until the punch end + 200 ms are jabs, the first one after it calls the next customer
@@ -856,7 +1134,7 @@ function onResolve(e) {
   // 5.2: the sign leaves on the press (150 ms), so the result 花字 never lands on it. v2: a wrong key also
   // flies the customer on the punch; the 4.4 hint (right key flash) comes after the line.
   ui.signExit?.(key);
-  const list = !e.forced && round.tracker ? round.tracker.pick(line, { hua: loc.hua, exempt: charge === 2 || e.land === 'step', lang }) : [];
+  const list = !e.forced && !quick && round.tracker ? round.tracker.pick(line, { hua: loc.hua, exempt: charge === 2 || e.land === 'step', lang }) : [];
   const hz = list.length ? ui.huazi(list, { setupStartMs: 0, setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, minAt: 150 }) : null;
   const hzEndMs = hz && Number.isFinite(hz.endMs) ? hz.endMs : 0;
   // 3: the queue jumps where the player looks: "+N" flies from the counter into the door monitor
@@ -894,12 +1172,28 @@ function onResolve(e) {
   // punch end + L − signUp. Never before the old customer has flown off (FLY_CLEAR_MS after the punch, or
   // after the wrong-key hint), the setup has ended + 80, and the punch 花字 have played and the clerk's subtitle
   // has been read by signUp (arrive only cancels 花字 that have not started; the rising sign clears its spot).
-  const signUpMs = (info.enterMs ?? 300) + 280;
-  const flyClear = t.punchStartMs + (FLY_CLEAR_MS[key] ?? 680);
+  // in fast mouth the next customer is (most likely) silent: their sign comes up sooner, nobody has to wait for the
+  // clerk's subtitle to be read (no customer line replaces it), and after a punch-only answer the next head may pop
+  // while this one is still flying (300 ms of the fly-out) and the punch still plays (at most 300 ms of waiting)
+  const inQuick = !!(e.inQuick || e.quick) && correct;
+  const signUpMs = signUpOf(inQuick);
+  const flyClear = t.punchStartMs + (quick ? 300 : FLY_CLEAR_MS[key] ?? 680);
   // a wrong key: the right key's flash after the line must not land on the next sign (its colour shows at enter + 120)
   const hintClear = correct ? 0 : punchEnd + HINT_AFTER_MS - ((info.enterMs ?? 300) + 120);
-  game.delayNext(Math.max(t.punchStartMs + t.punchMs + L - signUpMs, flyClear, t.setupMs + 80, hzEndMs - signUpMs,
-    readMs(line, t) - signUpMs, hintClear));
+  const lineWait = t.punchStartMs + t.punchMs + L - signUpMs;
+  game.delayNext(Math.max(quick ? Math.min(lineWait, 300) : lineWait, flyClear, t.setupMs + 80, quick ? 0 : hzEndMs - signUpMs,
+    inQuick ? 0 : readMs(line, t) - signUpMs, hintClear));
+  if (customer.group) ui.groupHit?.(customer.group.length, key, { all: true });
+  if (e.final) {
+    // the boss is down: the number ticket and a gold 250
+    later(t.punchStartMs, () => {
+      if (gen !== round.arrivals) return;
+      ui.huazi([{ text: '250', style: 'S1', seg: 'punch', ratio: 0 }]);
+      audio.sfx('cheer', { delay: 0.1 });
+      ui.goldsign?.(true);
+      later(2500, () => ui.goldsign?.(false));
+    });
+  }
 
   // 4.4: three wrong answers on one sign type → a small strip in this landing pause (max 2 per round)
   if (round.pendingTip) {
@@ -908,6 +1202,169 @@ function onResolve(e) {
     round.tipsShown += 1;
     later(Math.min(400, t.punchStartMs + 200), () => ui.tip?.(tipText(k), { key: k, ms: 1200 }));
   }
+}
+
+// The boss's step (stage 2): the clerk answers the pressed key, then he says the next step's line and his sign
+// turns to it. A repeat (again) is the last step asked again after a tap or another key.
+function onBossStep(e) {
+  const gen = round.arrivals;
+  ui.stopSignTimer?.();
+  if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
+  if (e.cutIn) cutVoice();
+  const b = sys().boss || {};
+  const steps = b.steps || [];
+  const prev = steps[e.prev] || {};
+  let line;
+  if (e.again) line = (e.tap ? steps[7]?.take : steps[7]?.[e.key]) || steps[7]?.take;
+  else line = prev[e.key] || (e.prev >= 3 && e.prev <= 6 ? b.haggleWrong?.[e.key] : null) || prev.take;
+  const style = e.correct ? 'deadpan' : 'cold';
+  const fx = !e.correct && e.key === 'shut' && e.prev >= 3 ? 'curse' : 'normal';
+  const t = sayClerk(line, { style, fx });
+  clerkLine(line, { style, voiced: t });
+  ui.clerkBeat?.({ setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, landMs: 400, fx });
+  if (e.queueDelta > 0) later(t.punchStartMs, () => ui.queueGain?.(e.queueDelta));
+  audio.sfx(e.correct ? 'stamp' : 'slam', { delay: t.punchStartMs / 1000 });
+  later(t.punchStartMs, () => { if (gen === round.arrivals) ui.customerPose?.({ cower: true }); });
+  const replyEnd = t.punchStartMs + t.punchMs;
+  const next = steps[e.step] || {};
+  later(replyEnd + 150, () => {
+    if (gen !== round.arrivals || !game || !game.state.current?.speaking) return;
+    ui.customerPose?.({ cower: false });
+    ui.showSign?.({ key: BOSS_KEYS[e.step], sign: next.sign }, { flip: 'rotX' });
+    audio.sfx('card');
+    ui.showLine(next.says, { who: 'cust', color: BOSS_KEYS[e.step] });
+    const ms = sayCustomer(next.says);
+    const at = now();
+    const t0 = clamp(at + ms, at + 250, at + 4000);
+    later(t0 - now(), () => { if (gen === round.arrivals && game) game.speechDone(); });
+  });
+}
+
+// Day 4 meter (stage 2): exactly 250 = the gold-stamp scene, over = "两个月……喔，半年。" (after the clerk's reply).
+function onMeter(g, { hit, over, queueDelta, meter }) {
+  ui.setMeter?.(meter, { hit, over });
+  shown.meter = meter;
+  if (!hit && !over) return;
+  const m = sys().meter || {};
+  const line = pick(hit ? m.hit : m.over);
+  const at = Math.max(0, clerkEndAt - now()) + 120;
+  const style = hit ? '250' : 'deadpan';
+  const t = clerkTiming(null, line, { punchGapMs: info.punchGapMs, punchFx: 'normal', style });
+  g.delayNext(at + t.punchStartMs + t.punchMs + 250 - signUpOf(false));
+  later(at, () => {
+    if (game !== g || g.state.phase !== 'playing') return;
+    subUntil = now();
+    clerkLine(line, { style });
+    sayClerk(line, { style, fx: hit ? 'mega' : 'normal' });
+    if (queueDelta) ui.queueGain?.(queueDelta);
+    if (hit) {
+      ui.showPlate?.(m.plate || ['No.250', '250杯', '两个月后取餐']);
+      ui.huazi([{ text: '250', style: 'S1', seg: 'punch', ratio: 0 }]);
+      ui.goldsign?.(true);
+      later(2000, () => ui.goldsign?.(false));
+      audio.sfx('stamp');
+      audio.sfx('cheer', { delay: 0.2 });
+    } else {
+      audio.sfx('scratch');
+    }
+  });
+}
+
+// ---- mini events (stage 2; src/events.js runs in the engine)
+const evText = (type) => (sys().eventUi || {})[type] || {};
+function eventSign(spec) {
+  return ui.showCustomer?.({ id: spec.id, key: spec.key || 'take', cups: spec.cups ?? null, sign: spec.sign, style: '250' }, { enterMs: info.enterMs, line: false });
+}
+function onEventStart(g, { type, state }) {
+  ui.stopSignTimer?.();
+  ui.setSignMult?.('');
+  landing = null;
+  if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
+  const tx = evText(type);
+  ui.showEvent?.({ type, title: tx.title, hint: tx.hint, big: eventBig(state) });
+  shown.event = eventBig(state);
+  if (type === 'megaphone') {
+    ui.clearCustomer?.();
+    const l = pick(sys().megaphone?.passer);
+    if (l) { ui.showLine(l, { who: 'cust' }); sayCustomer(l); }
+    audio.sfx('feedback');
+  } else if (type === 'phone') {
+    ui.clearCustomer?.();
+    audio.sfx('dingdong');
+    const l = sys().phone?.caller;
+    later(450, () => { if (game === g && g.state.event?.type === 'phone' && l) { ui.showLine(l, { who: 'cust' }); sayCustomer(l); } });
+  } else if (type === 'calculator') {
+    eventSign({ id: 'calc', key: 'take', sign: sys().calculator?.sign });
+    const l = sys().calculator?.start;
+    if (l) { clerkLine(l, { style: 'math' }); sayClerk(l, { style: 'math' }); }
+  } else if (type === 'stamp') {
+    eventSign({ id: 'stamp', key: 'take', sign: sys().stamp?.sign });
+    const l = sys().stamp?.cust;
+    if (l) { ui.showLine(l, { who: 'cust', color: 'take' }); sayCustomer(l); }
+  } else if (type === 'shutter') {
+    ui.clearCustomer?.();
+    rageGen++;
+    ui.shutter?.(true, state.leftMs);
+    audio.sfx('gate');
+    const l = pick(sys().shutter);
+    if (l) { subUntil = now(); clerkLine(l, { style: 'deadpan' }); sayClerk(l, { style: 'deadpan' }); }
+  }
+}
+function onEventCue(g, e) {
+  const st = g.state.event;
+  if (st) { const big = eventBig(st); shown.event = big; ui.updateEvent?.({ big }); }
+  if (e.cue === 'hit') {
+    audio.sfx('slam', { intensity: 0.6 });
+    ui.shake?.(3, 60);
+    if (e.type === 'megaphone' && e.n % 3 === 1) {
+      const l = pick(sys().megaphone?.shout);
+      if (l) { ui.showLine(l, { style: 'curse', who: 'clerk' }); audio.speak(l, { style: 'rage' }); }
+    }
+  } else if (e.cue === 'capped') {
+    ui.shake?.(2, 40);
+  } else if (e.cue === 'press') {
+    audio.sfx('tap');
+    ui.shake?.(3, 60);
+  } else if (e.cue === 'hangup') {
+    const l = pick(sys().phone?.hangup);
+    cutVoice();
+    if (l) { subUntil = now(); clerkLine(l, { style: 'cold' }); sayClerk(l, { style: 'cold' }); }
+    audio.sfx('slam');
+  } else if (e.cue === 'hold') {
+    audio.sfx('drumroll', { intensity: 0.5 });
+  } else if (e.cue === 'result') {
+    const c = sys().calculator || {};
+    const l = e.jackpot ? c.jackpot : e.value === 249 ? c.r249 : e.value === 251 ? c.r251 : e.value >= 300 ? c.r300 : c.r0;
+    if (l) { subUntil = now(); clerkLine(l, { style: 'math' }); sayClerk(l, { style: e.jackpot ? '250' : 'math', fx: e.jackpot ? 'mega' : 'normal' }); }
+    if (e.jackpot) {
+      ui.huazi([{ text: '250', style: 'S1', seg: 'punch', ratio: 0 }]);
+      audio.sfx('coin');
+      audio.sfx('cheer', { delay: 0.2 });
+    } else audio.sfx('scratch');
+  } else if (e.cue === 'stamp') {
+    audio.sfx('stamp', { intensity: 0.6 });
+    const l = e.callout != null ? sys().stamp?.callouts?.[e.callout] : null;
+    if (l) { ui.showLine(l, { who: 'clerk' }); sayClerk(l, { style: 'real' }); }
+  } else if (e.cue === 'stampDone') {
+    const l = sys().stamp?.done;
+    if (l) { subUntil = now(); clerkLine(l, { style: 'real' }); sayClerk(l, { style: 'real' }); }
+    audio.sfx('cheer', { delay: 0.2 });
+  }
+}
+function onEventEnd(g, { type, result }) {
+  ui.hideEvent?.();
+  shown.event = null;
+  if (type === 'shutter') return;
+  if (result && result.cut) return;
+  if (type === 'megaphone') {
+    const l = sys().megaphone?.end;
+    if (l) { subUntil = now(); clerkLine(l, { style: 'deadpan' }); sayClerk(l, { style: 'deadpan' }); }
+  }
+  if (type === 'calculator' || type === 'stamp') later(Math.max(0, clerkEndAt - now()), () => { if (game === g) ui.customerReact?.('take'); });
+  // the next customer waits for the clerk's last line
+  const lineLeft = Math.max(0, clerkEndAt - now());
+  landing = { lineEndAt: now() + lineLeft, kind: 'event' };
+  g.delayNext(lineLeft + 250);
 }
 
 function startRageScene() {
@@ -954,6 +1411,7 @@ function frame(t) {
     const st = game.state;
     if (info.showAura === 'intro' && !round.auraShown && st.phase === 'playing' && !st.current && st.elapsedMs >= 30000) showAuraIntro();
     ui.render(st, hudOpts());
+    syncStage2(st);
     const lv = Math.round(crowdLevel(st.queue) * 20) / 20;
     if (lv !== lastCrowd && st.phase !== 'over') { lastCrowd = lv; audio.crowd(lv); }
   }
@@ -985,6 +1443,8 @@ if (params.has('debug')) {
     get info() { return info; },
     get lang() { return lang; },
     get inputs() { return inputs; }, // press outcomes this round (answer / wrong / jab / next / rage / buffered / dead …)
+    get lastEval() { return lastEval; }, // stage 2: stars / rating of the last finished day
+    evaluateDay, loadBest,
     script,
     audio, ui, getContent, DAYS,
     startRound,

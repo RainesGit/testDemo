@@ -8,8 +8,9 @@
 // and are unit-tested in test/audio.test.mjs.
 //
 // createAudio() → audio. First-minute additions (docs/first-minute-spec.md 8.5):
-//   playClerk(text, { punchGapMs = 200, punchFx = 'normal'|'curse'|'mega', bedBackMs = 200, style })
+//   playClerk(text, { punchGapMs = 200, punchFx = 'normal'|'curse'|'mega', bedBackMs = 200, style, punchOnly })
 //       → Promise & { setupMs, gapMs, punchStartMs, punchMs, totalMs }   ('|' = setup | punch cut point)
+//       punchOnly (gameplay-v2 fast mouth): only the punch half plays (punchOnlyText); voiceTimings takes it too
 //   playCustomer(text, { rate = 1 }) → Promise & { ms }
 //   voiceTimings(text, { punchGapMs, punchFx, rate, lang }) → same timing object, sync (manifest or estimate)
 //   cut(ms = 40)              fade all voices out (W3 brake, interrupted customer)
@@ -80,6 +81,11 @@ export function splitPunch(text) {
   const i = s.indexOf('|');
   if (i < 0) return ['', s];
   return [s.slice(0, i), s.slice(i + 1).replace(/\|/g, '')];
+}
+
+/** Fast mouth: the punch half of a cut line (a line without '|' is all punch already). */
+export function punchOnlyText(text) {
+  return splitPunch(text)[1];
 }
 
 /** Display text: the '|' cut point removed. */
@@ -1362,6 +1368,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
 
   /** Clip-based timing of a line in the current language (sync; estimates when a clip is missing). */
   function voiceTimings(text, opts = {}) {
+    if (opts.punchOnly) text = punchOnlyText(text);
     return timingsFromManifest(pack, opts.lang || lang, text, { bleep: bleepOn, voiceFx: fxCfg, lite: liteOn, ...opts });
   }
   const planFor = (text, opts) => voicePlan(text, { voiceFx: fxCfg, lite: liteOn, ...opts });
@@ -1377,7 +1384,8 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
    * Cuts any speech already playing. Returns a Promise (resolves when the line ends) that also carries
    * { setupMs, gapMs, punchStartMs, punchMs, totalMs } synchronously.
    */
-  function playClerk(text, { punchGapMs = 200, punchFx = 'normal', bedBackMs = 200, style, duckBed = true } = {}) {
+  function playClerk(text, { punchGapMs = 200, punchFx = 'normal', bedBackMs = 200, style, duckBed = true, punchOnly = false } = {}) {
+    if (punchOnly) text = punchOnlyText(text);
     const timing = voiceTimings(text, { punchGapMs, punchFx, style });
     const plan = planFor(text, { fx: punchFx, style });
     if (!unlocked) return withTiming(Promise.resolve(timing), timing);

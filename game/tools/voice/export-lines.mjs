@@ -149,6 +149,44 @@ function exportAll() {
       add(lang, oc.reply1, 'clerk', 'cold', cast.clerk);
       add(lang, oc.reply2, 'clerk', 'curse', cast.clerk);
     }
+    // Gameplay v2 stage 2 (docs/lines-v2-draft.md 7–8): the boss, the day-4 meter, mini events, groups,
+    // change-order customers and the shutter. The ex-boss (step lines and the phone call) keeps one voice.
+    const boss = cast.customers[3];
+    const passer = cast.customers[1];
+    const sysCust = cast.customers[2];
+    const clerkAll = (list, style) => (list || []).forEach((l) => add(lang, l, 'clerk', style, cast.clerk));
+    const b = system.boss;
+    if (b) {
+      for (const st of b.steps || []) {
+        add(lang, st.says, 'customer', 'cust', boss);
+        for (const k of ['take', 'shut', 'gun', 'full']) add(lang, st[k], 'clerk', 'deadpan', cast.clerk);
+      }
+      clerkAll(Object.values(b.haggleWrong || {}), 'curse');
+    }
+    if (system.meter) { clerkAll(system.meter.over, 'deadpan'); clerkAll(system.meter.hit, '250'); }
+    if (system.calculator) clerkAll(['start', 'jackpot', 'r249', 'r251', 'r300', 'r0'].map((k) => system.calculator[k]), 'math');
+    if (system.megaphone) {
+      (system.megaphone.passer || []).forEach((l) => add(lang, l, 'customer', 'cust', passer));
+      clerkAll(system.megaphone.shout, 'rage');
+      clerkAll([system.megaphone.end], 'deadpan');
+    }
+    if (system.phone) {
+      add(lang, system.phone.caller, 'customer', 'cust', boss);
+      clerkAll(system.phone.hangup, 'cold');
+    }
+    if (system.stamp) {
+      add(lang, system.stamp.cust, 'customer', 'cust', sysCust);
+      clerkAll(Object.values(system.stamp.callouts || {}), 'real');
+      clerkAll([system.stamp.done], 'real');
+    }
+    if (system.group) clerkAll(Object.values(system.group).flat(), 'disdain');
+    const co = system.changeOrder;
+    if (co) {
+      add(lang, co.says, 'customer', 'cust', sysCust);
+      add(lang, co.says2, 'customer', 'cust', sysCust);
+      clerkAll([co.early, co.shut, co.take, co.gun], 'deadpan');
+    }
+    clerkAll(system.shutter, 'deadpan');
     system.polite.forEach((l) => add(lang, l, 'clerk', 'polite', cast.clerk));
     system.rageStart.forEach((l) => add(lang, l, 'clerk', 'rage', cast.clerk));
     system.rageLines.forEach((l) => add(lang, l, 'clerk', 'rage', cast.clerk));

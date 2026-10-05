@@ -6,7 +6,7 @@ import { createGame, MILESTONES } from '../src/engine.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clipKey } from '../src/audio.js';
-import { configForDay, poolForDay, dayInfo } from '../src/days.js';
+import { configForDay, poolForDay, dayInfo, specialsForDay } from '../src/days.js';
 
 const STYLES = ['real', 'curse', 'disdain', 'cold', 'deadpan', 'chuuni', 'math', '250', 'twist'];
 const KEYS = ['gun', 'shut', 'take'];
@@ -71,8 +71,12 @@ function playDay(n, { reactMs = 600, correctRate = 0.85, seed = 3, extra = {}, o
   const { customers, system } = getContent('zh');
   const info = dayInfo(n);
   const o = system.originalCustomer;
-  const special = info.original && o ? { customer: { ...o, key: o.steps[0], reply: o.reply2 }, atMs: info.original.atMs } : null;
-  const game = createGame({ customers: poolForDay(n, customers), rng, config: configForDay(n, special ? { special, ...extra } : extra) });
+  const orig = o ? { ...o, key: o.steps[0], reply: o.reply2 } : null;
+  // stage 2: the day's specials (day 3: the original customer 4–6 times); older days: one original
+  const specials = info.specials?.length ? specialsForDay(n, { original: orig }) : null;
+  const special = !specials && info.original && orig ? { customer: orig, atMs: info.original.atMs } : null;
+  const base = specials ? { specials } : special ? { special } : {};
+  const game = createGame({ customers: poolForDay(n, customers), rng, config: configForDay(n, { ...base, ...extra }) });
   const log = [];
   for (const ev of ['arrive', 'ready', 'step', 'resolve', 'polite', 'rageStart', 'over']) {
     game.on(ev, (p) => { log.push({ ev, t: game.state.elapsedMs, ...p }); onEvent?.(ev, p, game); });
@@ -122,11 +126,11 @@ test('A6/A7 with real content: patience frozen arrive→ready; next arrive ≥ L
   }
 });
 
-test('day 3: the original customer comes once (take → step → shut), and the first rage comes within the first half', () => {
+test('day 3 (原片日): the original customer comes 4–6 times (take → step → shut), and the first rage comes within the first half', () => {
   const { of } = playDay(3, { correctRate: 1 });
   const origArrivals = of('arrive').filter((e) => e.customer.id === 'orig');
-  assert.equal(origArrivals.length, 1);
-  assert.equal(of('step').length, 1);
+  assert.ok(origArrivals.length >= 4 && origArrivals.length <= 6, `originals: ${origArrivals.length}`);
+  assert.equal(of('step').length, origArrivals.length);
   const fin = of('resolve').find((e) => e.customer.id === 'orig');
   assert.equal(fin.correct, true);
   assert.equal(fin.land, 'step');

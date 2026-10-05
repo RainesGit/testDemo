@@ -2,11 +2,12 @@
 // No game logic lives here: the UI only draws what it is told and forwards input.
 // Spec: docs/first-minute-spec.md (2.3 layout, 2.6–2.8 art hooks, 2.11 camera, 3.1–3.8, 4.4, 5, 6, 8.8).
 //
-// createUI(root, { onPress, onCharge, onStart, onToggleLang, onToggleBleep }) → ui
+// createUI(root, { onPress, onCharge, onRelease, onStart, onToggleLang, onToggleBleep }) → ui
 //
 // Callbacks
 //   onPress(key, 0)          key 'gun'|'shut'|'take'; fired on pointerdown / J K L keydown (ignored while inputLocked())
 //   onCharge(key, level)     level 1 after holding 300 ms, level 2 after 800 ms (same press, still held)
+//   onRelease(key, holdMs)   the key went up after holdMs (stage 2: the calculator event, the boss's last step)
 //   onStart()                start card button / tap (also the default for the closing / summary cards)
 //   onToggleLang(nextLang)   'zh'|'en' (UI flips its own label too)
 //   onToggleBleep(nextOn)    boolean
@@ -107,6 +108,18 @@
 //   relabelMilestone()
 //   setQueue / setTicket / render / setHud  see HUD above
 //   effect(name, payload)                   hit | miss | perfect (no-op) | 250 | polite | rageStart | rageEnd | fly | charge
+// ---- Gameplay v2 stage 2
+//   setPreview([{ kind, text }])            the next customers' mini signs under the counter ([] hides them)
+//   setMeter(value | null, { hit, over })   day 4 ticket meter "已收 N/250杯" (null hides it); hit / over flash it
+//   setQuick(on, n)                         fast-mouth badge "快嘴 ×n"
+//   showGroup(customers, { key, enterMs, sign }) → { signUpAt }   group box: the first customer with a big sign, the
+//                                           others as small heads beside them; groupHit(n, key, { all }) sends the
+//                                           n-th flying (all: every one left)
+//   showEvent({ type, title, hint, big }) / updateEvent({ big }) / hideEvent()   mini-event panel
+//   shutter(on, ms)                         the last-seconds iron shutter comes down over ms
+//   dayBanner(title, rule, ms = 2200)       day card banner at round start (does not block input)
+//   showStart(t): t.dayTitle / t.rule / t.riddle / t.best / t.starMask add the day card lines
+//   showSummary(s, t): t.stars [b, b, b], t.starLines, t.rating, t.gold, t.record, t.bestText, t.hint, t.tomorrow
 //
 // Module exports (pure, tested in test/ui.test.mjs): createFxQueue, chargeLevel, FOCUS, camTransform,
 //   rectsOverlap, placeHuazi, hzFontSize.
@@ -303,7 +316,7 @@ const normStyle = (s) => (typeof s === 'number' ? 'S' + s : /^[1-5]$/.test(Strin
 
 // ---------------------------------------------------------------- createUI
 
-export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {} } = {}) {
+export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {} } = {}) {
   let lang = 'zh';
   let script = 'hans'; // 'hant': Traditional characters on screen (setScript)
   let extLocked = false; // lockInput()
@@ -342,6 +355,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   const signSlot = el('div', 'sign-slot', cam);
   let sign = null; // .sign from art.signSVG(), a direct child of signSlot
   const plateLayer = el('div', 'plate-layer', cam);
+  const groupRow = el('div', 'group-row', cam);   // stage 2: the other heads of a group box
+  const previewEl = el('div', 'preview', cam);     // stage 2: the next customers' mini signs
+  const meterEl = el('div', 'meter', cam);         // stage 2: day 4 ticket meter
+  meterEl.hidden = true;
 
   el('div', 'tint tint-polite', shaker);
   el('div', 'tint tint-rage', shaker);
@@ -384,6 +401,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   const comboBox = el('div', 'hud-combo', hud);
   const comboNum = el('span', 'combo-num', comboBox);
   const comboLabel = el('span', 'combo-label', comboBox);
+  const quickBox = el('div', 'hud-quick', hud);   // stage 2: fast mouth
 
   // Subtitle band (y 74–80%) and buttons (y 80–100%)
   const subs = el('section', 'subs', stage);
@@ -416,6 +434,12 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   recapEl.hidden = true;
   const startCard = el('div', 'overlay start-screen hidden', stage);
   const summaryCard = el('div', 'overlay summary hidden', stage);
+  const eventEl = el('div', 'event-panel', stage); // stage 2: mini events
+  eventEl.hidden = true;
+  const shutterEl = el('div', 'shutter-fx', stage);
+  shutterEl.hidden = true;
+  const bannerEl = el('div', 'day-banner', stage);
+  bannerEl.hidden = true;
   const skipBtn = el('button', 'skip', stage);
   skipBtn.type = 'button';
   skipBtn.hidden = true;
@@ -572,6 +596,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   function endHold(key) {
     const s = buttons[key];
     if (!s.down) return;
+    const heldMs = performance.now() - s.down;
     cancelAnimationFrame(s.raf);
     s.down = 0;
     s.src = null;
@@ -579,6 +604,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     s.b.classList.remove('held');
     s.b.style.setProperty('--charge', '0');
     s.b.dataset.charge = '0';
+    onRelease(key, heldMs);
   }
 
   for (const key of KEYS) {
@@ -1101,6 +1127,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
   function clearCustomer() {
     current = null;
     custGen++;
+    groupRow.textContent = '';
     clearTimeout(custLineTimer);
     custWrap.textContent = '';
     custWrap.className = 'cust-wrap';
@@ -1877,6 +1904,19 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
       else h1.appendChild(document.createTextNode(part));
     }
     el('p', 'start-tag', startCard, t.subtitle || d.sub);
+    if (t.dayTitle || t.rule) {
+      // stage 2 day card: "第 N 天 · 午休潮", the rule in one line, the ★3 riddle, the best so far
+      const dc = el('div', 'start-day', startCard);
+      if (t.dayTitle) el('div', 'sd-title', dc, t.dayTitle);
+      if (t.rule) el('div', 'sd-rule', dc, t.rule);
+      if (t.riddle) el('div', 'sd-riddle', dc, t.riddle);
+      if (t.best || t.starMask) {
+        const row = el('div', 'sd-best', dc);
+        const st = el('span', 'sd-stars', row);
+        for (let i = 0; i < 3; i++) el('i', (t.starMask >> i) & 1 ? 'on' : '', st, '★');
+        if (t.best) el('span', '', row, t.best);
+      }
+    }
     const label = firstRun ? t.start || d.firstStart : typeof t.startDay === 'function' ? t.startDay(day) : t.startDay ? String(t.startDay).replace('{n}', day) : d.day(day);
     const btn = el('button', 'start-btn', startCard, label);
     btn.type = 'button';
@@ -2076,8 +2116,23 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     stat(t.scoreLabel || (zh ? '分数' : 'Score'), fmt(s.score));
     if (s.polite) stat(zh ? '被迫客气' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
     stat(zh ? '接客' : 'Served', fmt(s.served));
-    // ★1 verdict (days 2+): reached → the button opens the next day; missed → this day again
-    if (t.star1 != null) {
+    // stage 2: stars (★1 / ★2 / ★3 with their goals), the rating (C/B/A/S, gold 250), record, ★3 riddle, tomorrow
+    if (Array.isArray(t.stars)) {
+      const head = el('div', 'report-rate', card);
+      const r = el('div', 'rate-badge' + (t.gold ? ' gold' : ''), head, t.gold ? '250' : t.rating || 'C');
+      r.dataset.rating = t.gold ? '250' : t.rating || 'C';
+      if (t.ratingLabel) el('div', 'rate-label', head, t.ratingLabel);
+      if (t.record) el('div', 'report-record', head, t.record);
+      const list = el('ul', 'report-stars', card);
+      t.stars.forEach((on, i) => {
+        const li = el('li', on ? 'on' : '', list);
+        li.style.animationDelay = i * 150 + 'ms';
+        el('span', 'rs-text', li, (t.starLines || [])[i] || '');
+      });
+      if (t.hint) el('p', 'report-hint', card, t.hint);
+      if (t.bestText) el('p', 'report-best', card, t.bestText);
+    } else if (t.star1 != null) {
+      // ★1 verdict (days 2+): reached → the button opens the next day; missed → this day again
       const got = (s.queue ?? 0) >= t.star1;
       el('p', 'report-star' + (got ? ' on' : ''), card, zh ? `★1 目标 ${fmt(t.star1)} 人：${got ? '达成！' : '没达到，再来一次'}` : `★1 goal ${fmt(t.star1)}: ${got ? 'reached!' : 'missed — try again'}`);
     }
@@ -2086,12 +2141,115 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     const bl = el('div', 'best-line', best);
     fillLine(bl, t.bestLine || '……');
     if (t.verdict) el('p', 'card-sub', card, t.verdict);
+    if (t.tomorrow) el('p', 'report-tomorrow', card, t.tomorrow);
     startButton(card, t.again || texts.again);
     overlayTap = () => { hideOverlays(); onStart(); };
     startCard.classList.add('hidden');
     closeClosing();
     summaryCard.classList.remove('hidden');
     syncLock();
+  }
+
+  // ---------- Gameplay v2 stage 2 ----------
+  function setPreview(list = []) {
+    previewEl.textContent = '';
+    previewEl.classList.toggle('show', list.length > 0);
+    if (!list.length) return;
+    el('span', 'preview-label', previewEl, lang === 'zh' ? '后面' : 'Next');
+    list.slice(0, 3).forEach((p, i) => {
+      const m = miniSign(previewEl, p.kind || 'gun', p.text || '');
+      m.classList.add('preview-sign');
+      m.style.setProperty('--i', String(i));
+    });
+  }
+
+  const METER_TEXT = { zh: ['已收', '杯'], en: ['Booked', 'cups'] };
+  function setMeter(value, { hit, over } = {}) {
+    if (value == null) { meterEl.hidden = true; return; }
+    meterEl.hidden = false;
+    const [lbl, unit] = texts.meter || METER_TEXT[lang] || METER_TEXT.zh;
+    const v = Math.max(0, Math.floor(value));
+    meterEl.innerHTML = `<span class="meter-label">${lbl}</span><b class="meter-num">${v}</b><span class="meter-of">/250${lang === 'zh' ? unit : ' ' + unit}</span>` +
+      `<i class="meter-bar"><i style="width:${Math.min(100, (v / 250) * 100).toFixed(1)}%"></i></i>`;
+    meterEl.dataset.near = v >= 200 ? '1' : '0';
+    if (hit || over) restart(meterEl, hit ? 'hit' : 'over');
+  }
+
+  function setQuick(on, n = 0) {
+    quickBox.classList.toggle('show', !!on);
+    stage.classList.toggle('quick', !!on);
+    if (!on) return;
+    quickBox.textContent = '';
+    el('span', 'quick-label', quickBox, texts.quick || (lang === 'zh' ? '快嘴' : 'Fast Mouth'));
+    el('b', 'quick-num', quickBox, n > 0 ? '×' + n : '');
+    if (n > 0) restart(quickBox, 'pulse');
+  }
+
+  function showGroup(customers = [], { key = 'gun', enterMs = 180, signDelayMs = 40, sign: label } = {}) {
+    if (!customers.length) return { signUpAt: performance.now(), signUpInMs: 0 };
+    const [first, ...rest] = customers;
+    const res = showCustomer({ ...first, key }, { enterMs, signDelayMs, line: false, sign: { key, sign: label || `×${customers.length}` } });
+    groupRow.textContent = '';
+    groupRow.dataset.key = key;
+    rest.forEach((c, i) => {
+      const h = el('div', 'group-head', groupRow);
+      h.style.setProperty('--i', String(i));
+      h.innerHTML = `<div class="cust-clip">${art.customerSVG(c, 1)}</div>`;
+      const m = miniSign(h, key === 'take' || key === 'shut' ? key : 'gun', '');
+      m.classList.add('group-mini');
+    });
+    return res;
+  }
+  function groupHit(n, key, { all = false } = {}) {
+    const heads = [...groupRow.querySelectorAll('.group-head:not(.out)')];
+    const list = all ? heads : heads.slice(0, 1);
+    list.forEach((h, i) => {
+      h.classList.add('out');
+      h.dataset.face = key;
+      h.style.setProperty('--d', `${i * 60}ms`);
+      later(() => h.remove(), 700 + i * 60);
+    });
+  }
+
+  function showEvent({ type = '', title = '', hint = '', big = '' } = {}) {
+    eventEl.hidden = false;
+    eventEl.dataset.type = type;
+    eventEl.textContent = '';
+    el('div', 'ev-title', eventEl, title);
+    el('div', 'ev-big', eventEl, big);
+    el('div', 'ev-hint', eventEl, hint);
+    restart(eventEl, 'in');
+  }
+  function updateEvent({ big } = {}) {
+    if (eventEl.hidden) return;
+    const b = eventEl.querySelector('.ev-big');
+    if (b && big != null && b.textContent !== String(big)) {
+      b.textContent = String(big);
+      restart(b, 'pop');
+    }
+  }
+  function hideEvent() {
+    eventEl.hidden = true;
+    eventEl.textContent = '';
+  }
+
+  function shutter(on, ms = 5000) {
+    shutterEl.hidden = !on;
+    if (!on) return;
+    shutterEl.style.setProperty('--ms', Math.max(200, ms) + 'ms');
+    restart(shutterEl, 'down');
+  }
+
+  let bannerTimer = 0;
+  function dayBanner(title, rule, ms = 2200) {
+    clearTimeout(bannerTimer);
+    bannerEl.textContent = '';
+    if (!title && !rule) { bannerEl.hidden = true; return; }
+    el('div', 'db-title', bannerEl, title || '');
+    if (rule) el('div', 'db-rule', bannerEl, rule);
+    bannerEl.hidden = false;
+    restart(bannerEl, 'in');
+    bannerTimer = setTimeout(() => { bannerEl.hidden = true; }, ms);
   }
 
   applyTexts();
@@ -2121,5 +2279,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onStar
     showStart, fontsReady, showClosing, showRecap, showSkip, showSummary, showMilestone, relabelMilestone,
     // effect names shared with older callers
     effect,
+    // gameplay v2 stage 2
+    setPreview, setMeter, setQuick, showGroup, groupHit, showEvent, updateEvent, hideEvent, shutter, dayBanner,
   };
 }

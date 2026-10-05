@@ -32,12 +32,39 @@
 //     (queue gains × forcedQueueMult, rounded up; main.js plays service lines), then aura auraAfterForced.
 //     The day only ends by its clock.
 //
-// Events: start, arrive {customer}, ready {customer, patienceMs, step}, step {customer, step, key, cutIn, reactionMs},
+// Gameplay v2 stage 2 (docs/gameplay-v2.md 3, 5, 6; all off by default, days.js turns them on per day):
+//   - preview: state.upcoming holds the next `preview` customers (drawn ahead, same order rules).
+//   - Fast mouth (快嘴): quickAt correct answers in a row → quick (event quickStart). A quick customer is silent (sign
+//     only, quickMinAnswerMs / quickCutInFromMs / quickSpeakMs) and lands in quickLandMs; main.js plays only the punch
+//     half. Every quickEvery-th customer in fast mouth, 250s, big orders, specials, groups and the boss are full
+//     (quick false: silent, but the clerk's full line). Scenes (250s, 251 / 520 orders, specials, groups) get the full
+//     line too and restart that count; only the specials (two-step, change-order, boss) keep their voices. A wrong key or a timeout leaves fast mouth (quickEnd), no penalty.
+//   - specials: [{ customer, atMs } | { type: 'group', atMs }]: each once per round, deferred while rage is ahead.
+//   - Group box ({ type: 'group' }): 3–5 silent customers with the same key. Each press of that key sends one flying
+//     (groupHit); the last sends all: ceil(n × (1 + combo bonus) × speed × groupMult), combo +n, served +n. A wrong key
+//     scatters the group (a wrong answer). Window W + (n − 1) × groupExtraMs.
+//   - Change-order customer (customer.flip = { key, cups, atMs }): while talking, atMs after arrival, the sign flips
+//     (event flip); before it the old key is wanted, after it flip.key (and flip.cups count).
+//   - Boss (customer.boss with steps): a wrong key also moves to the next step (+wrongQueueDelta, combo frozen); a
+//     timeout repeats the step (bossAgain; combo 0, never aura). With customer.holdLast the last step only resolves on
+//     a full hold of its key (press → holding, charge(2) → the final line); a release before that, or another key,
+//     repeats the step (step event with again: true).
+//   - meter (day 4): cups accepted with 收 (correct or off-key; cups null = 1) add up; exactly meterTarget = +meterHitDelta
+//     and a full fury bar, over = reset +meterOverDelta (event meter). Charge 2 within chargeWindowMs doubles the cups.
+//   - events ([{ type, atMs }], src/events.js): a mini event starts instead of the next customer once due; presses go to
+//     it. shutterMs: the last N ms are the 拉铁门 mash (the customer at the counter leaves, rage ends).
+//
+// Events: start, arrive {customer, quick, silent}, ready {customer, patienceMs, step}, step {customer, step, key, cutIn, reactionMs,
+//   correct, again, queueDelta}, quickStart {}, quickEnd {run}, groupHit {customer, hits, n, key}, flip {customer, key},
+//   bossAgain {customer, step}, holding {customer, key}, meter {value, add, hit, over, queueDelta}, leave {customer},
+//   eventStart {type, state}, eventCue {type, cue, ...}, eventEnd {type, result},
 //   resolve {customer, key, correct, perfect, charge, queueDelta, scoreDelta, line, reactionMs, cutIn, early, land, step, mult,
 //   forced, big}, polite {customer, free}, charge {level, queueDelta, customer}, bonus {queueDelta},
 //   jab {key, n, queueDelta, customer}, summon {}, furyFull {}, rageStart {requeued}, rageHead {customer, n},
 //   rageHit {queueDelta, key, customer, match, n}, rageMiss {key}, rageEnd {hits, queueDelta},
 //   forcedStart {ms}, forcedEnd {aura}, milestone {level}, over {summary}
+
+import { createEvent, dueEvent } from './events.js';
 
 export const KEYS = ['gun', 'shut', 'take'];
 export const MILESTONES = [10, 100, 1000, 10000, 100000];
@@ -112,6 +139,29 @@ export const DEFAULT_CONFIG = {
   keyRunMax: 2,           // with keyWeights: the same key never comes more than this many times in a row
   special: null,          // { customer, atMs }: one extra customer (e.g. the two-step original) once per round;
                           // never spawned in rage or while the fury bar is full (deferred until rage is over)
+  // gameplay v2 stage 2 (all off by default)
+  specials: null,         // [{ customer, atMs } | { type: 'group', atMs }] each once per round (same deferral as special)
+  preview: 0,             // state.upcoming: the next N customers
+  quickAt: 0,             // N correct in a row → fast mouth (0 = never)
+  quickEvery: 5,          // every Nth customer in fast mouth plays the full three beats
+  quickMinAnswerMs: 220,  // silent customers in fast mouth / groups (enter 180 ms, sign 40 ms later): presses before
+  quickCutInFromMs: 380,  // this are ignored; a press from quickCutInFromMs (sign up) until t0 is a cut-in;
+  quickSpeakMs: 500,      // t0 fallback (sign up + 120 ms; nobody talks)
+  quickLandMs: 250,
+  groupMult: 1.5,
+  groupExtraMs: 350,
+  groupMin: 3,
+  groupMax: 5,
+  flipSpeakMs: 4200,      // talking fallback of a change-order customer (two lines)
+  meter: false,
+  meterTarget: 250,
+  meterHitDelta: 25,
+  meterOverDelta: 5,
+  events: null,           // [{ type, atMs }] mini events (src/events.js)
+  eventLateMs: 15000,
+  eventEndMs: 400,        // empty counter after an event
+  eventConfig: {},        // per-type overrides for src/events.js
+  shutterMs: 0,           // the last N ms: 拉铁门 (0 = off)
 };
 
 // Old key names (one version): patienceStartMs/EndMs → windowStartMs/EndMs; gapMs → every land*;
@@ -133,6 +183,9 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const keyOf = (c) => (Array.isArray(c.steps) && c.steps.length ? c.steps[0] : c.key);
 
 const isTwoStep = (c) => Array.isArray(c?.steps) && c.steps.length > 0;
+const isGroup = (c) => Array.isArray(c?.group) && c.group.length > 0;
+const cupsOf = (c, flipped) => (flipped && c.flip && c.flip.cups != null ? c.flip.cups : c.cups);
+const is250Of = (c, flipped) => c.style === '250' || cupsOf(c, flipped) === 250;
 
 export function createGame({ customers, rng = Math.random, config = {} } = {}) {
   if (!Array.isArray(customers) || customers.length === 0) {
@@ -187,6 +240,24 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       fixedIdx: 0,
       specialDone: false,
       lastHit: null, // { customer, correct, charge, scoreDelta, atMs, base, mult, flat } of the last resolved answer
+      specialsDone: new Set(),
+      upcoming: [],
+      streak: 0,        // correct answers in a row (fast mouth)
+      quick: false,
+      quickN: 0,        // arrivals in this fast-mouth run (every quickEvery-th is full)
+      quickRun: 0,      // correct answers in this fast-mouth run
+      meter: 0,
+      meterLast: null,  // { atMs, cups, reset } of the last 收 added to the meter (charge doubling)
+      event: null,      // the running mini event (src/events.js)
+      eventsDone: new Set(),
+      shutter: false,
+      groups: 0,
+      st2: {            // star / rule stats (days.js evaluateDay)
+        quickBest: 0, quickCutIns: 0, originals: 0, originalsFast: 0, meterHits: 0, meterOvers: 0, meter249plus1: 0,
+        groupsCleared: 0, groupsSeen: 0, bossSeen: false, bossBeaten: false, bossTimeouts: 0, bossHagglePerfect: 0,
+        cutInHesitant: 0, charged1cupGun: 0, phoneHungUp: 0, phoneFast: 0, calcJackpots: 0, stampDone: 0,
+        megaphone: 0, shutter: 0, flips: 0, flipsWaited: 0,
+      },
     };
   }
   s = fresh();
@@ -234,6 +305,35 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     return !!cfg.furyEnabled && s.phase === 'playing' && (s.furyFull || s.fury + cfg.furyPerCustomer * cfg.furyMult >= 100);
   }
 
+  // A group box: groupMin..groupMax silent customers who share an answer key (never two-step ones).
+  function buildGroup() {
+    const plain = customers.filter((c) => !isTwoStep(c) && !c.flip && !c.boss);
+    const keys = KEYS.filter((k) => plain.filter((c) => keyOf(c) === k).length >= cfg.groupMin);
+    if (!keys.length) return null;
+    const key = keys[Math.floor(rng() * keys.length) % keys.length];
+    const cands = plain.filter((c) => keyOf(c) === key);
+    const n = Math.min(cands.length, cfg.groupMin + Math.floor(rng() * (cfg.groupMax - cfg.groupMin + 1)));
+    const members = [];
+    const left = cands.slice();
+    while (members.length < n && left.length) members.push(left.splice(Math.floor(rng() * left.length) % left.length, 1)[0]);
+    s.groups += 1;
+    return { id: `group${s.groups}`, group: members, key, style: members[0].style, cat: members[0].cat, cups: null, says: '' };
+  }
+
+  // the next due special (each once per round), or null
+  function dueSpecial() {
+    const list = [];
+    if (cfg.special && cfg.special.customer) list.push(cfg.special);
+    if (Array.isArray(cfg.specials)) list.push(...cfg.specials);
+    for (let i = 0; i < list.length; i++) {
+      const sp = list[i];
+      const done = sp === cfg.special ? s.specialDone : s.specialsDone.has(i);
+      if (done || s.elapsedMs < (sp.atMs ?? 0)) continue;
+      return { sp, mark: () => { if (sp === cfg.special) s.specialDone = true; else s.specialsDone.add(i); } };
+    }
+    return null;
+  }
+
   function pickCustomer() {
     // 0. the customer who stepped aside for rage
     if (s.requeue) {
@@ -247,13 +347,36 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       const c = customers.find((x) => x === want || x.id === want);
       if (c) return take(c);
     }
-    // 2. the once-per-round special customer. Never in rage, and deferred while the fury bar is full (the next
+    // 2. the once-per-round special customers. Never in rage, and deferred while the fury bar is full (the next
     //    press would start rage and the two-step scene would be lost): a normal customer comes instead, rage runs,
     //    and the special one is the first pick once it is over (fury is back at 0).
-    if (cfg.special && cfg.special.customer && !s.specialDone && s.elapsedMs >= (cfg.special.atMs ?? 0) && !rageAhead()) {
-      s.specialDone = true;
-      return take(cfg.special.customer);
+    if (!rageAhead()) {
+      const due = dueSpecial();
+      if (due) {
+        due.mark();
+        if (due.sp.type === 'group') {
+          const g = buildGroup();
+          if (g) return g;
+        } else if (due.sp.customer) {
+          return take(due.sp.customer);
+        }
+      }
     }
+    // 3. preview: the customer at the head of the line (the line is refilled behind them)
+    if (cfg.preview > 0) {
+      refillUpcoming();
+      const c = s.upcoming.shift();
+      refillUpcoming();
+      return c;
+    }
+    return drawCustomer();
+  }
+
+  function refillUpcoming() {
+    while (s.upcoming.length < cfg.preview) s.upcoming.push(drawCustomer());
+  }
+
+  function drawCustomer() {
     // 3. weighted by answer key (each key keeps its own no-repeat pool, so the mix follows the weights)
     if (pool.length === 0) pool = customers.slice();
     if (cfg.keyWeights) {
@@ -285,24 +408,139 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     return take(c);
   }
 
+  // scenes keep their voices and the full three beats even in fast mouth: 250s, big orders (251 / 520), specials
+  // (two-step, boss, change-order) and groups (silent, but a scene of their own)
+  function isScene(c) {
+    return isTwoStep(c) || isGroup(c) || !!c.flip || !!c.boss || is250Of(c) || bigBonus(c) >= 2;
+  }
+
   function spawn() {
+    if (s.shutter) return;
+    // a due mini event takes the empty counter instead of the next customer
+    if (cfg.events && !s.event && s.phase === 'playing') {
+      const i = dueEvent(cfg.events, { elapsedMs: s.elapsedMs, timeLeftMs: s.timeLeftMs, done: s.eventsDone },
+        { lateMs: cfg.eventLateMs, shutterMs: cfg.shutterMs });
+      if (i >= 0) {
+        s.eventsDone.add(i);
+        startEvent(cfg.events[i].type);
+        return;
+      }
+    }
     const customer = pickCustomer();
-    const max = patienceFor(s.elapsedMs, s.combo);
-    s.current = { customer, speaking: true, speakLeftMs: cfg.speakMaxMs, sinceArriveMs: 0, step: 0, patienceMs: max, patienceMaxMs: max };
+    const max = patienceFor(s.elapsedMs, s.combo) + (isGroup(customer) ? (customer.group.length - 1) * cfg.groupExtraMs : 0);
+    // fast mouth: ordinary customers are silent (sign only); every quickEvery-th of them gets the clerk's full three
+    // beats (quick false), the others only the punch. A scene customer keeps everything and restarts the count.
+    let quick = false;
+    let silent = isGroup(customer);
+    if (s.quick) {
+      if (isScene(customer)) {
+        s.quickN = 0;
+        // 250s and big orders: no voice either (the clerk's full line and the big landing are the show);
+        // the specials (original, change-order, boss) keep their voices
+        if (!isTwoStep(customer) && !customer.flip && !customer.boss) silent = true;
+      } else {
+        s.quickN += 1;
+        silent = true;
+        quick = s.quickN % cfg.quickEvery !== 0;
+      }
+    }
+    const speakMs = silent ? cfg.quickSpeakMs : customer.flip ? cfg.flipSpeakMs
+      : customer.boss ? (customer.stepSpeakMs ?? cfg.stepSpeakMs) : cfg.speakMaxMs;
+    s.current = {
+      customer, speaking: true, speakLeftMs: speakMs, sinceArriveMs: 0, step: 0, patienceMs: max, patienceMaxMs: max,
+      quick, silent,
+      minAnswerMs: silent ? cfg.quickMinAnswerMs : cfg.minAnswerMs,
+      cutInFromMs: silent ? cfg.quickCutInFromMs : cfg.cutInFromMs,
+      hits: 0, flipped: false, holding: null, allFast: true, haggleFast: 0, firstPress: null,
+    };
+    if (isGroup(customer)) s.st2.groupsSeen += 1;
+    if (customer.boss) s.st2.bossSeen = true;
     s.gapLeftMs = 0;
     s.landKind = null;
     s.jabs = 0;
     s.buffered = null;
     s.arrivals += 1;
-    emit('arrive', { customer });
+    emit('arrive', { customer, quick, silent });
     addFury(cfg.furyPerCustomer);
-    if (cfg.speakMaxMs <= 0) speechDone();
+    if (speakMs <= 0) speechDone();
+  }
+
+  // ---- mini events (src/events.js)
+  function applyEffects(effects) {
+    for (const e of effects) {
+      if (e.kind === 'queue' && e.n > 0) {
+        const n = forcedScale(e.n);
+        s.score += n * 100;
+        emit('bonus', { queueDelta: n, event: s.event?.type });
+        addQueue(n);
+      } else if (e.kind === 'fury') {
+        addFury(e.n);
+      } else if (e.kind === 'cue') {
+        emit('eventCue', { type: s.event?.type, ...e });
+      } else if (e.kind === 'end') {
+        endEvent(e.result);
+      }
+    }
+  }
+
+  function startEvent(type) {
+    s.event = createEvent(type, { queue: s.queue, config: cfg.eventConfig || {} });
+    s.current = null;
+    s.gapLeftMs = 0;
+    s.landKind = null;
+    s.buffered = null;
+    emit('eventStart', { type, state: s.event.state() });
+  }
+
+  function endEvent(result) {
+    const ev = s.event;
+    if (!ev) return;
+    const st = s.st2;
+    if (ev.type === 'phone' && result.hungUp) { st.phoneHungUp += 1; if (result.fast) st.phoneFast += 1; }
+    if (ev.type === 'calculator' && result.jackpot) st.calcJackpots += 1;
+    if (ev.type === 'stamp' && result.finished) st.stampDone += 1;
+    if (ev.type === 'megaphone') st.megaphone += result.count || 0;
+    if (ev.type === 'shutter') st.shutter += result.count || 0;
+    s.event = null;
+    emit('eventEnd', { type: ev.type, result });
+    if (s.phase === 'playing' && !s.shutter) {
+      s.landStartMs = s.elapsedMs;
+      s.landKind = 'event';
+      s.gapLeftMs = cfg.eventEndMs;
+    }
+  }
+
+  // the last shutterMs: the customer at the counter leaves, rage or a running event ends, presses mash the shutter
+  function startShutter() {
+    s.shutter = true; // before endRage(): its 'rageEnd' handlers see the shutter coming
+    if (s.phase === 'rage') endRage();
+    if (s.event) { const ev = s.event; s.event = null; emit('eventEnd', { type: ev.type, result: { cut: true } }); }
+    if (s.current) {
+      const customer = s.current.customer;
+      s.current = null;
+      emit('leave', { customer });
+    }
+    s.shutter = true;
+    s.gapLeftMs = 0;
+    s.buffered = null;
+    s.landKind = null;
+    s.event = createEvent('shutter', { queue: s.queue, config: { shutter: { ...(cfg.eventConfig?.shutter || {}), durationMs: Math.max(1, s.timeLeftMs) } } });
+    emit('eventStart', { type: 'shutter', state: s.event.state() });
+  }
+
+  // change-order customer: the sign flips to flip.key while they talk
+  function flipNow() {
+    const c = s.current;
+    if (!c || c.flipped || !c.customer.flip) return;
+    c.flipped = true;
+    emit('flip', { customer: c.customer, key: c.customer.flip.key });
   }
 
   function speechDone() {
     const c = s.current;
     if (!c || !c.speaking) return false;
     if (s.phase !== 'playing') return false;
+    if (c.customer.flip && !c.flipped) flipNow();
     c.speaking = false;
     c.speakLeftMs = 0;
     emit('ready', { customer: c.customer, patienceMs: c.patienceMs, step: c.step });
@@ -314,6 +552,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     if (kind === 'wrong') return cfg.landWrongMs;
     if (kind === 'polite') return cfg.landPoliteMs;
     if (kind === 'step') return cfg.landBigMs + cfg.landStepExtraMs;
+    if (kind === 'quick') return cfg.quickLandMs;
     return cfg.landMs;
   }
 
@@ -429,9 +668,10 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     return forcedScale(Math.ceil(base * mult - 1e-9) + cfg.chargeBonus[charge] + flat);
   }
 
-  function bigBonus(customer) {
-    if (customer.cups === 250) return cfg.bonus250;
-    return (cfg.bigOrders && cfg.bigOrders[customer.cups]) || 0;
+  function bigBonus(customer, flipped = false) {
+    const cups = cupsOf(customer, flipped);
+    if (cups === 250) return cfg.bonus250;
+    return (cfg.bigOrders && cfg.bigOrders[cups]) || 0;
   }
 
   function finish() {
@@ -451,6 +691,9 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         cursed: s.stats.cursed,
         polite: s.stats.polite,
         bestLineId: s.best.id,
+        perfect: s.stats.perfect,
+        rageHits: s.stats.rageHits,
+        ...s.st2,
       },
     });
   }
@@ -482,24 +725,109 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         ? Object.freeze({
           customer: c.customer, patienceMs: c.patienceMs, patienceMaxMs: c.patienceMaxMs,
           speaking: c.speaking, step: c.step, sinceArriveMs: c.sinceArriveMs,
+          quick: c.quick, silent: c.silent, hits: c.hits, flipped: c.flipped, holding: !!c.holding,
+          key: wantOf(c),
         })
         : null,
+      upcoming: Object.freeze(s.upcoming.slice()),
+      streak: s.streak,
+      quick: s.quick,
+      quickRun: s.quickRun,
+      meter: s.meter,
+      event: s.event ? Object.freeze(s.event.state()) : null,
+      shutter: s.shutter,
       stats: Object.freeze({ ...s.stats }),
+      st2: Object.freeze({ ...s.st2 }),
     });
+  }
+
+  // the key the customer at the counter wants now
+  function wantOf(cur) {
+    const c = cur.customer;
+    if (isTwoStep(c)) return c.steps[Math.min(cur.step, c.steps.length - 1)];
+    if (c.flip && cur.flipped) return c.flip.key;
+    return c.key;
+  }
+
+  // when the press came: early (sign still rising), cut-in (while talking) or reaction after t0
+  function timingOf(cur) {
+    const early = cur.speaking && cur.sinceArriveMs < cur.cutInFromMs;
+    const cutIn = cur.speaking && !early;
+    const reactionMs = cur.speaking ? 0 : cur.patienceMaxMs - cur.patienceMs;
+    return { early, cutIn, reactionMs, fast: cutIn || (!early && reactionMs < cfg.perfectMs) };
+  }
+
+  // fast mouth (快嘴): correct answers in a row
+  function onCorrect(cutIn) {
+    s.streak += 1;
+    if (s.quick) {
+      s.quickRun += 1;
+      if (s.quickRun > s.st2.quickBest) s.st2.quickBest = s.quickRun;
+      if (cutIn) s.st2.quickCutIns += 1;
+    } else if (cfg.quickAt > 0 && s.streak >= cfg.quickAt) {
+      s.quick = true;
+      s.quickN = 0;
+      s.quickRun = 0;
+      emit('quickStart', {});
+    }
+  }
+  function breakStreak() {
+    s.streak = 0;
+    if (s.quick) {
+      const run = s.quickRun;
+      s.quick = false;
+      s.quickRun = 0;
+      s.quickN = 0;
+      emit('quickEnd', { run });
+    }
+  }
+
+  // day 4 meter: cups accepted with 收 (null = one cup)
+  function addMeter(cups) {
+    const add = Math.max(1, Number(cups) || 1);
+    const before = s.meter;
+    const v = before + add;
+    let queueDelta = 0;
+    let result = 'add';
+    if (v === cfg.meterTarget) {
+      s.meter = 0;
+      s.st2.meterHits += 1;
+      if (before === cfg.meterTarget - 1 && add === 1) s.st2.meter249plus1 += 1;
+      queueDelta = forcedScale(cfg.meterHitDelta);
+      result = 'hit';
+    } else if (v > cfg.meterTarget) {
+      s.meter = 0;
+      s.st2.meterOvers += 1;
+      queueDelta = forcedScale(cfg.meterOverDelta);
+      result = 'over';
+    } else {
+      s.meter = v;
+    }
+    s.meterLast = { atMs: s.elapsedMs, cups: add, reset: result !== 'add' };
+    emit('meter', { value: v, add, hit: result === 'hit', over: result === 'over', queueDelta, meter: s.meter });
+    if (queueDelta) { s.score += queueDelta * 100; addQueue(queueDelta); }
+    if (result === 'hit' && cfg.furyEnabled && !s.furyFull && s.phase === 'playing') {
+      s.fury = 100;
+      s.furyFull = true;
+      emit('furyFull', {});
+    }
+    return result;
   }
 
   function answer(key, holdMs) {
     const cur = s.current;
-    const { customer, patienceMs, patienceMaxMs } = cur;
-    const early = cur.speaking && cur.sinceArriveMs < cfg.cutInFromMs;
-    const cutIn = cur.speaking && !early;
-    const reactionMs = cur.speaking ? 0 : patienceMaxMs - patienceMs;
-    const steps = isTwoStep(customer) ? customer.steps : null;
-    const want = steps ? steps[cur.step] : customer.key;
+    const { customer } = cur;
+    const t = timingOf(cur);
+    const want = wantOf(cur);
     const correct = key === want;
+    const steps = isTwoStep(customer) ? customer.steps : null;
+
+    if (customer.boss) return bossStep(cur, key, correct, t, holdMs);
+    if (isGroup(customer) && correct) return groupHit(cur, key, t);
 
     // two-step customer: a correct non-final step keeps them at the counter for the next step
     if (correct && steps && cur.step < steps.length - 1) {
+      if (!t.fast) cur.allFast = false;
       cur.step += 1;
       cur.speaking = true;
       cur.speakLeftMs = cfg.stepSpeakMs;
@@ -508,21 +836,43 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       cur.patienceMs = max;
       cur.patienceMaxMs = max;
       s.lastHit = null;
-      const payload = { customer, step: cur.step, key, cutIn, reactionMs, correct: true };
+      const payload = { customer, step: cur.step, key, cutIn: t.cutIn, reactionMs: t.reactionMs, correct: true };
       emit('step', payload);
       return payload;
     }
+    return resolveAnswer(cur, key, correct, t, holdMs);
+  }
 
+  // A group box: each press of the right key sends one flying; the last one resolves the whole group.
+  function groupHit(cur, key, t) {
+    if (!cur.firstPress) cur.firstPress = t;
+    cur.hits += 1;
+    const n = cur.customer.group.length;
+    if (cur.hits < n) {
+      const payload = { customer: cur.customer, hits: cur.hits, n, key, group: true };
+      emit('groupHit', payload);
+      return payload;
+    }
+    return resolveAnswer(cur, key, true, cur.firstPress, 0);
+  }
+
+  function resolveAnswer(cur, key, correct, t, holdMs, opts = {}) {
+    const { customer } = cur;
+    const { early, cutIn, reactionMs } = t;
+    const steps = isTwoStep(customer) ? customer.steps : null;
+    const group = isGroup(customer) ? customer.group.length : 0;
     const perfect = correct && !early && reactionMs < cfg.perfectMs;
-    const charge = chargeOf(Math.max(0, Number(holdMs) || 0));
+    const charge = opts.charge ?? chargeOf(Math.max(0, Number(holdMs) || 0));
     const line = steps
       ? (customer.reply2 ?? customer.reply)
       : (customer.alt && rng() < cfg.altChance ? customer.alt : customer.reply);
-    const is250 = customer.style === '250' || customer.cups === 250;
+    const flipped = cur.flipped;
+    const is250 = is250Of(customer, flipped);
     // an early press (before the customer talks, the sign still rising) is a guess: no big-order bonus either
-    const bigOrder = bigBonus(customer);
-    const flat = early ? 0 : bigOrder;
+    const bigOrder = bigBonus(customer, flipped);
+    const flat = early ? 0 : bigOrder + (opts.flat || 0);
     const forced = s.forcedLeftMs > 0;
+    const wasQuick = s.quick;
 
     let queueDelta;
     let scoreDelta;
@@ -531,8 +881,10 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     if (correct) {
       mult = early ? 1 : speedMultFor(cutIn, reactionMs);
       base = 1 + Math.floor(Math.min(s.combo, cfg.comboCap) / cfg.comboStep);
-      queueDelta = answerDelta(base, charge, mult, flat);
-      bumpCombo();
+      queueDelta = group
+        ? forcedScale(Math.ceil(group * base * mult * cfg.groupMult - 1e-9) + cfg.chargeBonus[charge] + flat)
+        : answerDelta(base, charge, mult, flat);
+      for (let i = 0; i < Math.max(1, group); i++) bumpCombo();
       scoreDelta = queueDelta * 100 + (perfect ? 50 : 0) + Math.min(s.combo, cfg.comboCap) * 10;
     } else {
       // wrong key: still counts, the combo is frozen (no reset, no increment)
@@ -542,20 +894,33 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     let land = 'normal';
     if (!correct) land = 'wrong';
     else if (steps) land = 'step';
-    else if (customer.style === 'curse' || is250 || bigOrder > 0 || charge === 2) land = 'big';
+    else if (cur.quick && charge < 2) land = 'quick';
+    else if (group || customer.style === 'curse' || is250 || bigOrder > 0 || charge === 2) land = 'big';
 
     s.score += scoreDelta;
-    s.stats.served += 1;
+    s.stats.served += Math.max(1, group);
     s.stats.cursed += 1;
     if (perfect) s.stats.perfect += 1;
     if (scoreDelta > s.best.score) s.best = { id: customer.id ?? null, score: scoreDelta };
+    const st = s.st2;
+    if (correct && steps && !customer.boss) {
+      st.originals += 1;
+      if (cur.allFast && t.fast) st.originalsFast += 1;
+    }
+    if (correct && group) st.groupsCleared += 1;
+    if (correct && cutIn && customer.key === 'gun' && customer.cat === '犹豫磨叽') st.cutInHesitant += 1;
+    if (customer.flip) {
+      st.flips += 1;
+      if (flipped && correct) st.flipsWaited += 1;
+    }
     s.current = null;
     s.buffered = null;
-    s.lastHit = { customer, correct, charge, scoreDelta, atMs: s.elapsedMs, base, mult, flat, queueDelta };
+    s.lastHit = { customer, key, correct, charge, scoreDelta, atMs: s.elapsedMs, base, mult, flat, queueDelta, group };
 
     const payload = {
       customer, key, correct, perfect, charge, queueDelta, scoreDelta, line, reactionMs, cutIn, early, land,
-      step: cur.step, mult, forced, big: flat,
+      step: cur.step, mult, forced, big: flat, quick: !!cur.quick, inQuick: wasQuick, group, flipped,
+      boss: !!customer.boss, final: !!opts.final,
     };
     emit('resolve', payload);
     addQueue(queueDelta);
@@ -563,9 +928,89 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     else addAura(cfg.auraWrong);
     if (s.phase === 'over') return payload;
 
-    if (correct) addFury(cutIn ? cfg.furyCutIn : perfect ? cfg.furyPerfect : cfg.furyCorrect);
+    if (correct) {
+      addFury(cutIn ? cfg.furyCutIn : perfect ? cfg.furyPerfect : cfg.furyCorrect);
+      onCorrect(cutIn);
+    } else {
+      breakStreak();
+    }
+    if (cfg.meter && key === 'take' && !steps && !group) addMeter(cupsOf(customer, flipped));
     if (s.phase === 'playing') scheduleNext(land);
     return payload;
+  }
+
+  // ---- the boss (customer.boss): every press moves him on; a timeout repeats the step; the last step wants a full hold
+  function restartStep(cur) {
+    cur.speaking = true;
+    cur.speakLeftMs = cur.customer.stepSpeakMs ?? cfg.stepSpeakMs; // the boss talks long (his own fallback)
+    cur.sinceArriveMs = 0;
+    cur.holding = null;
+    const max = patienceFor(s.elapsedMs, s.combo);
+    cur.patienceMs = max;
+    cur.patienceMaxMs = max;
+    s.buffered = null;
+    s.lastHit = null;
+  }
+
+  function bossStep(cur, key, correct, t, holdMs) {
+    const c = cur.customer;
+    const last = cur.step >= c.steps.length - 1;
+    if (last) {
+      if (!correct) return bossRepeat(cur, key, false);
+      if (!c.holdLast) return bossFinal(cur, key, t);
+      cur.holding = { key, t };
+      emit('holding', { customer: c, key, step: cur.step });
+      if (chargeOf(Math.max(0, Number(holdMs) || 0)) >= 2) return bossFinal(cur, key, t);
+      return { holding: true, key, customer: c, step: cur.step };
+    }
+    let queueDelta;
+    if (correct) {
+      const mult = t.early ? 1 : speedMultFor(t.cutIn, t.reactionMs);
+      const base = 1 + Math.floor(Math.min(s.combo, cfg.comboCap) / cfg.comboStep);
+      queueDelta = answerDelta(base, 0, mult, 0);
+      bumpCombo();
+      if (Array.isArray(c.haggle) && c.haggle.includes(cur.step) && t.fast) cur.haggleFast += 1;
+      s.score += queueDelta * 100 + (t.fast ? 50 : 0);
+    } else {
+      queueDelta = forcedScale(cfg.wrongQueueDelta);
+      s.score += 20;
+      breakStreak();
+    }
+    s.stats.cursed += 1;
+    if (correct && t.fast && !t.cutIn) s.stats.perfect += 1;
+    const prev = cur.step;
+    cur.step += 1;
+    restartStep(cur);
+    const payload = { customer: c, step: cur.step, prev, key, cutIn: t.cutIn, reactionMs: t.reactionMs, correct, queueDelta, boss: true };
+    emit('step', payload);
+    addQueue(queueDelta);
+    if (correct) {
+      addAura(t.fast ? cfg.auraPerfect : cfg.auraCorrect);
+      addFury(t.cutIn ? cfg.furyCutIn : t.fast ? cfg.furyPerfect : cfg.furyCorrect);
+    }
+    return payload;
+  }
+
+  // the last step again: a release before the full hold (tap: still +1) or another key
+  function bossRepeat(cur, key, tap) {
+    const c = cur.customer;
+    const queueDelta = forcedScale(cfg.wrongQueueDelta);
+    s.score += 20;
+    s.stats.cursed += 1;
+    restartStep(cur);
+    const payload = { customer: c, step: cur.step, prev: cur.step, key, again: true, tap, correct: false, queueDelta, boss: true };
+    emit('step', payload);
+    addQueue(queueDelta);
+    return payload;
+  }
+
+  function bossFinal(cur, key, t) {
+    const c = cur.customer;
+    const tt = cur.holding ? cur.holding.t : t;
+    cur.holding = null;
+    s.st2.bossBeaten = true;
+    if (Array.isArray(c.haggle) && cur.haggleFast >= c.haggle.length) s.st2.bossHagglePerfect = 1;
+    return resolveAnswer(cur, key, true, tt, 0, { charge: c.holdLast ? 2 : 0, flat: cfg.bonus250, final: true });
   }
 
   function rageHit(key) {
@@ -626,6 +1071,17 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       s.elapsedMs += dt;
       s.timeLeftMs = Math.max(0, s.timeLeftMs - dt);
       if (s.timeLeftMs <= 0) { finish(); return; }
+      if (cfg.shutterMs > 0 && !s.shutter && s.timeLeftMs <= cfg.shutterMs) startShutter();
+      if (s.event) {
+        // a mini event owns the counter (the round clock keeps running; forced politeness keeps counting down)
+        if (s.forcedLeftMs > 0) {
+          s.forcedLeftMs = Math.max(0, s.forcedLeftMs - dt);
+          if (s.forcedLeftMs <= 0) { s.aura = clamp(cfg.auraAfterForced, 0, 100); emit('forcedEnd', { aura: s.aura }); }
+        }
+        applyEffects(s.event.tick(dt));
+        return;
+      }
+      if (s.shutter) return;
 
       if (s.forcedLeftMs > 0 && s.phase === 'playing') {
         s.forcedLeftMs -= dt;
@@ -650,7 +1106,9 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
 
       if (s.current) {
         s.current.sinceArriveMs += dt;
-        if (s.buffered && s.current.sinceArriveMs >= cfg.minAnswerMs) {
+        const fl = s.current.customer.flip;
+        if (fl && !s.current.flipped && s.current.speaking && s.current.sinceArriveMs >= (fl.atMs ?? cfg.cutInFromMs + 1000)) flipNow();
+        if (s.buffered && s.current.sinceArriveMs >= s.current.minAnswerMs) {
           const b = s.buffered;
           s.buffered = null;
           answer(b.key, b.holdMs);
@@ -675,7 +1133,20 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         return;
       }
 
+      if (s.current.holding) return; // the boss's last step: a held key freezes the timer
       s.current.patienceMs -= dt;
+      if (s.current.patienceMs <= 0 && s.current.customer.boss) {
+        // the boss never leaves: he asks again (combo 0, no aura)
+        const cur = s.current;
+        s.timeouts += 1;
+        s.stats.polite += 1;
+        s.st2.bossTimeouts += 1;
+        s.combo = 0;
+        breakStreak();
+        restartStep(cur);
+        emit('bossAgain', { customer: cur.customer, step: cur.step });
+        return;
+      }
       if (s.current.patienceMs <= 0) {
         const customer = s.current.customer;
         s.timeouts += 1;
@@ -683,6 +1154,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
         const free = firstFree || !cfg.timeoutCostsAura;
         s.stats.polite += 1;
         s.combo = 0;
+        breakStreak();
         s.current = null;
         s.buffered = null;
         emit('polite', { customer, free });
@@ -699,20 +1171,48 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       if (s.paused) return null;
       if (s.phase === 'rage') return rageHit(key);
       if (s.phase !== 'playing') return null;
+      if (s.event) {
+        const type = s.event.type;
+        applyEffects(s.event.press(key, holdMs));
+        return { event: type, key };
+      }
+      if (s.shutter) return null;
+      if (s.current && s.current.holding) return null; // the boss's last step: another key while 收 is held
       if (s.furyFull && cfg.furyEnabled && !(s.current && isTwoStep(s.current.customer))) {
         startRage();
         return { rageStart: true, key };
       }
       if (!s.current) return null;
       const cur = s.current;
-      if (cur.sinceArriveMs < cfg.minAnswerMs) {
-        if (cfg.minAnswerMs - cur.sinceArriveMs <= cfg.bufferMs) {
+      if (cur.sinceArriveMs < cur.minAnswerMs) {
+        if (cur.minAnswerMs - cur.sinceArriveMs <= cfg.bufferMs) {
           s.buffered = { key, holdMs };
           return { buffered: true, key };
         }
+        // fast mouth: the next head pops while the last one still flies; a press in its first moment is a late jab on
+        // the last one (feedback only), not an answer
+        if (s.lastHit && s.elapsedMs - s.lastHit.atMs < 1000) return { tooEarly: true, key };
         return null;
       }
       return answer(key, holdMs);
+    },
+
+    // A key released after holdMs (main.js forwards every release). The boss's last step: a release before the full
+    // hold repeats it (step event, again + tap). A mini event: the calculator resolves on release. Null otherwise.
+    release(key, holdMs = 0) {
+      if (s.paused || s.phase !== 'playing') return null;
+      if (s.event) {
+        const type = s.event.type;
+        const fx = s.event.release(key, holdMs);
+        if (!fx.length) return null;
+        applyEffects(fx);
+        return { event: type, key };
+      }
+      const cur = s.current;
+      if (cur && cur.holding && cur.holding.key === key && chargeOf(Math.max(0, Number(holdMs) || 0)) < 2) {
+        return bossRepeat(cur, key, true);
+      }
+      return null;
     },
 
     // A press while the answered customer flies (the landing pause after an answer). The first jabPaidMax jabs
@@ -746,9 +1246,17 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     // Reaching level 2 makes the landing pause a big one (landBigMs from the answer).
     charge(level) {
       if (s.paused || (s.phase !== 'playing' && s.phase !== 'rage')) return null;
-      const hit = s.lastHit;
       const lvl = Math.max(0, Math.min(cfg.chargeBonus.length - 1, level | 0));
-      if (!hit || !hit.correct || s.elapsedMs - hit.atMs > cfg.chargeWindowMs || lvl <= hit.charge) return null;
+      // the boss's last step: the full hold is the answer
+      if (s.current && s.current.holding && lvl >= 2 && s.phase === 'playing') {
+        return bossFinal(s.current, s.current.holding.key, s.current.holding.t);
+      }
+      const hit = s.lastHit;
+      if (!hit || !hit.correct || hit.group || s.elapsedMs - hit.atMs > cfg.chargeWindowMs || lvl <= hit.charge) return null;
+      if (lvl >= 2 && hit.key === 'gun' && hit.customer.cups === 1) s.st2.charged1cupGun += 1;
+      // day 4 meter: a full charge doubles the cups of that 收 (unless that 收 already hit or overflowed the meter)
+      const m = s.meterLast;
+      const doubleMeter = cfg.meter && lvl >= 2 && hit.key === 'take' && m && m.atMs === hit.atMs && !m.reset && !m.doubled;
       const total = answerDelta(hit.base, lvl, hit.mult, hit.flat);
       const queueDelta = Math.max(0, total - hit.queueDelta);
       hit.charge = lvl;
@@ -763,12 +1271,25 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       const payload = { level: lvl, queueDelta, customer: hit.customer };
       emit('charge', payload);
       addQueue(queueDelta);
+      if (doubleMeter && s.phase === 'playing') {
+        m.doubled = true;
+        addMeter(m.cups);
+      }
       return payload;
     },
 
     // t0: the customer finished talking (main.js calls this at min(voice end, signUp + 1600)).
     // Starts the answer window and emits 'ready'. No-op if not talking.
     speechDone,
+
+    // Change-order customer: flip the sign now (main.js calls it when their first line ends; the engine flips by
+    // itself at customer.flip.atMs, or at speechDone, whichever comes first).
+    flip() {
+      if (s.paused || s.phase !== 'playing' || !s.current || !s.current.speaking) return false;
+      const before = s.current.flipped;
+      flipNow();
+      return !before && s.current.flipped;
+    },
 
     // Lengthen the current landing pause to at least ms (main.js: the clerk's punch line + L).
     // Only while nobody is at the counter. Returns true when applied.

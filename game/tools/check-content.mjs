@@ -55,6 +55,47 @@ for (const [lang, sys] of [['zh', SYSTEM_ZH], ['en', SYSTEM_EN]]) {
   check(`B4-${lang}`, `${lang}: system lines complete (next>=5, polite>=4, rageLines>=24, milestones, ui, opening, tips, unlock, originalCustomer; signature250 removed)`, ok);
 }
 
+// B5. Gameplay v2 stage 2 lines (days, report, quick, meter, mini events, group, change order, shutter, boss):
+// present in both languages, same shape, and the same "|" structure for every spoken line.
+{
+  const bad = [];
+  const pipes = (t) => (String(t ?? '').match(/\|/g) || []).length;
+  for (const [lang, sys] of [['zh', SYSTEM_ZH], ['en', SYSTEM_EN]]) {
+    for (let n = 1; n <= 7; n++) for (const k of ['name', 'rule', 'star2', 'riddle']) if (!sys.days?.[n]?.[k]) bad.push(`${lang}:days.${n}.${k}`);
+    for (const k of ['day', 'rule', 'riddle', 'rating', 'newRecord', 'best', 'toStar3', 'allStars', 'star1', 'star1Boss', 'tomorrow']) if (!sys.report?.[k]) bad.push(`${lang}:report.${k}`);
+    if (!sys.quick?.start || !sys.quick?.label) bad.push(`${lang}:quick`);
+    if (!(sys.meter?.over?.length >= 3) || !(sys.meter?.hit?.length >= 2) || sys.meter?.plate?.length !== 3) bad.push(`${lang}:meter`);
+    for (const k of ['start', 'jackpot', 'r249', 'r251', 'r300', 'r0']) if (!sys.calculator?.[k]) bad.push(`${lang}:calculator.${k}`);
+    if (!(sys.megaphone?.passer?.length >= 1) || !(sys.megaphone?.shout?.length >= 3) || !sys.megaphone?.end) bad.push(`${lang}:megaphone`);
+    if (!sys.phone?.caller || !(sys.phone?.hangup?.length >= 1)) bad.push(`${lang}:phone`);
+    if (!sys.stamp?.cust || !sys.stamp?.done || ![50, 100, 200, 249].every((k) => sys.stamp?.callouts?.[k])) bad.push(`${lang}:stamp`);
+    if (!['gun', 'shut', 'take'].every((k) => sys.group?.[k]?.length)) bad.push(`${lang}:group`);
+    for (const k of ['says', 'says2', 'sign', 'sign2', 'early', 'shut', 'take', 'gun']) if (!sys.changeOrder?.[k]) bad.push(`${lang}:changeOrder.${k}`);
+    if (!(sys.shutter?.length >= 1)) bad.push(`${lang}:shutter`);
+    const steps = sys.boss?.steps || [];
+    if (steps.length !== 8) bad.push(`${lang}:boss.steps (${steps.length})`);
+    steps.forEach((st, i) => {
+      if (!st.says || !st.sign || !st.take) bad.push(`${lang}:boss.steps.${i}`);
+      if (i < 3 && (!st.shut || !st.gun)) bad.push(`${lang}:boss.steps.${i} keys`);
+    });
+    if (!steps[7]?.full || !steps[7]?.gun || !steps[7]?.shut || !sys.boss?.haggleWrong?.shut || !sys.boss?.haggleWrong?.gun) bad.push(`${lang}:boss final / haggleWrong`);
+  }
+  // same "|" structure per spoken line (zh vs en)
+  const spoken = (sys) => [
+    ...(sys.meter?.over || []), ...(sys.meter?.hit || []),
+    ...['start', 'jackpot', 'r249', 'r251', 'r300', 'r0'].map((k) => sys.calculator?.[k]),
+    ...(sys.megaphone?.shout || []), sys.megaphone?.end, ...(sys.phone?.hangup || []), sys.stamp?.done,
+    ...['take', 'gun', 'shut'].flatMap((k) => sys.group?.[k] || []), ...['early', 'shut', 'take', 'gun'].map((k) => sys.changeOrder?.[k]),
+    ...(sys.shutter || []), ...(sys.boss?.steps || []).flatMap((st) => [st.take, st.shut, st.gun, st.full]),
+    sys.boss?.haggleWrong?.shut, sys.boss?.haggleWrong?.gun,
+  ];
+  const zs = spoken(SYSTEM_ZH);
+  const es = spoken(SYSTEM_EN);
+  zs.forEach((z, i) => { if (pipes(z) !== pipes(es[i])) bad.push(`| differs: ${z} / ${es[i]}`); });
+  check('B5', 'stage 2 lines complete in zh and en (days, report, quick, meter, events, group, change order, shutter, boss), same "|" structure',
+    bad.length === 0, bad.slice(0, 4).join(' | '));
+}
+
 // C. Design red lines (shipped game text only; docs are reviewed by hand)
 const delivery = [...hits(ZH, /外送|外卖|送餐|骑手|熊猫外送|Uber ?Eats|foodpanda/i), ...hits(EN, /deliver(y|ies)|DoorDash|Uber ?Eats|Grubhub|courier|rider|delivery ?guy/i)];
 check('C1', 'no delivery-rider characters or references', delivery.length === 0, delivery.slice(0, 3).join(' | '));

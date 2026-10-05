@@ -20,6 +20,20 @@
 //   intro (id of the day's new-system intro: 'opening' | 'aura' | 'rage' | 'charge' | null),
 //   talkLeadMs (the answer window t0 opens this long before the customer's voice ends; day 1 only, for pace),
 //   original (null | { atMs }: the two-step original-film customer, once per round from atMs on)
+//
+// Gameplay v2 stage 2 (docs/gameplay-v2.md 5–6), per day:
+//   rule ('open' | 'quick' | 'original' | 'meter' | 'phone' | 'crowd' | 'boss': the day's new thing, its name and one-line
+//   rule text live in SYSTEM.days[n]), preview (next customers shown under the counter), quickAt (correct answers in a
+//   row before fast mouth; 0 = none), quickEnterMs (head pop in fast mouth), quickLandMs, specials ([{ type: 'original' |
+//   'group' | 'change' | 'boss', atMs }]: main.js turns them into engine specials with specialsForDay()), meter (day 4:
+//   the 250 ticket meter), events ([{ type, atMs }], src/events.js), shutterMs (the last N ms: 拉铁门),
+//   star2 / star3 (stat conditions on the engine summary, see meets()), ratingRef (the queue that rating tiers scale
+//   from when star1 is not a number: the boss day).
+//
+//   evaluateDay(n, summary) → { stars: [★1, ★2, ★3], count, rating: 'C'|'B'|'A'|'S', gold }   (gold: S and the queue
+//   ends in 250)
+//   meets(cond, summary)      cond { stat, min?, max? } or { all: [cond, ...] }
+//   specialsForDay(n, { original, change, boss })   engine specials ([{ customer | type, atMs }]) for day n
 
 export const DAY_COUNT = 7;
 
@@ -59,7 +73,23 @@ const BASE = {
   intro: null,
   original: null,
   talkLeadMs: 0,
+  // stage 2 (days 2+ turn these on)
+  rule: null,
+  preview: 0,
+  quickAt: 0,
+  quickEnterMs: 180,
+  quickLandMs: 250,
+  specials: [],
+  meter: false,
+  events: [],
+  shutterMs: 0,
+  star2: null,
+  star3: null,
+  ratingRef: null,
 };
+
+// Days 2+: the next two customers' mini signs, fast mouth after five correct in a row, the last 5 s 拉铁门.
+const V2 = { preview: 2, quickAt: 5, shutterMs: 5000 };
 
 // 4.2 table: W / bonus / L / L+ / wrong / enter / rate / punch gap.
 export const DAYS = [
@@ -69,12 +99,15 @@ export const DAYS = [
     timeoutCostsAura: false, furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: false, showFury: false,
     pool: { ids: DAY1_IDS }, fixedFirst: [41, 46, 12], weights: { gun: 0.45, take: 0.30, shut: 0.25 },
     star1: 30, intro: 'opening', talkLeadMs: 400, chargeBonus: [0, 0, 0],
+    rule: 'open', star2: { stat: 'maxCombo', min: 10 }, star3: { stat: 'cutInHesitant', min: 1 },
   },
   {
     ...BASE, day: 2, durationMs: 90000, windowStartMs: 2100, windowEndMs: 2100, introBonusMs: 300,
     landMs: 550, landBigMs: 950, landWrongMs: 450, enterMs: 260, custRate: 1.0, punchGapMs: 200,
     furyEnabled: false, furyPerCustomer: 0, furyCorrect: 0, showAura: 'intro', showFury: false,
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet] }, star1: 80, intro: 'aura', chargeBonus: [0, 0, 0],
+    ...V2, rule: 'quick', events: [{ type: 'megaphone', atMs: 45000 }],
+    star2: { stat: 'quickBest', min: 15 }, star3: { stat: 'quickCutIns', min: 3 },
   },
   {
     ...BASE, day: 3, durationMs: 90000, windowStartMs: 1850, windowEndMs: 1850, introBonusMs: 200,
@@ -83,28 +116,54 @@ export const DAYS = [
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping] }, star1: 105, intro: 'rage',
     chargeBonus: [0, 0, 0],
     original: { atMs: 30000 }, // after the first rage (about 15–20 s): one new thing at a time
+    ...V2, rule: 'original',
+    // 原片日: the two-step original customer 4–6 times (deferred while rage is ahead)
+    specials: [12000, 27000, 42000, 57000, 70000].map((atMs) => ({ type: 'original', atMs })),
+    events: [{ type: 'stamp', atMs: 62000 }],
+    star2: { stat: 'originals', min: 4 }, star3: { stat: 'originalsFast', min: 1 },
   },
   {
     ...BASE, day: 4, durationMs: 90000, windowStartMs: 1650, windowEndMs: 1650, introBonusMs: 200,
     landMs: 380, landBigMs: 750, landWrongMs: 320, enterMs: 200, custRate: 1.06, punchGapMs: 160,
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap] }, star1: 100, intro: 'charge',
     original: { atMs: 40000 },
+    ...V2, rule: 'meter', meter: true, specials: [{ type: 'original', atMs: 40000 }],
+    events: [{ type: 'calculator', atMs: 52000 }],
+    star2: { stat: 'meterHits', min: 2 }, star3: { stat: 'meter249plus1', min: 1 },
   },
   {
     ...BASE, day: 5, durationMs: 90000, windowStartMs: 1450, windowEndMs: 1450, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping, CAT.cheap, CAT.rush, CAT.pay] },
     star1: 115, original: { atMs: 40000 },
+    // 回嘴日: the comeback mechanic is stage 3; the ex-boss's phone call is the day's event
+    ...V2, rule: 'phone', specials: [{ type: 'original', atMs: 60000 }],
+    events: [{ type: 'phone', atMs: 38000 }],
+    star2: { stat: 'maxCombo', min: 40 }, star3: { stat: 'phoneFast', min: 1 },
   },
   {
     ...BASE, day: 6, durationMs: 90000, windowStartMs: 1400, windowEndMs: 1400, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
     pool: { cats: Object.values(CAT), allow249: true }, star1: 120, original: { atMs: 40000 },
+    // 晚八点人潮: group boxes and change-order customers (and the 249 trap in the pool)
+    ...V2, rule: 'crowd',
+    specials: [
+      ...[15000, 33000, 51000, 68000].map((atMs) => ({ type: 'group', atMs })),
+      ...[24000, 42000, 60000].map((atMs) => ({ type: 'change', atMs })),
+    ].sort((a, b) => a.atMs - b.atMs),
+    events: [{ type: 'megaphone', atMs: 76000 }],
+    star2: { stat: 'groupsCleared', min: 3 }, star3: { stat: 'charged1cupGun', min: 1 },
   },
   {
     ...BASE, day: 7, durationMs: 90000, windowStartMs: 1400, windowEndMs: 1400, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
     pool: { cats: Object.values(CAT), allow249: true }, star1: null, original: { atMs: 40000 },
+    // Boss: the ex-boss queues up (★1 = beat him); no other special
+    ...V2, rule: 'boss', specials: [{ type: 'boss', atMs: 20000 }],
+    events: [{ type: 'stamp', atMs: 70000 }],
+    star2: { all: [{ stat: 'bossBeaten', min: 1 }, { stat: 'bossTimeouts', max: 0 }] },
+    star3: { stat: 'bossHagglePerfect', min: 1 },
+    ratingRef: 130,
   },
 ];
 
@@ -146,8 +205,66 @@ export function configForDay(n, extra = {}) {
     speakMaxMs: signUpMs + 1600,
     fixedOrder: d.fixedFirst ? d.fixedFirst.slice() : null,
     keyWeights: d.weights ? { ...d.weights } : null,
+    // stage 2
+    preview: d.preview,
+    quickAt: d.quickAt,
+    // silent customers (fast mouth, groups): the sign rises 40 ms after the head (not 120), sign up = enter + 200
+    quickMinAnswerMs: d.quickEnterMs + 40,
+    quickCutInFromMs: d.quickEnterMs + 200,
+    quickSpeakMs: d.quickEnterMs + 200 + 120, // nobody talks: t0 = sign up + 120 ms (the cut-in window)
+    quickLandMs: d.quickLandMs,
+    meter: d.meter,
+    events: d.events.length ? d.events.map((e) => ({ ...e })) : null,
+    shutterMs: d.shutterMs,
+    specials: specialsForDay(n, {}),
     ...extra,
   };
+}
+
+/**
+ * Engine specials for day n. Group boxes are built by the engine; the original / change-order / boss customers come
+ * from content (main.js passes them). A special whose customer is missing is left out.
+ */
+export function specialsForDay(n, { original, change, boss } = {}) {
+  const by = { original, change, boss };
+  const out = [];
+  for (const sp of dayInfo(n).specials || []) {
+    if (sp.type === 'group') out.push({ type: 'group', atMs: sp.atMs });
+    else if (by[sp.type]) out.push({ customer: by[sp.type], atMs: sp.atMs });
+  }
+  return out.length ? out : null;
+}
+
+/** cond { stat, min?, max? } or { all: [...] } against an engine summary (booleans count as 1 / 0). */
+export function meets(cond, summary = {}) {
+  if (!cond) return false;
+  if (Array.isArray(cond.all)) return cond.all.every((c) => meets(c, summary));
+  const v = Number(summary[cond.stat] === true ? 1 : summary[cond.stat] || 0);
+  if (cond.min != null && !(v >= cond.min)) return false;
+  if (cond.max != null && !(v <= cond.max)) return false;
+  return true;
+}
+
+/**
+ * Stars and rating of a finished day (gameplay-v2 6). ★1: the queue threshold (boss day: the boss beaten); ★2 the day's
+ * rule goal; ★3 the blackboard riddle. Rating: C below ★1; then one point each for queue ≥ ref, ≥ 1.5 ref, ≥ 2 ref, ★2
+ * and ★3: B (1–2), A (3), S (4–5). Gold "250": S and the queue ends in 250.
+ */
+export function evaluateDay(n, summary = {}) {
+  const d = dayInfo(n);
+  const queue = Math.max(0, Math.floor(summary.queue || 0));
+  const s1 = d.star1 != null ? queue >= d.star1 : !!summary.bossBeaten;
+  const s2 = meets(d.star2, summary);
+  const s3 = meets(d.star3, summary);
+  const ref = d.star1 ?? d.ratingRef ?? 100;
+  let rating = 'C';
+  if (s1) {
+    const pts = (queue >= ref) + (queue >= 1.5 * ref) + (queue >= 2 * ref) + s2 + s3;
+    rating = pts >= 4 ? 'S' : pts >= 3 ? 'A' : 'B';
+  }
+  const gold = rating === 'S' && queue % 1000 === 250;
+  const stars = [s1, s2, s3];
+  return { stars, count: stars.filter(Boolean).length, rating, gold, mask: (s1 ? 1 : 0) | (s2 ? 2 : 0) | (s3 ? 4 : 0) };
 }
 
 /** Customers allowed on day n (by id list and/or category), without the 249 trap before day 6. */

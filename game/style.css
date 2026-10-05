@@ -330,6 +330,10 @@ button { font: inherit; color: inherit; }
 .sign-shut .sign-timer { bottom: 1.4cqw; }
 .sign-take .sign-timer { background: var(--cream); }
 .sign-timer.blink { animation: blink 150ms steps(2) infinite; }
+/* gameplay v2: speed multiplier tag on the sign corner (×2 while talking, ×1.5 / ×1.2 as the timer shrinks) */
+.sign-mult { position: absolute; right: -3cqw; top: -3.4cqw; z-index: 3; padding: .4cqw 1.4cqw; border-radius: 1.4cqw;
+  font: 900 4.4cqw/1 var(--font-en); color: #FFD84A; background: var(--ink); box-shadow: 0 0 0 .4cqw #FFD84A; rotate: 8deg; pointer-events: none; }
+.sign-mult.pop { animation: bump .2s ease-out; }
 
 /* flips, hints, exits */
 .sign.flip-in .sign-card { animation: flipIn 200ms ease-out both; }
@@ -394,6 +398,10 @@ button { font: inherit; color: inherit; }
 .bar-fury .bar-fill { background: var(--fury); }
 .bar.low .bar-fill { background: #ff4b4b; animation: pulse .4s infinite alternate; }
 .bar.hot .bar-track { border-color: var(--fury); animation: pulse .3s infinite alternate; }
+/* gameplay v2: a full fury bar waits for the player's next press: the bar glows, the keys pulse, the clerk shakes */
+.stage[data-fury=full] .bar-fury .bar-track { border-color: #FFD84A; box-shadow: 0 0 1.6cqw .4cqw var(--fury); animation: pulse .18s infinite alternate; }
+.stage[data-fury=full] .btn { animation: glowKey 220ms ease-in-out infinite alternate; box-shadow: 0 1.6cqw 0 color-mix(in srgb, var(--c) 78%, #1B1311), 0 0 0 1cqw color-mix(in srgb, var(--fury) 60%, transparent); }
+.stage[data-fury=full] .clerk { animation: furyShiver 90ms linear infinite; }
 .bar.enter { animation: barIn 300ms ease-out; }
 .hud-combo { position: absolute; right: 3cqw; top: 46cqw; display: flex; align-items: baseline; gap: 1cqw; opacity: 0; visibility: hidden; transform: scale(.6); transition: opacity .15s, transform .15s, visibility 0s .15s; pointer-events: none; }
 .hud-combo.show { opacity: 1; visibility: visible; transform: scale(1); transition: opacity .15s, transform .15s; }
@@ -678,6 +686,7 @@ button { font: inherit; color: inherit; }
 @keyframes par3 { 50%, 100% { transform: scale(.55); } }
 /* misc fx */
 @keyframes counterTap { 50% { transform: translateY(5px); } }
+@keyframes furyShiver { 0%, 100% { translate: 0 0; } 25% { translate: -.4cqw .2cqw; } 75% { translate: .4cqw -.2cqw; } }
 @keyframes custWobble { 0%, 100% { transform: none; } 25% { transform: rotate(-6deg); } 50% { transform: rotate(5deg); } 75% { transform: rotate(-3deg); } }
 @keyframes dashFlow { to { stroke-dashoffset: -3.5cqw; } }
 @keyframes fingerTap { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(1.6cqw, 1.6cqw) scale(.94); } }

@@ -45,12 +45,14 @@ test('system unlock order (7): day 1 hides aura/fury and timeouts are free; day 
   const d1 = dayInfo(1), d2 = dayInfo(2), d3 = dayInfo(3), d4 = dayInfo(4);
   assert.deepEqual([d1.showAura, d1.showFury, d1.timeoutCostsAura, d1.furyEnabled], [false, false, false, false]);
   assert.deepEqual([d2.showAura, d2.showFury, d2.timeoutCostsAura, d2.furyEnabled], ['intro', false, true, false]);
-  assert.deepEqual([d3.showFury, d3.furyEnabled, d3.furyPerCustomer, d3.furyCorrect], [true, true, 12, 8]);
+  // gameplay-v2 4: fury is earned by skill (no fury on arrival); day 3 doubles every gain in its first 30 s (the first rage)
+  assert.deepEqual([d3.showFury, d3.furyEnabled, d3.furyPerCustomer, d3.furyCorrect, d3.furyPerfect, d3.furyCutIn, d3.furyJab, d3.furyMult],
+    [true, true, 0, 6, 10, 14, 2, 2]);
   assert.deepEqual(DAYS.slice(0, 4).map((d) => d.intro), ['opening', 'aura', 'rage', 'charge']);
   assert.equal(d1.original, null);
   assert.equal(d2.original, null);
   assert.ok(d3.original && d3.original.atMs > 0);
-  assert.equal(d4.furyPerCustomer, 6);
+  assert.deepEqual([d4.furyPerCustomer, d4.furyMult], [0, 1]);
 });
 
 test('day 1 pool: exactly the 21 listed customers, fixed trio first, weights 45/30/25', () => {
@@ -114,5 +116,5 @@ test('configForDay(n, extra) merges extra (e.g. the special customer)', () => {
   const special = { customer: { id: 'orig' }, atMs: 1 };
   assert.equal(configForDay(3, { special }).special, special);
   assert.equal(configForDay(2).furyEnabled, false);
-  assert.equal(configForDay(3).furyPerCustomer, 12);
+  assert.deepEqual([configForDay(3).furyPerCustomer, configForDay(3).furyCutIn, configForDay(3).furyMult], [0, 14, 2]);
 });

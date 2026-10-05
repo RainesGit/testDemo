@@ -10,7 +10,9 @@
 // Day object fields:
 //   day, durationMs, windowStartMs, windowEndMs (W from t0), introBonusMs (first 10 s), landMs, landBigMs,
 //   landWrongMs (landing pauses), enterMs (head pop), custRate (customer voice playbackRate), punchGapMs (silence
-//   before the punch half of a clerk line), timeoutCostsAura, furyEnabled, furyPerCustomer, furyCorrect,
+//   before the punch half of a clerk line), timeoutCostsAura, furyEnabled, furyPerCustomer, furyCorrect, furyPerfect,
+//   furyCutIn, furyJab, furyMult / furyMultUntilMs (gameplay-v2 4: fury is earned by skill; furyMult scales every
+//   gain until furyMultUntilMs),
 //   showAura / showFury (true | false | 'intro' = hidden until the day's intro shows it), pool { cats, ids, exclude },
 //   fixedFirst (first customers by id), weights (by answer key), star1 (★1 queue threshold; null = boss day),
 //   intro (id of the day's new-system intro: 'opening' | 'aura' | 'rage' | 'charge' | null),
@@ -40,8 +42,13 @@ const TRAP_249 = 48;
 const BASE = {
   timeoutCostsAura: true,
   furyEnabled: true,
-  furyPerCustomer: 6,
-  furyCorrect: 4,
+  furyPerCustomer: 0, // gameplay-v2 4: arrivals add no fury; cut-in +14, perfect +10, correct +6, jab +2
+  furyCorrect: 6,
+  furyPerfect: 10,
+  furyCutIn: 14,
+  furyJab: 2,
+  furyMult: 1,
+  furyMultUntilMs: Infinity,
   showAura: true,
   showFury: true,
   fixedFirst: null,
@@ -69,7 +76,7 @@ export const DAYS = [
   {
     ...BASE, day: 3, durationMs: 90000, windowStartMs: 1850, windowEndMs: 1850, introBonusMs: 200,
     landMs: 450, landBigMs: 850, landWrongMs: 380, enterMs: 230, custRate: 1.04, punchGapMs: 180,
-    furyPerCustomer: 12, furyCorrect: 8, // ×2 so the first rage comes at about 25 s
+    furyMult: 2, furyMultUntilMs: 30000, // the first rage (the day's new system) comes at about 25 s for a normal player
     pool: { ids: DAY1_IDS, cats: [CAT.hesitate, CAT.count, CAT.sweet, CAT.topping] }, star1: 40, intro: 'rage',
     original: { atMs: 30000 }, // after the first rage (about 15–20 s): one new thing at a time
   },
@@ -122,8 +129,15 @@ export function configForDay(n, extra = {}) {
     furyEnabled: d.furyEnabled,
     furyPerCustomer: d.furyPerCustomer,
     furyCorrect: d.furyCorrect,
+    furyPerfect: d.furyPerfect,
+    furyCutIn: d.furyCutIn,
+    furyJab: d.furyJab,
+    furyMult: d.furyMult,
+    furyMultUntilMs: d.furyMultUntilMs,
     // presses count once the sign starts rising (its colour is visible); the talking fallback is signUp + 1600
     minAnswerMs: d.enterMs + 120,
+    // a cut-in (×2) needs the customer to be talking: their line starts once the sign is up
+    cutInFromMs: signUpMs,
     speakMaxMs: signUpMs + 1600,
     fixedOrder: d.fixedFirst ? d.fixedFirst.slice() : null,
     keyWeights: d.weights ? { ...d.weights } : null,

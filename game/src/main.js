@@ -520,7 +520,8 @@ function showReport(summary, relocalize = false) {
   }
   if (relocalize || !lastVerdict) lastVerdict = pick(sys().closing);
   const best = local(content.customers.find((c) => c.id === summary.bestLineId));
-  const line = bestLineMeta.id === summary.bestLineId && best ? (bestLineMeta.alt ? best.alt : best.reply) : best?.reply;
+  let line = bestLineMeta.id === summary.bestLineId && best ? (bestLineMeta.alt ? best.alt : best.reply) : best?.reply;
+  if (!best && bestLineMeta.id === summary.bestLineId && bestLineMeta.line) line = bestLineMeta.line;
   // ★1 reached → the button opens the next day; otherwise this day again (7)
   const star1 = dayInfo(lastDay).star1;
   const st = sys().start || {};
@@ -1108,7 +1109,8 @@ function onResolve(e) {
     line = (isAlt ? loc.alt : loc.reply) || e.line;
   }
   if (correct && key === 'take') round.takes += 1;
-  if (!e.forced && scoreDelta > bestLineMeta.score) bestLineMeta = { id: customer.id, alt: isAlt, score: scoreDelta };
+  // the line itself is kept for the stage-2 customers that are not among the 100 (boss, group, change-order)
+  if (!e.forced && scoreDelta > bestLineMeta.score) bestLineMeta = { id: customer.id, alt: isAlt, score: scoreDelta, line };
 
   const big = e.land === 'big' || e.land === 'step';
   const style = e.forced ? 'polite' : customer.style;

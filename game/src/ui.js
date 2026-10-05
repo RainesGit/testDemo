@@ -1128,6 +1128,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     current = null;
     custGen++;
     groupRow.textContent = '';
+    stage.classList.remove('grouping');
     clearTimeout(custLineTimer);
     custWrap.textContent = '';
     custWrap.className = 'cust-wrap';
@@ -2115,6 +2116,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     stat(t.comboLabel || (zh ? '最高连击' : 'Best combo'), '×' + fmt(s.maxCombo));
     // stage 2: the stars and the rating take the score's place
     if (!Array.isArray(t.stars)) stat(t.scoreLabel || (zh ? '分数' : 'Score'), fmt(s.score));
+    else card.classList.add('has-stars');
     if (s.polite) stat(zh ? '被迫客气' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
     stat(zh ? '接客' : 'Served', fmt(s.served));
     // stage 2: stars (★1 / ★2 / ★3 with their goals), the rating (C/B/A/S, gold 250), record, ★3 riddle, tomorrow
@@ -2190,8 +2192,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (!customers.length) return { signUpAt: performance.now(), signUpInMs: 0 };
     const [first, ...rest] = customers;
     const res = showCustomer({ ...first, key }, { enterMs, signDelayMs, line: false, sign: { key, sign: label || `×${customers.length}` } });
+    stage.classList.add('grouping');
     groupRow.textContent = '';
     groupRow.dataset.key = key;
+    stage.classList.add('grouping'); // the preview steps aside for the group
     rest.forEach((c, i) => {
       const h = el('div', 'group-head', groupRow);
       h.style.setProperty('--i', String(i));
@@ -2214,6 +2218,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
 
   function showEvent({ type = '', title = '', hint = '', big = '' } = {}) {
     eventEl.hidden = false;
+    stage.classList.add('eventing'); // the preview steps aside while an event owns the counter
     eventEl.dataset.type = type;
     eventEl.textContent = '';
     el('div', 'ev-title', eventEl, title);
@@ -2231,6 +2236,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
   function hideEvent() {
     eventEl.hidden = true;
+    stage.classList.remove('eventing');
     eventEl.textContent = '';
   }
 

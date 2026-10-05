@@ -13,6 +13,8 @@ playable **web prototype** plus design and voice documents.
 AGENTS.md               Entry point for Codex and other agents; points here and to the acceptance checklist
 docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
+  gameplay-v2.md        Gameplay v2 (2026-10-05 expert panel): feel, rage rework, 7 daily rules, meta; wins over
+                        first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays)
   first-minute-spec.md  First-minute redesign spec (art, day-1 opening script, pace, 花字, days 1–7); wins
                         over game-design.md where they conflict
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
@@ -68,6 +70,9 @@ Run from `game/`:
 - The day 1 opening script, the key colours (滚 red, 闭嘴 purple, 收 gold; sign colour = key
   colour) and the pace of days 1–7 follow `docs/first-minute-spec.md`.
 
+- Gameplay direction: `docs/gameplay-v2.md` (every press gets a response, every key is a full curse, the player
+  performs the three beats, fast vs. fierce is the player's choice, one new rule per day; borrow Shawarma Legend's
+  shell, never its "complete the order correctly" core).
 - Core contrast is three beats: polite service → sudden swearing → instantly professional again.
 - **Everyone at the counter can be cursed.** No "protected" customers, no
   "hold back" levels, no penalty for cursing the "wrong" way (`auraWrong: 0` in

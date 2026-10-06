@@ -894,3 +894,50 @@ button { font: inherit; color: inherit; }
   .stage[data-input=gesture] .finger { animation: none !important; }
   .g-stamp[data-level="2"] .g-stamp-face { animation: none; }
 }
+
+/* ---------- 吼骂模式 / voice mode (docs/gameplay-v2.md 10) ---------- */
+.input-tog { flex-wrap: wrap; justify-content: center; }
+.voice-opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6cqw; margin-top: 2.4cqw; max-width: 86cqw; }
+.voice-opts[hidden] { display: none; }
+.vo-opt { min-height: 7.6cqw; padding: .6cqw 2.6cqw; border-radius: 99px; border: .4cqw solid var(--text-dim); background: transparent; color: var(--text-dim);
+  font: 700 3.4cqw var(--font-zh); cursor: pointer; }
+.vo-opt[aria-pressed=true] { border-color: var(--lemon); color: var(--ink); background: var(--lemon); }
+.vo-note { width: 100%; font-size: 3.4cqw; color: var(--text-dim); text-align: center; }
+.voice-prompt { z-index: 60; }
+.vp-card { display: flex; flex-direction: column; align-items: center; gap: 3cqw; }
+.vp-icon { width: 16cqw; height: 16cqw; }
+.vp-icon svg { width: 100%; height: 100%; }
+.vp-title { font-size: 8cqw; margin: 0; }
+.vp-body { margin: 0; font-size: 4.2cqw; line-height: 1.5; color: var(--text); }
+.vp-no { border: 0; background: transparent; color: var(--text-dim); font: 700 3.8cqw var(--font-zh); text-decoration: underline; cursor: pointer; padding: 2cqw; }
+/* karaoke line just above the subtitle band: setup small (quiet), punch big (shout); --fill lights it up */
+.karaoke { position: absolute; left: 4cqw; right: 14cqw; top: 44%; z-index: 23; display: flex; flex-direction: column; justify-content: center; align-items: center;
+  gap: .6cqw; padding: 1.6cqw 3cqw; pointer-events: none; text-align: center; background: rgb(27 19 17 / .78); border: .5cqw solid var(--kc, var(--gun)); border-radius: 3cqw; }
+.karaoke[hidden] { display: none; }
+.kk { display: flex; align-items: baseline; gap: 1.6cqw; max-width: 100%; }
+.kk-tag { flex: none; font: 700 3.4cqw var(--font-zh); padding: .2cqw 1.4cqw; border-radius: 99px; color: var(--ink); background: var(--text-dim); }
+.kk-punch .kk-tag { background: var(--kc, var(--gun)); color: #fff; }
+.kk-text { --fill: 0%; font: 900 4cqw/1.15 var(--font-zh); overflow-wrap: anywhere;
+  background: linear-gradient(90deg, var(--lit, var(--cream)) var(--fill), rgb(255 244 220 / .45) var(--fill)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.kk-setup .kk-text { --lit: var(--sky); font-size: 3.6cqw; font-weight: 700; }
+.kk-punch .kk-text { --lit: var(--hz-yellow); font-size: 6.4cqw; }
+.karaoke.lit .kk-punch { animation: kkLit .25s ease-out; }
+@keyframes kkLit { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+/* loudness meter at the right edge (说 / 骂 / 吼 marks) */
+.vmeter { position: absolute; right: 2cqw; top: 33%; height: 27%; width: 8cqw; z-index: 24; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
+.vmeter[hidden] { display: none; }
+.vm-track { position: relative; flex: 1; width: 3.6cqw; border-radius: 99px; background: rgb(27 19 17 / .75); border: .4cqw solid var(--cream); }
+.vm-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 99px; background: linear-gradient(0deg, var(--sky), var(--lemon) 55%, var(--gun)); transition: height 40ms linear; }
+.vm-mark { position: absolute; right: 120%; transform: translateY(50%); font: 900 3.4cqw var(--font-zh); color: var(--cream); background: rgb(27 19 17 / .7); padding: 0 1cqw; border-radius: 1cqw; white-space: nowrap; }
+.vmeter[data-level="1"] .vm-track { border-color: var(--lemon); }
+.vmeter[data-level="2"] .vm-track { border-color: var(--gun); animation: vmShake .12s linear infinite; }
+@keyframes vmShake { 50% { translate: .4cqw 0; } }
+.vm-status { font: 700 3.4cqw var(--font-zh); color: var(--cream); text-shadow: .3cqw .3cqw 0 var(--ink); white-space: nowrap; align-self: flex-end; }
+.vtoast { top: 30%; font: 900 7cqw var(--font-zh); color: var(--hz-yellow); text-shadow: .5cqw .5cqw 0 var(--ink); animation: vtoast 1.3s ease-out forwards; }
+.vtoast.small { font-size: 4.6cqw; color: var(--cream); top: 60%; }
+@keyframes vtoast { 0% { opacity: 0; scale: .6; } 15% { opacity: 1; scale: 1.15; } 30% { scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; translate: 0 -6cqw; } }
+.loudest { display: flex; align-items: center; justify-content: center; gap: 2cqw; flex-wrap: wrap; margin: 2cqw 0; font: 900 4.4cqw var(--font-zh); color: var(--hz-yellow); }
+.loudest-btn { border: .4cqw solid var(--lemon); background: transparent; color: var(--lemon); border-radius: 99px; padding: .6cqw 2.6cqw; font: 700 3.4cqw var(--font-zh); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .vmeter[data-level="2"] .vm-track, .karaoke.lit .kk-punch, .vtoast { animation: none; }
+}

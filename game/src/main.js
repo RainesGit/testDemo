@@ -36,6 +36,13 @@
 // 250cups.best.N (best queue of day N), 250cups.stars.N (stars of day N ever reached: bit 1 = ★1, 2 = ★2, 4 = ★3).
 // URL params: ?lang=zh|en  ?bleep=1  ?day=N  ?skipOpening=1  ?seed=N  ?debug (window.__250 for automated tests)
 //
+// 吼骂模式 / voice mode (docs/gameplay-v2.md 10; ?input=voice or the start card's 吼): the player says the clerk's lines out
+// loud. src/mic.js (local only) → src/voice.js detector: a shout reaching 骂 answers the customer with the sign's best
+// key (charge 1, 吼 = 2), the customer reacts on the peak, the karaoke line above the subtitles lights up, the AI
+// clerk voice stays quiet for answers the player voiced, a soft setup followed by a roar is 反差 (+2), sustained
+// shouting sweeps rage heads, the shout is replayed through the shop megaphone after it ends. Gestures and J/K/L keep
+// working. Storage: 250cups.input = 'voice', 250cups.whisper, 250cups.replay, 250cups.keywords.
+//
 // Opening on day 1: the first run plays it without a skip button; once it was completed
 // (250cups.openingDone = '1') a later day 1 (e.g. after quitting mid-day) replays it with "跳过 ▸" (3.1).
 // ?skipOpening=1 starts day 1 free play directly (QA).
@@ -47,6 +54,8 @@ import { createAudio } from './audio.js';
 import { configForDay, poolForDay, dayInfo, clampDay, DAYS, evaluateDay, specialsForDay } from './days.js';
 import { createHuaziTracker } from './huazi.js';
 import { swipeCharge, bowlCount } from './gesture.js';
+import { createCalibrator, createShoutDetector, contrastBonus, splText, keywordKey, tuningFor } from './voice.js';
+import { createMic } from './mic.js';
 import * as art from './art.js';
 
 const params = new URLSearchParams(location.search);
@@ -55,6 +64,9 @@ const BLEEP_KEY = '250cups.bleep';
 const DAY_KEY = '250cups.day';
 const OPENING_KEY = '250cups.openingDone';
 const INPUT_KEY = '250cups.input';
+const WHISPER_KEY = '250cups.whisper';
+const REPLAY_KEY = '250cups.replay';
+const KEYWORDS_KEY = '250cups.keywords';
 // gesture mode (docs/gameplay-v2.md 9) is the default; ?input=buttons (or the start card toggle) brings the pad back
 const DEFAULT_INPUT = 'gesture';
 
@@ -105,7 +117,8 @@ function initialScript() {
 
 let lang = initialLang();
 let bleep = params.has('bleep') ? params.get('bleep') !== '0' : stored(BLEEP_KEY) === '1';
-let inputMode = initialInput(); // 'gesture' | 'buttons' (250cups.input, ?input=)
+let inputMode = initialInput(); // 'gesture' | 'buttons' | 'voice' (250cups.input, ?input=); voice keeps gestures on
+const gestureOn = () => inputMode !== 'buttons';
 let content = getContent(lang);
 let openingDone = stored(OPENING_KEY) === '1';
 const skipOpening = params.get('skipOpening') === '1';
@@ -179,7 +192,7 @@ const GESTURE_HINTS = {
   zh: { rageTip: '一把扫过去！', megaphone: '狂拍！', shutter: '狂拍！', phone: '甩掉电话！', calculator: '按住，停在 250 放开', stamp: '狂拍盖章！' },
   en: { rageTip: 'Sweep them all!', megaphone: 'TAP TAP TAP!', shutter: 'TAP TAP TAP!', phone: 'Flick the phone away!', calculator: 'Hold, let go on 250', stamp: 'Tap to stamp!' },
 };
-const gestureHint = (which) => (inputMode === 'gesture' ? (GESTURE_HINTS[lang] || GESTURE_HINTS.zh)[which] : null);
+const gestureHint = (which) => (gestureOn() ? (GESTURE_HINTS[lang] || GESTURE_HINTS.zh)[which] : null);
 
 // Texts D adds to content (SYSTEM.unlock / tips / daySlow); built-in fallbacks keep main.js running without them.
 function unlockText(which) {
@@ -276,6 +289,14 @@ function sayClerk(line, { style, fx = 'normal', gap, punchOnly = false } = {}) {
     setupMs: t.setupMs, punchStartMs: t.punchStartMs, punchMs: t.punchMs, totalMs: t.punchStartMs + t.punchMs, clips: t.clips,
     done: Promise.resolve(p).catch(() => {}),
   };
+}
+
+/** Voice mode: the player has just said this line out loud, so the AI clerk stays quiet (same return shape). */
+function quietClerk(line) {
+  rageGen++;
+  const punchMs = VOICE_PUNCH_MS;
+  clerkEndAt = now() + punchMs;
+  return { setupMs: 0, punchStartMs: 0, punchMs, totalMs: punchMs, clips: null, done: Promise.resolve(), line };
 }
 
 /** Customer line at the day's playbackRate. Returns its length in ms. */
@@ -694,16 +715,349 @@ function gReset() {
 }
 
 function initialInput() {
+  const ok = (m) => m === 'gesture' || m === 'buttons' || m === 'voice';
   const p = params.get('input');
-  if (p === 'gesture' || p === 'buttons') return p;
+  if (ok(p)) return p;
   const s = stored(INPUT_KEY);
-  if (s === 'gesture' || s === 'buttons') return s;
+  if (ok(s)) return s;
   return DEFAULT_INPUT;
 }
 function setInputMode(next) {
-  inputMode = next === 'buttons' ? 'buttons' : 'gesture';
+  inputMode = next === 'buttons' || next === 'voice' ? next : 'gesture';
   store(INPUT_KEY, inputMode);
   ui.setInputMode?.(inputMode);
+  if (inputMode === 'voice') enableVoice();
+  else disableVoice();
+}
+
+// ---------------------------------------------------------------- 吼骂模式 / voice mode (docs/gameplay-v2.md 10)
+// Display texts only (nothing here is spoken by the AI voice).
+const VOICE_UI = {
+  zh: {
+    prompt: { title: '吼骂模式', body: '这家店要你亲口骂。允许麦克风？声音只在手机里处理，不会上传。', yes: '允许，开骂', no: '算了，用手势' },
+    denied: '麦克风没开？没关系，用手甩也很爽！', unavailable: '这台装置听不到你，先用手势骂。',
+    calib: '安静一秒……', ready: '开骂！', contrast: '反差！', contrastDb: '反差 +{n}dB', jackpot: '二百五！',
+    loudest: '今日最大声：{n} 分贝级', deaf: '回放中',
+  },
+  en: {
+    prompt: { title: 'Shout Mode', body: 'This shop wants you to say it yourself. Allow the microphone? Your voice is processed on this device only, never uploaded.', yes: 'Allow & shout', no: 'Use gestures' },
+    denied: 'No mic? No problem. Flick them out instead!', unavailable: "This device can't hear you. Gestures it is.",
+    calib: 'Quiet for a second…', ready: 'Shout!', contrast: 'CONTRAST!', contrastDb: 'Contrast +{n}dB', jackpot: '250!',
+    loudest: 'Loudest today: {n} dB-ish', deaf: 'Replay',
+  },
+};
+const vtext = () => VOICE_UI[lang] || VOICE_UI.zh;
+const VOICE_FLING = { dir: { x: 0.78, y: -0.62 }, speed: 2.2 }; // a shout blows the customer / rage head up and out
+const VOICE_PUNCH_MS = 520;     // the player's punch: the landing is timed as if the clerk's punch lasted this long
+const VOICE_REACT_MAX_MS = 420; // the customer reacts on the shout's peak, at the latest this long after the answer
+const SR = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition || null;
+const vx = {
+  mic: null, det: null, cal: null, calUntil: 0, ready: false, starting: null,
+  whisper: params.has('whisper') ? params.get('whisper') !== '0' : stored(WHISPER_KEY) === '1',
+  replay: params.has('replay') ? params.get('replay') !== '0' : stored(REPLAY_KEY) !== '0', // default on
+  keywords: !!SR && stored(KEYWORDS_KEY) === '1',                                             // default off
+  seg: null,         // the current shout segment: { answered, key, gen, kind, holdT }
+  react: null,       // { gen, key, done } the voiced answer's customer reaction, fired on the peak
+  kara: null,        // { gen, setupMs, punchMs, punchT } the karaoke line on screen
+  deafUntil: 0,      // the game's own replay of the shout is playing: the mic is ignored
+  loudest: { db: -Infinity, clip: null },
+  rec: null, recGen: 0, kwGen: -1,
+  stats: { onsets: 0, answers: 0, charge2: 0, contrast: 0, contrastDb: [], rage: 0, replays: 0, opening: 0, jab: 0, event: 0, keywords: 0, jackpot: 0, peaks: 0 },
+};
+let voiceSrc = null; // { level } while a voice press runs (onResolve keeps the AI clerk quiet, reacts on the peak)
+
+async function enableVoice() {
+  if (vx.ready) { ui.voiceMeter?.(true); return true; }
+  if (vx.starting) return vx.starting;
+  vx.starting = (async () => {
+    const yes = await ui.voicePrompt(vtext().prompt);
+    if (!yes) { voiceFallback('denied'); return false; }
+    audio.unlock(); // inside the tap: the AudioContext the microphone is analysed on
+    vx.mic = vx.mic || createMic({ getContext: () => audio.context, onFrame: voiceFrame });
+    const r = await vx.mic.start();
+    if (!r.ok) { voiceFallback(r.reason); return false; }
+    vx.ready = true;
+    vx.cal = createCalibrator(tuningFor({ whisper: vx.whisper }));
+    vx.calUntil = now() + 1000; // the room's noise floor: one quiet second
+    vx.det = null;
+    ui.voiceMeter?.(true);
+    ui.voiceStatus?.(vtext().calib);
+    if (vx.keywords) startKeywords();
+    return true;
+  })();
+  try { return await vx.starting; } finally { vx.starting = null; }
+}
+function disableVoice() {
+  stopKeywords();
+  vx.mic?.stop();
+  vx.ready = false;
+  vx.det = null;
+  ui.voiceMeter?.(false);
+  ui.karaoke?.(null);
+}
+function voiceFallback(reason) {
+  disableVoice();
+  inputMode = 'gesture';
+  store(INPUT_KEY, inputMode);
+  ui.setInputMode?.(inputMode);
+  const t = reason === 'denied' ? vtext().denied : vtext().unavailable;
+  ui.showLine?.(t, { who: 'system' });
+  ui.voiceToast?.(t, 'small');
+}
+function setVoiceOption(name, on) {
+  if (name === 'whisper') { vx.whisper = !!on; store(WHISPER_KEY, on ? '1' : '0'); vx.det?.setWhisper(!!on); }
+  else if (name === 'replay') { vx.replay = !!on; store(REPLAY_KEY, on ? '1' : '0'); }
+  else if (name === 'keywords') { vx.keywords = !!on && !!SR; store(KEYWORDS_KEY, vx.keywords ? '1' : '0'); if (vx.keywords && vx.ready) startKeywords(); else stopKeywords(); }
+}
+
+// one analysis frame (about every 20 ms) from src/mic.js
+function voiceFrame(db, t) {
+  if (!vx.ready) return;
+  if (t < vx.deafUntil) { vx.det?.mute(); vx.seg = null; ui.voiceLevel?.(0, -1); return; }
+  if (!vx.det) {
+    vx.cal.feed(db);
+    if (t < vx.calUntil) return;
+    vx.det = createShoutDetector({ floor: vx.cal.floor(), whisper: vx.whisper });
+    ui.voiceStatus?.('');
+    ui.voiceToast?.(vtext().ready, 'small');
+  }
+  const det = vx.det;
+  const evs = det.feed(db, t);
+  const tn = det.tuning;
+  const span = tn.roarDb + 12;
+  ui.voiceLevel?.((det.db - det.floor) / span, det.level, { marks: [tn.onsetDb / span, tn.scoldDb / span, tn.roarDb / span] });
+  for (const e of evs) onVoiceEvent(e);
+  // karaoke: the soft setup lights up while the player talks quietly, the punch while they shout
+  const k = vx.kara;
+  if (k && k.gen === round.arrivals) {
+    const setup = k.setupMs ? det.phrase.softMs / k.setupMs : 0;
+    const punch = k.punchT ? (t - k.punchT) / k.punchMs : 0;
+    ui.karaokeProgress?.({ setup, punch });
+  }
+}
+
+// a press made by the voice (pressKey with voiceSrc set)
+function vpress(key, level = 1, opts = {}) {
+  voiceSrc = { level };
+  gestureSrc = null;
+  try { return pressKey(key, 0, opts); } finally { voiceSrc = null; }
+}
+// the key a shout means in an event (the same keys the gestures use)
+function eventKey(st) {
+  const type = st.event && st.event.type;
+  return type === 'stamp' || type === 'calculator' ? 'take' : type === 'phone' ? 'gun' : 'shut';
+}
+
+function onVoiceEvent(e) {
+  const c = gctx();
+  if (e.type === 'onset') {
+    vx.stats.onsets += 1;
+    vx.seg = { answered: false, key: null, gen: -1, kind: null, startT: e.t };
+    // the first beat: a soft start is the clerk's professional smile
+    if (e.level === 0 && (c === 'customer' || c === 'group')) ui.setClerk?.('polite', 700);
+    if (c === 'event' && game.state.event?.type === 'calculator') {
+      // the calculator rolls while the shout lasts and stops when it ends (like a hold)
+      vx.seg.kind = 'calc';
+      vx.seg.holdT = now();
+      vpress('take', 0);
+      vx.stats.event += 1;
+    }
+    return;
+  }
+  const seg = vx.seg;
+  if (e.type === 'rise' && e.level >= 1 && seg) {
+    if (seg.answered) {
+      // the shout got louder after it answered: 吼 = charge 2
+      if (e.level >= 2 && seg.key && seg.kind === 'answer' && chargeKey(seg.key, 2)) vx.stats.charge2 += 1;
+      if (e.level >= 2 && c === 'rage') voiceRage(1);
+      return;
+    }
+    voiceShout(e, c, seg);
+    return;
+  }
+  if (e.type === 'sustain') {
+    if (c === 'rage') voiceRage(e.level >= 2 ? 2 : 1);
+    else if (c === 'mash' || (c === 'event' && seg?.kind !== 'calc')) { vpress(eventKey(game.state), e.level); vx.stats.event += 1; }
+    else if (c === 'group') vpress(game.state.current.key, e.level);
+    return;
+  }
+  if (e.type === 'peak') { vx.stats.peaks += 1; voicePeak(e, seg); return; }
+  if (e.type === 'end') voiceEnd(e, seg);
+}
+
+function voiceShout(e, c, seg) {
+  seg.answered = true;
+  if (c === 'opening') {
+    // the opening's wait points take a shout as the key they wait for
+    const k = opening.waiting;
+    if (k && opening.press(k)) { vx.stats.opening += 1; seg.kind = 'opening'; seg.key = k; }
+    return;
+  }
+  if (c === 'none' || !game) return;
+  if (c === 'customer' || c === 'group') {
+    const key = game.state.current.key;
+    if (c === 'customer') { vx.kara = vx.kara && vx.kara.gen === round.arrivals ? { ...vx.kara, punchT: e.t } : vx.kara; }
+    const res = vpress(key, e.level);
+    seg.key = key;
+    seg.gen = round.arrivals;
+    seg.kind = ['answer', 'wrong', 'step', 'buffered', 'holding'].includes(res.kind) ? 'answer' : res.kind;
+    if (seg.kind === 'answer') {
+      vx.stats.answers += 1;
+      chargeKey(key, Math.max(1, e.level));
+      if (e.level >= 2) vx.stats.charge2 += 1;
+    }
+    return;
+  }
+  if (c === 'rage') { voiceRage(e.level >= 2 ? 2 : 1); seg.kind = 'rage'; return; }
+  if (c === 'event' || c === 'mash') {
+    if (seg.kind === 'calc') return;
+    vpress(eventKey(game.state), e.level);
+    vx.stats.event += 1;
+    seg.kind = 'event';
+    return;
+  }
+  // landing (a jab, then "下一位") or a full fury bar (starts rage)
+  const res = vpress('gun', e.level);
+  seg.kind = res.kind;
+  if (res.kind === 'jab' || res.kind === 'next') vx.stats.jab += 1;
+}
+
+function voiceRage(n) {
+  for (let i = 0; i < n; i++) {
+    if (!game || game.state.phase !== 'rage') return;
+    const r = vpress('gun', 2);
+    if (r.kind === 'rage') vx.stats.rage += 1;
+  }
+}
+
+// the peak of a shout: the customer reacts now; the 反差 (contrast) bonus when a soft setup came before a roar
+function voicePeak(e, seg) {
+  voiceReact();
+  if (!seg || seg.kind !== 'answer' || !game) return;
+  if (e.softMs > 0 && e.contrast > 0) ui.voiceToast?.(vtext().contrastDb.replace('{n}', e.contrast), 'small');
+  if (contrastBonus({ softMs: e.softMs }, e, vx.det?.tuning)) {
+    vx.stats.contrast += 1;
+    vx.stats.contrastDb.push(e.contrast);
+    const b = game.bonus(2);
+    if (b && b.queueDelta) ui.queueGain?.(b.queueDelta);
+    ui.huazi([{ text: vtext().contrast, style: 'S1', seg: 'punch', ratio: 0 }]);
+    audio.sfx('cheer', { delay: 0.1 });
+    // the three beats on the clerk's face: polite → rage → polite again
+    ui.setClerk?.('rage', 380);
+    later(380, () => ui.setClerk?.('polite', 700));
+  }
+}
+function voiceReact() {
+  const r = vx.react;
+  if (!r || r.done) return;
+  r.done = true;
+  if (r.gen !== round.arrivals) return;
+  if (r.key === 'gun') ui.setFling?.({ dir: VOICE_FLING.dir, speed: VOICE_FLING.speed * (r.level >= 2 ? 1.3 : 1) });
+  ui.customerReact?.(r.key);
+}
+
+function voiceEnd(e, seg) {
+  vx.seg = null;
+  if (seg && seg.kind === 'calc' && game) {
+    syncClock();
+    const r = game.release?.('take', now() - seg.holdT);
+    if (r) ui.render(game.state);
+  }
+  if (!vx.mic || !vx.mic.canRecord || e.peakLevel < 1) return;
+  // the loudest shout of the day: its peak and the last 2 s of it, in memory only
+  if (e.peakDb > vx.loudest.db && game && (game.state.phase === 'playing' || game.state.phase === 'rage' || openingActive())) {
+    vx.loudest = { db: e.peakDb, clip: vx.mic.clip(Math.max(e.startT - 100, e.t - 2000), e.t) };
+  }
+  // hear yourself amplified: the punch replayed through the shop megaphone once the shout has ended
+  if (vx.replay && seg && (seg.kind === 'answer' || seg.kind === 'opening')) {
+    const punchFrom = Math.max(e.startT, (vx.kara && vx.kara.punchT) || e.startT) - 120;
+    const clip = vx.mic.clip(Math.max(punchFrom, e.t - 2000), e.t);
+    if (clip) playShout(clip);
+  }
+}
+function playShout(clip) {
+  const p = audio.playUserClip?.(clip, { gainDb: 6, rate: 1.06 });
+  if (!p) return;
+  vx.stats.replays += 1;
+  vx.deafUntil = now() + (p.ms || 0) + 250; // never hear ourselves: the mic is ignored while it plays
+  vx.det?.mute();
+  ui.voiceStatus?.(vtext().deaf);
+  Promise.resolve(p).then(() => { if (now() >= vx.deafUntil - 300) ui.voiceStatus?.(''); });
+}
+
+// the clerk line a voice player should say to the customer at the counter (the sign's best key)
+function suggestLine() {
+  const cur = game && game.state.current;
+  if (!cur) return null;
+  const c = cur.customer;
+  const key = cur.key;
+  const loc = local(c);
+  let line = '';
+  if (c.boss) line = (sys().boss?.steps?.[cur.step] || {})[key] || '';
+  else if (c.steps) line = cur.step ? loc.reply2 : loc.reply1 || (zh() ? '好，250杯什么？' : 'Okay. 250 cups of what?');
+  else if (c.group) line = (sys().group?.[key] || [])[0] || '';
+  else if (c.id === 'change') line = (sys().changeOrder || {})[key] || '';
+  else line = c.key === key ? loc.reply : sys().ui?.[key];
+  if (!line) line = sys().ui?.[key] || '';
+  const clean = (x) => stripStageText(x);
+  const s = String(line);
+  const i = s.indexOf('|');
+  return { key, setup: i < 0 ? '' : clean(s.slice(0, i)), punch: clean(i < 0 ? s : s.slice(i + 1)) };
+}
+function showKaraoke() {
+  if (inputMode !== 'voice' || !vx.ready) return;
+  vx.det?.resetPhrase();
+  const k = suggestLine();
+  if (!k) { ui.karaoke?.(null); vx.kara = null; return; }
+  ui.karaoke?.(k);
+  vx.kara = { gen: round.arrivals, setupMs: k.setup ? Math.max(300, estimateMs(k.setup) * 0.7) : 0, punchMs: Math.max(300, estimateMs(k.punch) * 0.6), punchT: 0 };
+}
+function hideKaraoke(ms = 0) {
+  const gen = round.arrivals;
+  const go = () => { if (gen === round.arrivals || ms === 0) { ui.karaoke?.(null); vx.kara = null; } };
+  if (ms) later(ms, go); else go();
+}
+
+// optional keywords (progressive enhancement, off by default): the browser's recognizer may use a cloud service
+function startKeywords() {
+  if (!SR || vx.rec) return;
+  const gen = ++vx.recGen;
+  try {
+    const rec = new SR();
+    rec.lang = lang === 'en' ? 'en-US' : 'zh-TW';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (ev) => {
+      for (let i = ev.resultIndex; i < ev.results.length; i++) onKeyword(String(ev.results[i][0]?.transcript || ''));
+    };
+    rec.onerror = () => {};
+    rec.onend = () => { if (vx.rec === rec) { vx.rec = null; if (vx.keywords && vx.ready && gen === vx.recGen) later(300, startKeywords); } };
+    vx.rec = rec;
+    rec.start();
+  } catch { vx.rec = null; }
+}
+function stopKeywords() {
+  vx.recGen++;
+  const r = vx.rec;
+  vx.rec = null;
+  try { r?.abort(); } catch { /* gone */ }
+}
+function onKeyword(text) {
+  const { key, jackpot } = keywordKey(text);
+  if (!game || game.state.phase !== 'playing') return;
+  if (jackpot && vx.kwGen !== round.arrivals) {
+    vx.kwGen = round.arrivals;
+    vx.stats.jackpot += 1;
+    const b = game.bonus(5);
+    if (b && b.queueDelta) ui.queueGain?.(b.queueDelta);
+    ui.huazi([{ text: vtext().jackpot, style: 'S1', seg: 'punch', ratio: 0 }]);
+    audio.sfx('coin');
+  }
+  // a named key answers a customer nobody has answered yet (any key works: an off key is an off-key curse, no penalty)
+  if (key && gctx() === 'customer' && !(vx.seg && vx.seg.answered)) {
+    const res = vpress(key, Math.max(0, vx.det ? vx.det.level : 0));
+    if (res.kind === 'answer' || res.kind === 'wrong') { vx.stats.keywords += 1; if (vx.seg) { vx.seg.answered = true; vx.seg.kind = 'answer'; vx.seg.key = key; } }
+  }
 }
 
 // One press of a key (buttons, J/K/L, or a gesture mapped to a key). Returns { kind, r } (kind as in __250.inputs).
@@ -753,6 +1107,9 @@ const ui = createUI(root, {
   },
   onToggleInput(next) {
     setInputMode(next);
+  },
+  onVoiceOption(name, on) {
+    setVoiceOption(name, on);
   },
   // stage 2: the calculator resolves on release; a release on the boss's last step before the full hold repeats it
   onRelease(key, holdMs) {
@@ -844,7 +1201,7 @@ function showReport(summary, relocalize = false) {
     ui.showClosing(closingTexts(), {
       queue: summary.queue, stars: lastEval ? lastEval.count : lastPassed ? 1 : 0, star1: dayInfo(1).star1,
       plate: sys().opening?.plate, bestLine: bestRaw ? stripStageText(bestRaw) : '',
-      bestLabel: zh() ? '今天最狠一句' : "Today's savagest line",
+      bestLabel: zh() ? '今天最狠一句' : "Today's savagest line", loudest: loudestTexts(),
     }, () => beginFromCard());
     return;
   }
@@ -858,8 +1215,15 @@ function showReport(summary, relocalize = false) {
   const nextLabel = st.startDay ? String(st.startDay).replace('{n}', day) : null;
   ui.showSummary(summary, {
     bestLine: line ? unpipe(line) : undefined, verdict: lastVerdict, star1,
-    again: (lastPassed && day !== lastDay && nextLabel) || sys().ui.again, ...reportTexts(lastDay, summary),
+    again: (lastPassed && day !== lastDay && nextLabel) || sys().ui.again, ...reportTexts(lastDay, summary), loudest: loudestTexts(),
   });
+}
+
+// voice mode: "今日最大声：98 分贝级" and a replay of that shout (memory only; nothing is saved or uploaded)
+function loudestTexts() {
+  const l = vx.loudest;
+  if (inputMode !== 'voice' || !Number.isFinite(l.db)) return null;
+  return { text: vtext().loudest.replace('{n}', splText(l.db)), onReplay: l.clip ? () => { audio.unlock(); playShout(l.clip); } : null };
 }
 
 // Stars, rating, record and the ★3 riddle for the summary card (stage 2).
@@ -897,6 +1261,7 @@ async function beginFromCard() {
   starting = true;
   try {
     await unlockAudio();
+    if (inputMode === 'voice' && !vx.ready) await enableVoice(); // falls back to gestures when the mic is refused
     if (typeof ui.fontsReady === 'function') await ui.fontsReady(300);
     if (day === 1 && !skipOpening && await runOpeningScript()) return;
     startRound();
@@ -970,7 +1335,7 @@ function buildGame(n) {
     if (special) extra.special = { customer: special, atMs: d.original.atMs };
   }
   if (debugDurationMs > 0) extra.durationMs = debugDurationMs;
-  if (inputMode === 'gesture') extra.rageLiveMs = RAGE_LIVE_MS; // a row of heads one swipe can cross
+  if (gestureOn()) extra.rageLiveMs = RAGE_LIVE_MS; // a row of heads one swipe can cross
   // ?debug&first=78,63,47: these customer ids come first (QA: a deterministic draw)
   if (params.has('debug') && params.get('first')) extra.fixedOrder = params.get('first').split(',').map((x) => (/^\d+$/.test(x) ? Number(x) : x));
   const g = createGame({ customers: poolForDay(n, getContent('zh').customers), rng: rand, config: configForDay(n, extra) });
@@ -997,6 +1362,7 @@ function startRound({ carry = 0 } = {}) {
   inputs = {};
   landing = null;
   rageKey = 'any';
+  vx.loudest = { db: -Infinity, clip: null }; // voice mode: the loudest shout of this day
   ui.setSignMult?.('');
   ui.setForced?.(false);
   // stage 2 overlays from the last round
@@ -1114,6 +1480,7 @@ function wire(g) {
       ui.guide?.({ key: 'take', dimOthers: false, glow: true, finger: true });
       ui.tip?.(unlockText('hold'), { key: 'take', ms: 1800 });
     }
+    showKaraoke(); // voice mode: the line to say, setup small | punch big
     if (silent) {
       // fast mouth / group: nobody talks, the sign is the order (t0 comes from the engine: sign up + 120 ms); no ×2 tag
       // (a silent customer cannot be talked over: the sign timer shows ×1.5 / ×1.2 from t0)
@@ -1192,6 +1559,7 @@ function wire(g) {
   g.on('meter', (e) => onMeter(g, e));
 
   g.on('leave', () => {
+    hideKaraoke();
     ui.stopSignTimer?.();
     cutVoice();
     ui.customerReact?.('sink');
@@ -1218,6 +1586,7 @@ function wire(g) {
   });
 
   g.on('polite', () => {
+    hideKaraoke();
     ui.stopSignTimer?.();
     if (round.guideActive) { ui.clearGuide(); round.guideActive = false; }
     const line = pick(sys().polite);
@@ -1243,6 +1612,7 @@ function wire(g) {
   });
 
   g.on('rageStart', () => {
+    hideKaraoke();
     ui.stopSignTimer?.();
     ui.setSignMult?.('');
     landing = null;
@@ -1267,12 +1637,12 @@ function wire(g) {
   // rage (gameplay-v2 4): a silent half-head with a sign every 300 ms; each hit sends it flying the pressed key's way
   g.on('rageHead', ({ customer, n }) => {
     // gesture mode: the heads pop in a row and stay a moment (one swipe can cross several)
-    if (inputMode === 'gesture') ui.rageHeadAdd?.(local(customer), n, { liveMs: RAGE_LIVE_MS });
+    if (gestureOn()) ui.rageHeadAdd?.(local(customer), n, { liveMs: RAGE_LIVE_MS });
     else ui.showCustomer(local(customer), { enterMs: 90, signDelayMs: 0, line: false });
   });
 
   g.on('rageHit', ({ queueDelta, key, match, head }) => {
-    if (inputMode === 'gesture' && ui.rageHeadHit?.(head, key, gestureSrc && gestureSrc.sw)) { /* flung from the row */ }
+    if (gestureOn() && ui.rageHeadHit?.(head, key, (gestureSrc && gestureSrc.sw) || (voiceSrc && VOICE_FLING))) { /* flung from the row */ }
     else ui.customerReact?.(key);
     ui.effect('hit', { charge: match ? 2 : 1 });
     audio.sfx('slam', { intensity: match ? 1 : 0.7 });
@@ -1339,6 +1709,7 @@ function wire(g) {
 
   g.on('over', ({ summary }) => {
     clearRoundTimers();
+    hideKaraoke();
     rageGen++;
     ui.stopSignTimer?.();
     ui.clearGuide?.();
@@ -1409,7 +1780,7 @@ function onStep(e) {
   const says2 = o.says2 || (zh() ? '少甜少冰！' : 'Less sugar, less ice!');
   clerkLine(reply, { style: 'cold' });
   audio.sfx('bell');
-  const t = sayClerk(reply, { style: 'cold' });
+  const t = voiceSrc ? quietClerk(reply) : sayClerk(reply, { style: 'cold' });
   const replyEnd = t.punchStartMs + t.punchMs;
   ui.setClerk?.('perfect', replyEnd + 200);
   later(replyEnd + 100, () => {
@@ -1421,6 +1792,7 @@ function onStep(e) {
     const ms = game.state.phase === 'rage' ? 0 : sayCustomer(says2);
     const t0 = clamp(now() + ms, flipAt + 250, flipAt + 1600);
     later(t0 - now(), () => { if (gen === round.arrivals && game) game.speechDone(); });
+    showKaraoke(); // voice mode: step two's line
   });
 }
 
@@ -1462,7 +1834,10 @@ function onResolve(e) {
   const fastLand = correct && !!(e.inQuick || e.quick) && charge < 2 && e.land !== 'step';
   const L = fastLand ? info.quickLandMs ?? 250 : e.land === 'wrong' ? info.landWrongMs : e.land === 'step' ? info.landBigMs + 300 : big ? info.landBigMs : info.landMs;
 
-  const t = sayClerk(line, { style, fx, punchOnly: quick });
+  // voice mode: the player said it; the AI clerk stays quiet (forced politeness still plays the sugary service voice)
+  const voiced = !!voiceSrc && !e.forced;
+  const t = voiced ? quietClerk(line) : sayClerk(line, { style, fx, punchOnly: quick });
+  if (voiceSrc) hideKaraoke(700);
   if (quick) {
     ui.showLine(punchHalf(line), { who: 'clerk' });
     subUntil = Math.max(subUntil, now() + t.totalMs + 150);
@@ -1486,6 +1861,14 @@ function onResolve(e) {
   const punchAt = t.punchStartMs / 1000;
   // gesture mode: the hand already threw them — the customer flies / sinks / slides now, the line plays over it
   const reactAt = gestureSrc ? 0 : t.punchStartMs;
+  // voice mode: the customer reacts on the shout's peak (voicePeak), at the latest VOICE_REACT_MAX_MS after the answer
+  const react = () => {
+    if (voiceSrc) {
+      const r = { gen, key, level: voiceSrc.level, done: false };
+      vx.react = r;
+      later(VOICE_REACT_MAX_MS, () => { if (vx.react === r) voiceReact(); });
+    } else later(reactAt, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+  };
   if (correct) {
     audio.sfx('slam', { intensity: 0.6 + charge * 0.2, delay: punchAt });
     if (big) audio.sfx('boom', { delay: punchAt });
@@ -1495,13 +1878,13 @@ function onResolve(e) {
     const combo = game.state.combo;
     if (combo > 0 && combo % 10 === 0) audio.sfx('cheer', { delay: punchAt + 0.15 });
     // the customer flies on the punch (the sign leaves with them)
-    later(reactAt, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+    react();
     round.timeoutsInRow = 0;
   } else {
     // 4.4: no "wrong" feedback on the pressed key. v2: the customer flies the pressed key's way on the punch like any
     // curse; the right key flashes after the line (not before it: that read as an answer key)
     const right = customer.steps ? customer.steps[e.step] : customer.key;
-    later(reactAt, () => { if (gen === round.arrivals) ui.customerReact?.(key); });
+    react();
     later(punchEnd, () => { if (gen === round.arrivals) ui.hintCorrect?.(right); });
     round.wrongByKey[right] = (round.wrongByKey[right] || 0) + 1;
     if (round.wrongByKey[right] >= 3 && !round.tipped.has(right) && round.tipsShown < 2) {
@@ -1578,6 +1961,7 @@ function onBossStep(e) {
     ui.showSign?.({ key: BOSS_KEYS[e.step], sign: next.sign }, { flip: 'rotX' });
     audio.sfx('card');
     ui.showLine(next.says, { who: 'cust', color: BOSS_KEYS[e.step] });
+    showKaraoke();
     const ms = sayCustomer(next.says);
     const at = now();
     const t0 = clamp(at + ms, at + 250, at + 4000);
@@ -1770,7 +2154,8 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------------------------------------------------------------- boot
 ui.setScript?.(script); // zh-TW / zh-HK / zh-MO: Traditional characters on screen
-ui.setInputMode?.(inputMode); // gesture (default) or the button pad
+ui.setInputMode?.(inputMode); // gesture (default), the button pad, or voice (gestures + the microphone, asked on start)
+ui.setVoiceOptions?.({ whisper: vx.whisper, replay: vx.replay, keywords: vx.keywords, keywordsAvailable: !!SR });
 if (params.has('lite')) ui.setLite?.(params.get('lite') !== '0'); // K4 lite mode; otherwise auto-detected
 if (params.has('punchfx')) audio.setVoiceFx?.(params.get('punchfx') !== '0'); // ?punchfx=0: plain spec 8.5 chain (A/B)
 applyTexts();
@@ -1792,6 +2177,11 @@ if (params.has('debug')) {
     get gestures() { return gs.stats; }, // gesture mode: presses by gesture kind and outcome ('swipe:answer', 'taps:answer', …)
     get inputMode() { return inputMode; },
     setInputMode,
+    // voice mode: stats (answers / contrast / rage sweeps / replays …), floor, level, loudest
+    get voice() {
+      return { ready: vx.ready, stats: vx.stats, floor: vx.det ? vx.det.floor : null, db: vx.det ? vx.det.db : null, level: vx.det ? vx.det.level : -1,
+        loudestDb: vx.loudest.db, hasClip: !!vx.loudest.clip, whisper: vx.whisper, replay: vx.replay, keywords: vx.keywords, canRecord: !!vx.mic?.canRecord };
+    },
     get lastEval() { return lastEval; }, // stage 2: stars / rating of the last finished day
     evaluateDay, loadBest,
     script,

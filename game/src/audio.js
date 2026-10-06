@@ -21,6 +21,8 @@
 //   sfx(name, opts)           + gate slam boom whoosh press pop card tick tap ding coin bell dingdong stamp slap clock
 //                               sigh scratch feedback sparkle drumroll crowdOh huh (all synthesized)
 //   setVoiceFx(on | tuning) / voiceFx, setLite(on)   runtime voice punch (VOICE_FX, voicePlan); createAudio({ voiceFx })
+//   playUserClip(buffer, { gainDb = 6, rate = 1.06 })   voice mode: the player's own shout through the megaphone chain
+//   context                   the shared AudioContext (the microphone is analysed on it)
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -1522,6 +1524,36 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     cut(60);
   }
 
+  /**
+   * 吼骂模式 (docs/gameplay-v2.md 10): the player's own shout (an AudioBuffer from src/mic.js) blasted back through the
+   * shop megaphone: the voice punch chain (megaphone band, hot saturation, compressor, mega echo) at +gainDb and a
+   * slight pitch-up, with an impact on its onset. Not a speech source (a customer's cut() does not stop it).
+   * Returns a Promise (resolves when it ends) that carries { ms }.
+   */
+  function playUserClip(buffer, { gainDb = 6, rate = 1.06 } = {}) {
+    const ms = buffer ? Math.round((buffer.duration * 1000) / rate) : 0;
+    if (!unlocked || !buffer || !ensureCtx()) return withTiming(Promise.resolve({ ms: 0 }), { ms: 0 });
+    const run = new Promise((resolve) => {
+      try {
+        if (ctx.state === 'suspended') ctx.resume();
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.playbackRate.value = rate;
+        const g = gain(master, dbToGain(gainDb));
+        const plan = { chain: 'punch', fx: 'mega', driveDb: liteOn ? 3 : 6, makeupDb: liteOn ? 0 : 2, saturation: liteOn ? 0 : 'hot', compress: !liteOn, megaphone: !liteOn, echo: true };
+        let input = g;
+        try { input = voiceChain(plan, g); } catch { input = g; }
+        src.connect(input);
+        const t = now() + 0.03;
+        src.onended = () => resolve({ ms });
+        setTimeout(() => resolve({ ms }), ms + 600);
+        src.start(t);
+        try { impact(t, 0.8); } catch { /* ignore */ }
+      } catch { resolve({ ms: 0 }); }
+    });
+    return withTiming(run, { ms });
+  }
+
   function unlock() {
     unlocked = true;
     if (ensureCtx()) {
@@ -1560,6 +1592,9 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     speak,
     playClerk,
     playCustomer,
+    playUserClip,
+    /** The shared AudioContext (created on demand; src/mic.js analyses the microphone on it). */
+    get context() { return ensureCtx(); },
     voiceTimings,
     cut,
     hush,

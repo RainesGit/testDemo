@@ -17,7 +17,8 @@ docs/
                         first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays);
                         stage 1 (jab/next, speed multiplier, rage rework, forced politeness) and stage 2 (preview + fast
                         mouth, daily rules, mini events, shutter, stars / rating / bests) are implemented (8.1, 8.2);
-                        section 9 "手势操作": the default gesture input (甩 = 滚, 连拍 = 闭嘴, 按住盖章 = 收)
+                        section 9 "手势操作": the default gesture input (甩 = 滚, 连拍 = 闭嘴, 按住盖章 = 收);
+                        section 10 "吼骂模式": voice mode (the player shouts the clerk's lines; local-only mic, privacy notes)
   lines-v2-draft.md     Draft lines for gameplay v2; the stage 2 parts (boss, meter, events, group, change-order,
                         shutter) are in SYSTEM of content.*.js, the stage 3 three-key matrix is not yet
   first-minute-spec.md  First-minute redesign spec (art, day-1 opening script, pace, 花字, days 1–7); wins
@@ -38,6 +39,9 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/days.js           Days 1–7 tuning, pools, unlock order, daily rules, ★2/★3 conditions, evaluateDay (pure data)
   src/gesture.js        Gesture input (default; ?input=buttons brings the pad back): stroke classifier + streaming
                         recognizer (swipe / taps / hold / tap), pure; main.js maps gestures to keys by context
+  src/voice.js          Voice mode (?input=voice, 吼骂模式): pure loudness analysis (levelFrom, calibrator, shout detector
+                        onset / rise / sustain / peak / end, contrast, keywordKey)
+  src/mic.js            Voice mode microphone: getUserMedia → AnalyserNode frames + a 3 s in-memory ring buffer (local only)
   src/events.js         Mini events (megaphone, phone, calculator, stamp, shutter): pure state machines the engine drives
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, signs, monitor)
@@ -49,7 +53,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         punch chain (VOICE_FX; ?punchfx=0 turns it off), Web Speech fallback, bleep
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
   src/main.js           Wires everything together (start → opening → days)
-  test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture)
+  test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
+                        voice)
   tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs)
                         (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
@@ -78,7 +83,9 @@ Run from `game/`:
   fast mouth + preview, meter, each mini event, group box, change-order, boss, shutter, summary; `tools/shots/s2-*.png`):
   `node tools/shot-stage2.mjs`; gesture mode with real pointer gestures (opening, day 1, a day 3 rage swept with long swipes;
   answers per gesture kind, multi-head rage swipes, bowling, errors; `tools/shots/gesture-*.png` or `--out=dir`):
-  `node tools/check-gesture.mjs`. All take the base URL as an argument. These use the globally installed Playwright
+  `node tools/check-gesture.mjs`; voice mode with a fake microphone playing a synthesized voice loop (`tools/voice-wav.mjs`:
+  opening by shouting, voice answers, the 反差 bonus, rage swept by sustained shouting, self-replay, the loudest-shout row;
+  `tools/shots/voice-*.png` or `--out=dir`): `node tools/check-voice.mjs`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 
@@ -92,7 +99,10 @@ Run from `game/`:
   shell, never its "complete the order correctly" core).
 - Input: gestures on the customer are the default (`docs/gameplay-v2.md` 9: 甩 = 滚, 连拍 three taps = 闭嘴, 按住盖章
   = 收); every gesture works on every customer, a stray single tap answers nothing, and J/K/L (and `?input=buttons`)
-  must keep working because every key-driven tool depends on them.
+  must keep working because every key-driven tool depends on them. Voice mode (`?input=voice`, start card 吼;
+  `docs/gameplay-v2.md` 10) adds the microphone on top of gestures: a shout answers with the sign's best key (never
+  "wrong"), the AI clerk stays quiet for lines the player voiced, and the microphone is analysed on the device only
+  (never uploaded or saved; it is asked for only when the player picks voice mode; denial falls back to gestures).
 - Core contrast is three beats: polite service → sudden swearing → instantly professional again.
 - **Everyone at the counter can be cursed.** No "protected" customers, no
   "hold back" levels, no penalty for cursing the "wrong" way (`auraWrong: 0` in

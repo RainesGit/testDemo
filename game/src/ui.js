@@ -14,7 +14,8 @@
 //   onGesture(e)             gesture mode only (docs/gameplay-v2.md 9): every event of src/gesture.js createRecognizer
 //                            (swipe / swipeMove / swipeEnd / tap / burstEnd / holdStart / holdLevel / holdEnd) in stage px,
 //                            plus { type: 'cross', head } when a swipe crosses a rage head and e.head on a tap on one
-//   onToggleInput(next)      'gesture'|'buttons' from the start card toggle
+//   onToggleInput(next)      'gesture'|'buttons'|'voice' from the start card toggle
+//   onVoiceOption(name, on)  voice mode switches on the start card: 'whisper' | 'replay' | 'keywords'
 //
 // ---- Gesture mode (docs/gameplay-v2.md 9)
 //   setInputMode('gesture'|'buttons') / inputMode   gesture: the button pad turns into a counter top, the whole play area
@@ -27,6 +28,16 @@
 //   bowl(n, text)                           n (1–3) queue silhouettes at the right edge topple; 3 = STRIKE text
 //   rageHeadAdd(customer, n, { liveMs }) / rageHeadHit(n, key) / clearRageHeads()   rage heads in a row (gesture rage)
 //   gestureHint(key, text)                  the gesture chip of key pulses with a short text above it
+// ---- 吼骂模式 / voice mode (docs/gameplay-v2.md 10; the gesture surface stays on, inputMode reads 'gesture')
+//   setInputMode('voice')                   gestures + the voice layer (stage[data-voice=1]); the start card toggle shows 吼
+//   setVoiceOptions({ whisper, replay, keywords, keywordsAvailable })   the small switches under the toggle (voice only)
+//   voicePrompt(texts) → Promise<boolean>   the "这家店要你亲口骂" microphone card (allow / use gestures instead)
+//   karaoke({ setup, punch, key } | null)   the suggested clerk line above the subtitles: setup small, punch big
+//   karaokeProgress({ setup, punch })       0..1 each: how far the player's voice has lit it up
+//   voiceMeter(on) / voiceLevel(v, level, { marks })   the loudness meter at the right edge (v 0..1, level -1..2)
+//   voiceStatus(text)                       a small label under the meter (calibrating …)
+//   voiceToast(text, cls)                   a floating caption ("反差 +24dB", "250!")
+//   showSummary / showClosing: t.loudest = { text, replay, onReplay }  "今日最大声" row with a replay button
 // ---- HUD / texts
 //   render(state, hud?)                     hud = { showAura = true, showFury = true, showTime = true } (remembered)
 //                                           queue number, combo (only shown at combo >= 5), bars, sign timer sync
@@ -170,6 +181,14 @@ const GESTURE_TEXT = {
     hint: { shut: '连拍三下！', gun: '甩出去！', take: '按住盖章！' } },
   en: { verb: { gun: 'Flick', shut: 'Tap×3', take: 'Hold' }, slap: 'SLAP', stamp: 'SLAM! 2 months', strike: 'STRIKE!', input: 'Controls', gesture: 'Gestures', buttons: 'Buttons',
     hint: { shut: 'Tap 3 times!', gun: 'Flick them out!', take: 'Hold to stamp!' } },
+};
+
+// voice mode labels (not spoken): the toggle, the switches, the karaoke tags, the meter marks, the summary row
+const VOICE_TEXT = {
+  zh: { voice: '吼', whisper: '小声模式', replay: '回放我的吼', keywords: '听懂我骂什么', kwNote: '浏览器的语音辨识可能会用云端服务',
+    setup: '小声客气', punch: '大声骂！', marks: ['说', '骂', '吼'], replayBtn: '再听一次 ▸' },
+  en: { voice: 'Shout', whisper: 'Whisper mode', replay: 'Replay my shout', keywords: 'Understand my words', kwNote: "The browser's speech recognizer may use a cloud service",
+    setup: 'polite, quiet', punch: 'SHOUT IT!', marks: ['talk', 'yell', 'ROAR'], replayBtn: 'Play again ▸' },
 };
 
 const DEFAULT_UI = {
@@ -340,7 +359,7 @@ const normStyle = (s) => (typeof s === 'number' ? 'S' + s : /^[1-5]$/.test(Strin
 
 // ---------------------------------------------------------------- createUI
 
-export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onGesture = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {}, onToggleInput = () => {} } = {}) {
+export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onGesture = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {}, onToggleInput = () => {}, onVoiceOption = () => {} } = {}) {
   let lang = 'zh';
   let script = 'hans'; // 'hant': Traditional characters on screen (setScript)
   let extLocked = false; // lockInput()
@@ -429,6 +448,15 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
 
   // Subtitle band (y 74–80%) and buttons (y 80–100%)
   const subs = el('section', 'subs', stage);
+  // voice mode: the karaoke line sits just above the subtitle band; the loudness meter at the right edge
+  const karaokeEl = el('div', 'karaoke', stage);
+  karaokeEl.hidden = true;
+  const vMeter = el('div', 'vmeter', stage);
+  vMeter.hidden = true;
+  const vTrack = el('div', 'vm-track', vMeter);
+  const vFill = el('div', 'vm-fill', vTrack);
+  const vMarks = [0, 1, 2].map((i) => el('span', 'vm-mark vm-mark-' + i, vTrack));
+  const vStatus = el('div', 'vm-status', vMeter);
   const pad = el('footer', 'pad', stage);
   const buttons = {};
   KEYS.forEach((key, i) => {
@@ -795,9 +823,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   gsurf.addEventListener('contextmenu', (e) => e.preventDefault());
 
   let inputMode = 'buttons';
+  let selMode = 'buttons'; // what the start card toggle shows: 'gesture' | 'buttons' | 'voice' (voice keeps gestures on)
+  let syncInputTog = () => {};
   function setInputMode(mode) {
-    inputMode = mode === 'gesture' ? 'gesture' : 'buttons';
+    selMode = mode === 'voice' || mode === 'gesture' ? mode : 'buttons';
+    inputMode = selMode === 'buttons' ? 'buttons' : 'gesture';
     stage.dataset.input = inputMode;
+    stage.dataset.voice = selMode === 'voice' ? '1' : '0';
+    syncInputTog();
     KEYS.forEach((k) => endHold(k));
     resetGestures();
     cancelAnimationFrame(gLoop);
@@ -2274,20 +2307,46 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
     const tog = el('div', 'input-tog', startCard);
     el('span', 'it-label', tog, gt.input);
-    for (const m of ['gesture', 'buttons']) {
-      const b = el('button', 'it-opt', tog, gt[m]);
+    const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
+    for (const m of ['gesture', 'buttons', 'voice']) {
+      const b = el('button', 'it-opt', tog, m === 'voice' ? vt.voice : gt[m]);
       b.type = 'button';
       b.dataset.mode = m;
-      b.setAttribute('aria-pressed', String(inputMode === m));
+      b.setAttribute('aria-pressed', String(selMode === m));
       b.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (inputMode === m) return;
-        onToggleInput(m);
+        if (selMode === m) return;
         setInputMode(m);
-        tog.querySelectorAll('.it-opt').forEach((o) => o.setAttribute('aria-pressed', String(o.dataset.mode === inputMode)));
+        onToggleInput(m); // voice: main asks for the microphone and may fall back to gestures (setInputMode again)
       });
     }
+    // voice mode switches (shown only while 吼 is selected)
+    const vopts = el('div', 'voice-opts', startCard);
+    const optBtn = (name, label) => {
+      const b = el('button', 'vo-opt', vopts, label);
+      b.type = 'button';
+      b.dataset.opt = name;
+      b.setAttribute('aria-pressed', String(!!voiceOpts[name]));
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        voiceOpts[name] = !voiceOpts[name];
+        b.setAttribute('aria-pressed', String(voiceOpts[name]));
+        onVoiceOption(name, voiceOpts[name]);
+      });
+    };
+    optBtn('whisper', vt.whisper);
+    optBtn('replay', vt.replay);
+    if (voiceOpts.keywordsAvailable) {
+      optBtn('keywords', vt.keywords);
+      el('div', 'vo-note', vopts, vt.kwNote);
+    }
+    syncInputTog = () => {
+      tog.querySelectorAll('.it-opt').forEach((o) => o.setAttribute('aria-pressed', String(o.dataset.mode === selMode)));
+      vopts.hidden = selMode !== 'voice';
+    };
+    syncInputTog();
     if (!reduced) h1.animate([{ translate: '0 -30cqw', scale: '1.3', opacity: 0 }, { translate: '0 1cqw', scale: '.96', opacity: 1, offset: 0.75 }, { translate: '0 0', scale: '1', opacity: 1 }], { duration: 600, easing: 'cubic-bezier(.3,1.5,.5,1)', fill: 'backwards' });
     btn.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: 1200, fill: 'backwards' });
     const since = performance.now();
@@ -2383,6 +2442,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       el('span', 'dc-text', row, desc || '');
       el('span', 'dc-key', row, keyWord || String(texts[k] || '').replace(/[！!]$/, ''));
     });
+    loudestRow(inner, summary.loudest);
     const stars = el('div', 'dc-stars', inner);
     const got = summary.stars ?? ((summary.queue ?? 0) >= (summary.star1 ?? 30) ? 1 : 0);
     for (let i = 0; i < 3; i++) {
@@ -2510,6 +2570,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     el('div', 'best-label', best, t.bestLabel || (zh ? '最狠一句' : 'Savagest line'));
     const bl = el('div', 'best-line', best);
     fillLine(bl, t.bestLine || '……');
+    loudestRow(card, t.loudest);
     if (t.verdict) el('p', 'card-sub', card, t.verdict);
     if (t.tomorrow) el('p', 'report-tomorrow', card, t.tomorrow);
     startButton(card, t.again || texts.again);
@@ -2519,6 +2580,100 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     summaryCard.classList.remove('hidden');
     syncLock();
   }
+
+  // ---------- 吼骂模式 / voice mode (docs/gameplay-v2.md 10) ----------
+  const voiceOpts = { whisper: false, replay: true, keywords: false, keywordsAvailable: false };
+  function setVoiceOptions(o = {}) {
+    Object.assign(voiceOpts, o);
+    startCard.querySelectorAll('.vo-opt').forEach((b) => b.setAttribute('aria-pressed', String(!!voiceOpts[b.dataset.opt])));
+  }
+  // "今日最大声：98 分贝级" with a replay button (the clip lives in memory only)
+  function loudestRow(parent, l) {
+    if (!l || !l.text) return;
+    const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
+    const row = el('div', 'loudest', parent);
+    el('span', 'loudest-text', row, l.text);
+    if (typeof l.onReplay === 'function') {
+      const b = el('button', 'loudest-btn', row, l.replay || vt.replayBtn);
+      b.type = 'button';
+      b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); l.onReplay(); });
+    }
+  }
+  // the microphone card: resolves true (allow) or false (use gestures)
+  let promptEl = null;
+  function voicePrompt(t = {}) {
+    promptEl?.remove();
+    return new Promise((resolve) => {
+      promptEl = el('div', 'overlay voice-prompt', stage);
+      const card = el('div', 'card vp-card', promptEl);
+      html(el('div', 'vp-icon', card), art.KEY_ICONS.gun);
+      el('h2', 'card-title vp-title', card, t.title || '');
+      el('p', 'vp-body', card, t.body || '');
+      const yes = el('button', 'start-btn vp-yes', card, t.yes || 'OK');
+      yes.type = 'button';
+      const no = el('button', 'vp-no', card, t.no || 'No');
+      no.type = 'button';
+      const prevTap = overlayTap;
+      const done = (v) => (e) => {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        if (!promptEl) return;
+        promptEl.remove();
+        promptEl = null;
+        overlayTap = prevTap;
+        resolve(v);
+      };
+      yes.addEventListener('click', done(true));
+      no.addEventListener('click', done(false));
+      promptEl.addEventListener('click', (e) => { e.stopPropagation(); });
+      overlayTap = () => done(true)();
+      yes.focus?.({ preventScroll: true });
+    });
+  }
+  let kara = null; // { setupEl, punchEl }
+  function karaoke(spec) {
+    karaokeEl.textContent = '';
+    kara = null;
+    if (!spec || (!spec.setup && !spec.punch)) { karaokeEl.hidden = true; return; }
+    const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
+    karaokeEl.hidden = false;
+    karaokeEl.style.setProperty('--kc', keyColor(spec.key || 'gun'));
+    const part = (cls, tag, text) => {
+      const w = el('div', 'kk ' + cls, karaokeEl);
+      el('span', 'kk-tag', w, tag);
+      const t = el('span', 'kk-text', w, text);
+      t.style.setProperty('--fill', '0%');
+      return t;
+    };
+    kara = {
+      setupEl: spec.setup ? part('kk-setup', vt.setup, spec.setup) : null,
+      punchEl: part('kk-punch', vt.punch, spec.punch || ''),
+    };
+    karaokeEl.classList.remove('lit');
+  }
+  function karaokeProgress({ setup, punch } = {}) {
+    if (!kara) return;
+    const pct = (v) => `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
+    if (setup != null && kara.setupEl) kara.setupEl.style.setProperty('--fill', pct(setup));
+    if (punch != null) {
+      kara.punchEl.style.setProperty('--fill', pct(punch));
+      karaokeEl.classList.toggle('lit', punch > 0);
+    }
+  }
+  function voiceMeter(on) {
+    vMeter.hidden = !on;
+    if (on) {
+      const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
+      vMarks.forEach((m, i) => { m.textContent = vt.marks[i]; });
+    }
+  }
+  function voiceLevel(v, level = -1, { marks } = {}) {
+    vFill.style.height = `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
+    vMeter.dataset.level = String(level);
+    if (Array.isArray(marks)) marks.forEach((y, i) => { vMarks[i].style.bottom = `${Math.round(y * 100)}%`; });
+  }
+  function voiceStatus(text) { vStatus.textContent = text || ''; }
+  function voiceToast(text, cls = '') { return floatText(text, 'vtoast ' + cls, 1300); }
 
   // ---------- Gameplay v2 stage 2 ----------
   function setPreview(list = []) {
@@ -2658,5 +2813,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     // gesture mode (docs/gameplay-v2.md 9)
     setInputMode, get inputMode() { return inputMode; }, setGestureHints, slap, stampHold, stampSlam, setFling, bowl,
     rageHeadAdd, rageHeadHit, clearRageHeads, gestureHint,
+    // voice mode (docs/gameplay-v2.md 10)
+    setVoiceOptions, voicePrompt, karaoke, karaokeProgress, voiceMeter, voiceLevel, voiceStatus, voiceToast,
+    get selMode() { return selMode; },
   };
 }

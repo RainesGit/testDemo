@@ -1111,7 +1111,7 @@ g.cs-steam { transform-box: fill-box; } /* A's cupStackSVG wisps (opacity 0 unti
 .event-panel.in { animation: evIn .26s cubic-bezier(.3, 1.4, .5, 1); }
 @keyframes evIn { from { translate: 0 30cqw; opacity: 0; } }
 /* megaphone: pokes in from the left edge, its volume cells light up with every hit */
-.event-panel[data-type=megaphone] { left: 0; top: 35%; width: 50cqw; height: 26cqw; } /* below the clerk's chin: the volume cells must not cover his mouth */
+.event-panel[data-type=megaphone] { left: 0; top: 50%; width: 50cqw; height: 26cqw; } /* pokes in over the empty counter front: its volume cells cover neither the clerk's face nor his 250 badge */
 .event-panel[data-type=megaphone].in { animation-name: evInLeft; }
 @keyframes evInLeft { from { translate: -60cqw 0; } }
 .event-panel[data-type=megaphone] .evp-cone { left: 0; top: 4cqw; width: 34cqw; height: 18cqw; background: linear-gradient(var(--gun) 0 30%, #FFF1DA 30% 44%, var(--gun) 44%);

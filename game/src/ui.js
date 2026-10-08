@@ -606,9 +606,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   // Scene props follow the language (review: the English build still showed 翡翠檸檬 / 黃金比例 / 現點現做).
+  // art.SHOP_SVG menu box: .lb-1 / .lb-2 (name, price tspans), #goldsign (two lines)
   const PROPS = {
-    zh: { lb1: ['翡翠檸檬', '75'], lb2: ['黃金比例', '不能調'], caller: '取餐號碼', plaque: '現點現做' },
-    en: { lb1: ['JADE', 'LEMON 75'], lb2: ['GOLD MIX', 'NO EDITS'], caller: 'ORDER NO.', plaque: 'MADE FRESH' },
+    zh: { lb1: ['翡翠檸檬', '75'], lb3: ['珍珠奶茶', '55'], lb2: ['黃金比例', '不能調'], caller: '取餐號碼', plaque: '現點現做' },
+    en: { lb1: ['JADE TEA', '75'], lb3: ['BOBA TEA', '55'], lb2: ['GOLD MIX', 'NO EDITS'], caller: 'ORDER NO.', plaque: 'MADE FRESH' },
   };
   function localizeProps() {
     const P = PROPS[lang] || PROPS.zh;
@@ -616,8 +617,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       const sp = t.querySelectorAll('tspan');
       vals.forEach((v, i) => { if (sp[i] && sp[i].textContent !== v) sp[i].textContent = v; });
     });
-    set('.lb-text:not(.goldsign):not(.gs-g1):not(.gs-g2):not(.gs-g3)', P.lb1);
-    set('.goldsign, .gs-g1, .gs-g2, .gs-g3', P.lb2);
+    set('.lb-1', P.lb1);
+    set('.lb-2', P.lb3);
+    set('.goldsign', P.lb2);
     const cl = shop.querySelector('.caller-label');
     if (cl) cl.textContent = P.caller;
     const pl = counter.querySelector('.plaque-text');
@@ -756,8 +758,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   for (let i = 0; i < 3; i++) {
     const pin = el('div', 'g-pin', pinsEl);
     pin.style.setProperty('--i', String(i));
-    html(pin, `<svg viewBox="0 0 40 60" aria-hidden="true"><circle cx="20" cy="15" r="11" fill="#2A1D19" stroke="#1B1311" stroke-width="2"/>
-<path d="M3 60 Q3 30 20 30 Q37 30 37 60 Z" fill="#2A1D19" stroke="#1B1311" stroke-width="2"/></svg>`);
+    html(pin, art.queueSilhouetteSVG(i)); // the queue silhouettes outside are the pins (art direction v2 §5.4)
   }
   const rageRow = el('div', 'rage-row', cam);
   const recog = createRecognizer({ onGesture: recognized });
@@ -1333,6 +1334,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (!current) { custWrap.textContent = ''; return; }
     const markup = art.customerSVG(current.customer, current.visit, { fixed: current.fixed, gray: current.gray });
     custWrap.innerHTML = `<div class="cust-clip">${markup}</div>`;
+    custWrap.classList.toggle('boss', !!(current.customer && current.customer.boss)); // 1.15x, never clipped (§5.3)
   }
 
   function restart(node, cls) {
@@ -1528,6 +1530,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (!sign || !(ms > 0)) return;
     const node = el('i', 'sign-timer', sign.querySelector('.sign-card') || sign);
     node.style.transform = 'scaleX(1)';
+    // the fast window (speed bonus, steps with mult > 1) as a gold glint on the end of the bar that runs out first
+    const hotMs = Array.isArray(steps) ? Math.max(0, ...steps.filter((s) => s[1] > 1).map((s) => s[0])) : 0;
+    if (hotMs > 0) el('i', 'sign-timer-hot', node).style.setProperty('--hot', `${(Math.max(0, 1 - hotMs / ms) * 100).toFixed(1)}%`);
     timer = { el: node, start: performance.now(), ms, raf: 0 };
     const tick = () => {
       if (!timer || timer.el !== node) return;

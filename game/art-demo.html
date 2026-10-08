@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1B1311">
   <title>Art Demo — 來250杯！</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700;900&family=LXGW+WenKai+TC:wght@700&family=Bangers&display=swap">
   <link rel="stylesheet" href="style.css">
   <style>
     /* demo-only chrome */
@@ -19,9 +16,16 @@
     .mini-stage { position: relative; width: 170px; height: calc(170px * 16 / 9); container-type: size; overflow: hidden; background: var(--ink); border-radius: 8px; }
     .mini-stage .stage { width: 100%; height: 100%; }
     .mini-stage .app { position: absolute; }
-    .cust-box { position: relative; width: 120px; height: 120px; container-type: size; background: var(--wood); }
-    .cust-box .cust-wrap { left: 0; top: 0; width: 100cqw; height: 65cqw; }
+    .cust-box { position: relative; width: 120px; height: 120px; container-type: size; background: var(--counter, #2A2142); }
+    .cust-box .cust-wrap { left: 0; top: 0; width: 100cqw; height: 75cqw; }
     .cust-box .cust { width: 100cqw; height: 100cqw; }
+    .cust-box.tall { height: 150px; }
+    .cust-box .cust-wrap.boss { height: 125cqw; }
+    .cust-box .cust-wrap.boss .cust { width: 100cqw; height: 125cqw; }
+    .prop-box { position: relative; width: 150px; height: 120px; display: grid; place-items: center; background: var(--night-700, #1B2040); border-radius: 8px; }
+    .prop-box svg { max-width: 120px; max-height: 100px; overflow: visible; }
+    .logo-box { width: 340px; padding: 16px; background: var(--night-900, #0E1120); border-radius: 8px; }
+    .logo-box svg { width: 100%; display: block; overflow: visible; }
     .sign-box { position: relative; width: 170px; height: 120px; container-type: inline-size; }
     .sign-box .sign { scale: .9; }
     .sign-box .sign { left: 30%; top: 50%; }
@@ -38,6 +42,7 @@
 import {
   CLERK_SVG, SHOP_SVG, COUNTER_SVG, customerSVG, signSVG, miniSign, KEY_ICONS, FINGER_SVG, DOOR_GATE_SVG,
   STAR_SVG, ticketHTML, MONITOR_SCENES, monitorHTML, queueCapText, queueCrowd,
+  LOGO_SVG, logoSVG, cupStackSVG, MEGAPHONE_SVG, PHONE_SVG, CALCULATOR_SVG, SLIPS_SVG, PARTICLE_SVG,
 } from './src/art.js';
 import { getContent } from './src/content.js';
 
@@ -66,7 +71,7 @@ function stageHTML(o) {
       ${monitorHTML(q, lang).replace('class="monitor"', `class="monitor"${o.zoom ? ' data-zoom' : ''}`)}
       ${CLERK_SVG.replace('data-mood="idle"', `data-mood="${o.mood || 'idle'}"`).replace('class="clerk"', `class="clerk ${o.flags || ''}"`)}
       <div class="counter${q > 3 ? ' cap' : ''}" data-q="${Math.min(3, q)}" data-crowd="${queueCrowd(q)}">${COUNTER_SVG.replace('<text class="q-num" x="314" y="383"></text>', `<text class="q-num" x="314" y="383">${queueCapText(q)}</text>`)}</div>
-      <div class="cust-wrap${o.custCls ? ' ' + o.custCls : ''}" data-face="${o.face || ''}"><div class="cust-clip">${customerSVG(cust, 0, { fixed: o.fixed, gray: !!o.gray })}</div></div>
+      <div class="cust-wrap${o.custCls ? ' ' + o.custCls : ''}${cust && cust.boss ? ' boss' : ''}" data-face="${o.face || ''}"><div class="cust-clip">${customerSVG(cust, 0, { fixed: o.fixed, gray: !!o.gray })}</div></div>
       ${sign}
     </div>
     <header class="hud"><div class="hud-row"><div class="hud-queue"><span class="hud-label">${lang === 'en' ? 'Line' : '排隊'}</span><span class="hud-qnum">${q.toLocaleString()}</span></div>
@@ -108,13 +113,14 @@ function renderSheet() {
   const mini = (o, label) => `<div class="cell"><div class="mini-stage">${stageHTML({ day1: true, ...o })}</div>${label}</div>`;
   const custIds = [1, 6, 12, 41, 43, 46, 47, 48, 72, 85, 93, 100];
   const faces = ['', 'gun', 'shut', 'take'];
-  const custBox = (html, label, face = '') => `<div class="cell"><div class="cust-box"><div class="cust-wrap" data-face="${face}" style="${face ? '' : ''}"><div class="cust-clip">${html}</div></div></div>${label}</div>`;
+  const custBox = (html, label, face = '', cls = '') => `<div class="cell"><div class="cust-box${cls ? ' tall' : ''}"><div class="cust-wrap ${cls}" data-face="${face}"><div class="cust-clip">${html}</div></div></div>${label}</div>`;
   const signSamples = [1, 43, 12, 18, 30, 46, 47, 48, 10, 72].map((id) => byId(id));
   root.innerHTML = `<div class="wrap">
     <section class="sec"><h2>Clerk moods (data-mood)</h2><div class="row">${moods.map((m) => mini({ mood: m, cust: 41, q: 5 }, m)).join('')}</div></section>
     <section class="sec"><h2>Clerk overlay flags</h2><div class="row">${flags.map(([f, m]) => mini({ mood: m, flags: f, cust: 41, q: 5 }, `${m}+${f}`)).join('')}</div></section>
     <section class="sec"><h2>Opening customers (fixed)</h2><div class="row">${['hesitant', 'fifteen', 'c250'].map((f) => custBox(customerSVG(null, 0, { fixed: f }), f)).join('')}
-      ${custBox(customerSVG(null, 0, { fixed: 'c250', gray: true }), 'c250 gray (E12)')}</div></section>
+      ${custBox(customerSVG(null, 0, { fixed: 'c250', gray: true }), 'c250 gray (E12)')}
+      ${custBox(customerSVG({ id: 'boss', boss: true }, 0), 'day 7 boss', '', 'boss')}</div></section>
     <section class="sec"><h2>Random customers (clip view)</h2><div class="row">${custIds.map((id) => custBox(customerSVG(byId(id), 0), '#' + id)).join('')}
       ${[1, 2, 3].map((v) => custBox(customerSVG(byId(41), v), '#41 visit ' + v)).join('')}</div></section>
     <section class="sec"><h2>Faces (data-face, full head, fly animation off)</h2>
@@ -129,6 +135,13 @@ function renderSheet() {
     <section class="sec"><h2>Mini signs (recap / closing card)</h2><div class="row" style="gap:24px;padding:12px;container-type:inline-size;width:360px">
       ${miniSign('gun', '嗯……')}${miniSign('gun', '15杯')}${miniSign('take', '250杯')}${miniSign('shut', '少甜少冰')}</div></section>
     <section class="sec"><h2>Monitor scenes</h2><div class="row">${MONITOR_SCENES.map((s) => `<div class="cell"><div class="mon-box">${monitorHTML(Math.max(s.min, 1) * 1.5 + 10, lang)}</div>${s.id} (≥${s.min})</div>`).join('')}</div></section>
+    <section class="sec"><h2>Shared art for B / C: logo, cup tower, event props, particles</h2><div class="row">
+      <div class="cell"><div class="logo-box">${LOGO_SVG}</div>LOGO_SVG</div><div class="cell"><div class="logo-box">${logoSVG('en')}</div>logoSVG('en')</div>
+      ${[3, 5, 7].map((n) => `<div class="cell"><div class="prop-box">${cupStackSVG(n)}</div>cupStackSVG(${n})</div>`).join('')}
+      <div class="cell"><div class="prop-box">${MEGAPHONE_SVG}</div>MEGAPHONE_SVG</div><div class="cell"><div class="prop-box">${PHONE_SVG}</div>PHONE_SVG</div>
+      <div class="cell"><div class="prop-box">${CALCULATOR_SVG}</div>CALCULATOR_SVG</div><div class="cell"><div class="prop-box">${SLIPS_SVG}</div>SLIPS_SVG</div>
+      ${Object.entries(PARTICLE_SVG).map(([k, v]) => `<div class="cell"><div class="prop-box" style="width:60px;height:60px"><div style="width:32px">${v}</div></div>${k}</div>`).join('')}
+    </div></section>
     <section class="sec"><h2>Keys (normal / dim+glow / covered)</h2>
       <div class="pad-demo">${padHTML()}</div><div class="pad-demo">${padHTML({ dim: 'take', glow: 'take' })}</div><div class="pad-demo">${padHTML({ covered: true })}</div></section>
     <section class="sec"><h2>Props</h2><div class="row">

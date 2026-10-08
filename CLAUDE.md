@@ -44,7 +44,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/mic.js            Voice mode microphone: getUserMedia → AnalyserNode frames + a 3 s in-memory ring buffer (local only)
   src/events.js         Mini events (megaphone, phone, calculator, stamp, shutter): pure state machines the engine drives
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
-  src/art.js            All SVG art as pure string templates (clerk, shop, customers, signs, monitor)
+  src/art.js            All SVG art as pure string templates (clerk, shop, customers, boss, signs, monitor; shared:
+                        logo, cup tower, event props, particles; docs/art-direction-v2.md)
   src/huazi.js          花字 (caption) picking and rate limits (pure)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, runtime voice

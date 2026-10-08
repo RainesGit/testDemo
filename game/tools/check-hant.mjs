@@ -119,7 +119,9 @@ async function play(page, maxMs) {
   await page.screenshot({ path: `${out}hant-02-opening.png` });
   await page.evaluate(() => { if (window.__250) window.__250.durationMs = 30000; });
   await play(page, 150000);
-  await page.waitForTimeout(2500);
+  // the closing card comes after the day's last line has been read (lastLineMs + 1300 ms in main.js): wait for it
+  await page.waitForSelector('.day-card, .overlay.summary:not(.hidden)', { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(500);
   const end = await probe(page);
   await page.screenshot({ path: `${out}hant-03-day1-end.png` });
   results.push({ id: 'day1', ok: end.closing || end.summary, detail: `closing ${end.closing} summary ${end.summary}` });

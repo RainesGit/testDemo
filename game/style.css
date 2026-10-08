@@ -787,8 +787,8 @@ button { font: inherit; color: inherit; }
 @keyframes meterHit { 0% { scale: 1; } 30% { scale: 1.5; background: #fff; } 100% { scale: 1; } }
 @keyframes meterOver { 0%, 100% { translate: 0; } 25% { translate: -2cqw; } 75% { translate: 2cqw; } }
 /* group box: the other heads stand beside the first one */
-.group-row { position: absolute; left: 50%; top: 61.5%; width: 50cqw; height: 22cqw; z-index: 6; pointer-events: none; }
-.group-head { position: absolute; left: calc(var(--i) * 13cqw); top: calc(var(--i) * 1.2cqw); width: 26cqw; height: 19.5cqw; animation: custPop .18s cubic-bezier(.2, 1.5, .5, 1); }
+.group-row { position: absolute; left: 47%; top: 61.5%; width: 50cqw; height: 22cqw; z-index: 6; pointer-events: none; }
+.group-head { position: absolute; left: calc(var(--i) * 11cqw); top: calc(var(--i) * 1.2cqw); width: 24cqw; height: 18cqw; animation: custPop .18s cubic-bezier(.2, 1.5, .5, 1); }
 .group-head .cust-clip { width: 100%; height: 100%; overflow: hidden; }
 .group-head .cust-clip svg { width: 100%; height: auto; display: block; }
 .group-head .group-mini { position: absolute; left: 50%; top: -6cqw; translate: -50% 0; scale: .6; }

@@ -253,8 +253,8 @@ const CLERK_ARMS =
   `<path class="c-skin" d="M-16 262 L-46 276 Q-54 282 -46 288 L-10 284 Z ${ring(-6, 272, 15)} Z"/>` +
   `<path fill="none" stroke-width="${C_IN}" d="M-1 262 q8 6 4 14"/></g>` +
   // hit + point-sign: the right arm points up at the menu box (#goldsign)
-  `<g class="a a-sign"><path fill="${UNIFORM}" d="M204 232 Q222 176 244 112 L274 122 Q252 196 240 240 Z"/>` +
-  `<path class="c-skin" d="M252 94 L270 50 Q276 42 282 50 L272 98 Z M244 104 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0 Z"/></g>` +
+  `<g class="a a-sign"><path fill="${UNIFORM}" d="M204 232 Q220 156 240 70 L272 80 Q252 180 240 240 Z"/>` +
+  `<path class="c-skin" d="M262 48 L290 8 Q297 2 302 10 L276 56 Z M242 62 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0 Z"/></g>` +
   // perfect: one hand tugs the apron straight
   `<g class="a a-tidy"><path fill="${UNIFORM}" d="M228 228 Q250 262 228 300 L190 304 L186 286 L208 280 Q214 258 200 244 Z"/>` +
   `<path class="c-skin" d="${ring(182, 294, 15)}"/></g>` +

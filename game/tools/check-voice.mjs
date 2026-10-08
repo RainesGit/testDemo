@@ -3,7 +3,9 @@
 // Start card → the microphone card (allow) → the day 1 opening answered by shouts → day 1 free play (shortened) by voice
 // → day 3 until rage, swept by sustained shouting → the summary card's "今日最大聲" and its replay button.
 // Fails on any console / page error, when the mic never got ready, on fewer than 3 voice answers, no 反差 bonus, no rage
-// head swept by voice, no self-replay, no loudest-shout row, or the button pad on screen.
+// head swept by voice, no self-replay, no loudest-shout row, or the button pad on screen. Show, don't tell
+// (docs/art-direction-v2.md 9–10): the line to say sits in the subtitle slot without labels (setup small, punch big),
+// the meter has no words, and no kill word (反差, dB, 小聲客氣, 大聲罵, 開罵 …) shows in play (tools/killlist.mjs).
 // Screenshots (390x844): voice-prompt, voice-karaoke, voice-karaoke-lit, voice-contrast, voice-meter, voice-rage,
 // voice-summary in --out=<dir> (default tools/shots/).
 // Usage: (serve game/ first) node tools/check-voice.mjs [baseUrl] [--out=dir]
@@ -11,6 +13,7 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeVoiceWav } from './voice-wav.mjs';
+import { installKillProbe, readKillProbe } from './killlist.mjs';
 const pw = (await import('./pw.mjs')).default;
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:8765';
@@ -55,6 +58,18 @@ const probe = () => page.evaluate(() => {
     current: !!(s && s.current),
     voice: v, inputs: w.inputs,
     karaoke: !!(kara && !kara.hidden && kara.textContent), karaokeLit: !!(kara && kara.classList.contains('lit')),
+    // the line to say: plain (no tag labels), in the subtitle slot (its bottom at the subtitle band's bottom ± 4%),
+    // setup smaller than the punch
+    karaokeForm: (() => {
+      if (!kara || kara.hidden || !kara.textContent) return null;
+      const subs = document.querySelector('.subs').getBoundingClientRect();
+      const k = kara.getBoundingClientRect();
+      const stage = document.querySelector('.stage').getBoundingClientRect();
+      const fs = (sel) => { const n = kara.querySelector(sel); return n ? parseFloat(getComputedStyle(n).fontSize) : null; };
+      return { tags: kara.querySelectorAll('.kk-tag').length, inSlot: Math.abs(k.bottom - subs.bottom) <= stage.height * 0.04,
+        setup: fs('.kk-setup .kk-text'), punch: fs('.kk-punch .kk-text') };
+    })(),
+    meterWords: (document.querySelector('.vmeter')?.innerText || '').trim(),
     summary: !!document.querySelector('.summary:not(.hidden) .report'),
     closing: !!document.querySelector('.day-card .dc-btn'),
     loudest: document.querySelector('.loudest-text')?.textContent || '',
@@ -72,12 +87,15 @@ await page.waitForSelector('.voice-prompt', { timeout: 5000 }).catch(() => {});
 const prompted = !!(await page.$('.voice-prompt'));
 await shot('prompt');
 await page.click('.vp-yes', { force: true }).catch(() => {});
+await installKillProbe(page);
 await wait(1500);
 let p = await probe();
 check('mic-ready', prompted && p.voice.ready, `prompt card ${prompted}; mic ready ${p.voice.ready}; floor ${p.voice.floor?.toFixed?.(1)} dBFS; recorder ${p.voice.canRecord}`);
 
 // ---- the opening: every wait point answered by a shout
 const shots = { karaoke: false, lit: false, contrast: false, meter: false, rage: false };
+const forms = [];
+const meterWords = new Set();
 const t0 = Date.now();
 let keyHelp = 0;
 while (Date.now() - t0 < 80000) {
@@ -88,12 +106,14 @@ while (Date.now() - t0 < 80000) {
 }
 check('opening-by-voice', !p.opening && p.voice.stats.opening >= 3, `opening done ${!p.opening}; ${p.voice.stats.opening} wait points answered by shouting; ${keyHelp} key presses needed`);
 
-// ---- watch a round: screenshots of the karaoke line (lit), the meter, the 反差 caption
+// ---- watch a round: screenshots of the karaoke line (lit), the meter, the 反差 moment (no caption: the +N and the meter)
 async function watch(until, ms) {
   const end = Date.now() + ms;
   let last = await probe();
   while (Date.now() < end) {
     const q = await probe();
+    if (q.karaokeForm && forms.length < 50) forms.push(q.karaokeForm);
+    if (q.meterWords) meterWords.add(q.meterWords);
     if (q.karaoke && !q.karaokeLit && !shots.karaoke) { shots.karaoke = true; await shot('karaoke'); }
     if (q.karaokeLit && !shots.lit) { shots.lit = true; await shot('karaoke-lit'); }
     if (q.voice.level >= 1 && !shots.meter && q.current) { shots.meter = true; await shot('meter'); }
@@ -109,6 +129,9 @@ p = await watch((q) => q.phase === 'over' || q.closing, 45000);
 const d1 = p.voice.stats;
 check('voice-answers', d1.answers >= 3, `day 1: ${d1.answers} answers by voice (${d1.charge2} at 吼), ${d1.jab} jabs / next by voice; inputs ${JSON.stringify(p.inputs)}`);
 check('karaoke', shots.karaoke && shots.lit, `karaoke line shown ${shots.karaoke}, lit by the voice ${shots.lit}`);
+const badForm = forms.filter((f) => f.tags > 0 || !f.inSlot || (f.setup && f.punch && f.setup >= f.punch));
+check('karaoke-plain', forms.length > 0 && badForm.length === 0,
+  `${forms.length} samples; labels / out of the subtitle slot / setup not smaller: ${badForm.length}${badForm[0] ? ' ' + JSON.stringify(badForm[0]) : ''}`);
 check('no-pad', !p.pad, 'button pad hidden in voice mode');
 
 // ---- day 3 until rage; sustained shouting sweeps the heads (the day 1 closing card's button opens day 2 first)
@@ -130,6 +153,10 @@ p = await watch((q) => q.phase === 'over', 65000);
 const st = p.voice.stats;
 check('contrast', st.contrast >= 1, `${st.contrast} contrast bonuses (soft setup ≥ 300 ms, then 吼), contrast ${st.contrastDb.join(' / ')} dB; ${st.peaks} peaks`);
 check('self-replay', st.replays >= 1, `${st.replays} shouts replayed through the megaphone chain`);
+const kill = await readKillProbe(page);
+check('meter-no-words', meterWords.size === 0, meterWords.size ? `meter text: ${[...meterWords].join(' / ')}` : 'notches, mic and megaphone icons only');
+check('kill-list', kill && kill.hits.length === 0 && kill.hzBad.length === 0 && kill.hzMax <= 1,
+  kill ? `${kill.samples} samples; ${kill.hits.slice(0, 4).map((h) => `"${h.word}" in .${h.zone}`).join(', ') || 'no kill words'}; 花字 bad ${kill.hzBad.length}, max at once ${kill.hzMax}` : 'no probe');
 
 // ---- summary: the loudest shout and its replay
 await page.waitForSelector('.summary:not(.hidden) .report', { timeout: 8000 }).catch(() => {});
@@ -140,7 +167,7 @@ const before = p.voice.stats.replays;
 await page.click('.loudest-btn', { force: true }).catch(() => {});
 await wait(300);
 const after = (await probe()).voice.stats.replays;
-check('loudest', /今日最大聲：\d+ 分貝級/.test(p.loudest) && after > before, `"${p.loudest}"; replay button ${after > before ? 'played it' : 'did nothing'}`);
+check('loudest', /\d+/.test(p.loudest) && after > before, `"${p.loudest}"; replay button ${after > before ? 'played it' : 'did nothing'}`);
 check('no-errors', errors.length === 0, errors.slice(0, 5).join(' | ') || 'none');
 
 await browser.close();

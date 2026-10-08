@@ -1,31 +1,41 @@
-// huazi.js — automatic "花字" (variety-show caption) picker for clerk lines. Pure, no DOM.
-// Spec: docs/first-minute-spec.md section 5.3.
+// huazi.js — "花字" (variety-show caption) rules for clerk lines, and the subtitle setup / punch split. Pure, no DOM.
+// Spec: docs/art-direction-v2.md 8.3 (replaces docs/first-minute-spec.md 5.3): show, don't tell. Only the signature
+// moments get a 花字; every other answer is acted out by the subtitle's punch words growing in the key colour (7.7).
 //
 // Public API
-//   stripStage(text) → string                      remove （…）/(…) stage directions and the "|" cut mark is kept
+//   stripStage(text) → string                      remove （…）/(…) stage directions; the "|" cut mark is kept
 //   splitLine(line) → { setup, punch }             stage directions removed; text before "|" is setup, after is punch
 //                                                  (no "|": setup '' and the whole line is punch)
-//   pickHuazi(line, ctx?) → Item[]                 at most 2 items: one S3 (setup) + one S1/S2/S5 (punch), see rules
-//   huaziTimes(list, timing?, minGapMs = 450) → number[]   start time (ms, relative to the line start) for each item
+//   subtitleParts(line) → { setup, punch }         the subtitle split (7.7): the "|" cut, else the last sentence of a
+//                                                  multi-sentence line (or an X你媽 clause), else a short line is all punch
+//   pickHuazi(line, ctx?) → Item[]                 at most ONE item (the allowed list below); others become 'emph'
+//   isAllowedHuazi(item) → boolean                 the same allow list for direct ui.huazi() calls (S3 never)
+//   s4Symbol(text) → { text, mark }                S4 inner voice: symbols only ('？？？', '！', '！？', '…')
+//   huaziTimes(list, timing?, minGapMs = 900) → number[]   start time (ms, relative to the line start) for each item
 //   huaziDuration(item) → number                   on-screen time of an item in ms
 //   createHuaziTracker({ mode }) → { next(), pick(line, extra?), reset(), get index() }
-//                                                  keeps the "recent" records for the rate limits (one per round)
+//                                                  keeps the "recent" records for the repeat limit (one per round)
+//   HZ_GAP_MS = 900                                min time between two 花字; never more than one on screen
 //
-// Item = { text, style: 'S1'|'S2'|'S3'|'S4'|'S5'|'emph', seg: 'setup'|'punch', ratio, key, size?, score }
-//   style 'emph' = an S1/S2 that was rate-limited: the UI only highlights those words in the subtitle.
-//   size  'sm'   = S2 small (9cqw) for "兩個月後" during normal play.
+// Allowed (8.3): S1 X你媽 (調你媽); S2 250 / 二百五 / 251 / 520 and 黃金比例最好喝; S1 滾 / 閉嘴 / 收 only at the big
+// FX level (ctx.big: charge 2, the boss's last step); S5 day cards and 兩個月後 in the opening / pay day.
+// S3 (black OS bar) is gone; S4 is symbols only.
+//
+// Item = { text, style: 'S1'|'S2'|'S5'|'emph', seg: 'setup'|'punch', ratio, key, score }
+//   style 'emph' = not allowed as a 花字 here (or rate-limited): the UI only highlights those words in the subtitle.
 //
 // ctx = {
 //   lang: 'zh'|'en',
-//   mode: 'normal' | 'opening' | 'payday',   // rate limits 2 and 3 only apply in 'normal'
+//   mode: 'normal' | 'opening' | 'payday',   // the repeat limit only applies in 'normal'
 //   hua: [[text, styleNo], ...],             // manual override from content (customer.hua): skips auto rules
 //   index: number,                           // running customer index in this round (normal mode)
-//   lastS1Index: number | null,              // customer index of the last S1 shown
 //   recent: { [key]: index },                // keyword → customer index it was last shown at
-//   exempt: boolean,                         // charge level 2 / revenge / rage: S1 not rate-limited
+//   big: boolean,                            // big FX level (charge 2 / boss's last step); `exempt` is an old alias
 // }
 
-const SCORE = { curse: 100, num: 90, end: 80, gold: 75, months: 70, setupQ: 50, tail: 40 };
+export const HZ_GAP_MS = 900;
+
+const SCORE = { curse: 100, num: 90, end: 80, gold: 75, months: 70 };
 const LATIN = /[A-Za-z]/;
 
 /** Remove stage directions in full-width （…） or half-width (…) parentheses. */
@@ -46,6 +56,37 @@ export function splitLine(line) {
 
 const isLatin = (s) => LATIN.test(s) && !/[㐀-鿿]/.test(s);
 const charLen = (s) => [...String(s)].length;
+
+/**
+ * Subtitle split (7.7): the punch is what grows in the key colour. With a "|" it is the voice cut; without one the
+ * last sentence of a line with two or more sentences (an X你媽 / "your mom" clause wins), a short single sentence
+ * (≤ 8 chars / 18 latin chars) is all punch, a longer one has no punch (plain line).
+ */
+export function subtitleParts(line) {
+  const raw = String(line ?? '');
+  if (raw.includes('|')) {
+    const s = splitLine(raw);
+    const latin = isLatin(s.setup + s.punch);
+    return { setup: latin && s.setup ? s.setup + ' ' : s.setup, punch: s.punch };
+  }
+  const t = stripStage(raw);
+  if (!t) return { setup: '', punch: '' };
+  const latin = isLatin(t);
+  // sentences keep their closing punctuation (and any closing quote / ellipsis right after it)
+  const parts = t.match(latin ? /[^.!?…]+(?:[.!?…]+["”']?\s*|$)/g : /[^。！？!?…]+(?:[。！？!?…]+[」』”]?|$)/g) || [t];
+  const clean = parts.filter((p) => p.trim());
+  const curse = clean.findIndex((p) => /[一-龥]你媽|your mom/i.test(p));
+  if (curse >= 0 && clean.length > 1) {
+    return { setup: clean.slice(0, curse).join(''), punch: clean.slice(curse).join('') };
+  }
+  if (clean.length > 1) {
+    const last = clean[clean.length - 1];
+    return { setup: clean.slice(0, -1).join(''), punch: last.trim() };
+  }
+  if (charLen(t) <= (latin ? 18 : 8)) return { setup: '', punch: t };
+  return { setup: t, punch: '' };
+}
+
 // Rule 5: long display text is cut to the matched part; this is the hard cap.
 const capText = (s) => {
   const max = isLatin(s) ? 16 : 7;
@@ -64,12 +105,14 @@ function find(segs, re) {
   return null;
 }
 
-// Each rule returns { score, style, text, seg, ratio, size? } or null.
+// Each rule returns { score, style, text, seg, ratio } or null. style 'emph' = subtitle emphasis only.
 const RULES = [
   // 100: X你媽 (the original "調你媽")
   (segs) => {
-    const f = find(segs, /([一-龥])你媽/);
-    return f && { score: SCORE.curse, style: 'S1', text: f.m[0] + '！', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
+    const f = find(segs, /([一-龥])你媽/) || find(segs, /\b[a-z]+ your mom\b/i);
+    if (!f) return null;
+    const text = /[一-龥]/.test(f.m[0]) ? f.m[0] + '！' : f.m[0].toUpperCase() + '!';
+    return { score: SCORE.curse, style: 'S1', text, seg: f.seg, ratio: ratioOf(f.text, f.idx) };
   },
   // 90: signature numbers (zh digits, 二百五; en "two-fifty"/"quarter-wit" shown as 250)
   (segs, ctx) => {
@@ -85,67 +128,64 @@ const RULES = [
     }
     return null;
   },
-  // 80: the curse word that ends a segment
-  (segs) => {
+  // 80: the curse word that ends a segment: a 花字 only at the big FX level, else subtitle emphasis
+  (segs, ctx) => {
     for (const seg of ['punch', 'setup']) {
       const text = segs[seg];
       if (!text) continue;
       let m = /(滾|閉嘴|收)[！!。]?$/.exec(text);
-      if (m) {
-        const style = m[1] === '收' ? 'S2' : 'S1';
-        return { score: SCORE.end, style, text: m[1] + '！', seg, ratio: ratioOf(text, m.index) };
-      }
+      if (m) return { score: SCORE.end, style: ctx.big ? 'S1' : 'emph', text: m[1] + '！', seg, ratio: ratioOf(text, m.index) };
       m = /(scram|shut it|deal|get out|booked)[!.]?$/i.exec(text);
-      if (m) {
-        const w = m[1].toLowerCase();
-        const style = w === 'deal' || w === 'booked' ? 'S2' : 'S1';
-        return { score: SCORE.end, style, text: m[1].toUpperCase() + '!', seg, ratio: ratioOf(text, m.index) };
-      }
+      if (m) return { score: SCORE.end, style: ctx.big ? 'S1' : 'emph', text: m[1].toUpperCase() + '!', seg, ratio: ratioOf(text, m.index) };
     }
     return null;
   },
-  // 75: 黃金比例(最好喝)
+  // 75: 黃金比例最好喝 (plain 黃金比例 is subtitle emphasis); en "golden ratio" only in the opening (its E6 line)
   (segs, ctx) => {
     let f = find(segs, /黃金比例/);
     if (f) {
       const best = f.text.slice(f.idx).startsWith('黃金比例最好喝');
-      return { score: SCORE.gold, style: 'S2', text: best ? '黃金比例最好喝' : '黃金比例', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
+      return { score: SCORE.gold, style: best ? 'S2' : 'emph', text: best ? '黃金比例最好喝' : '黃金比例', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
     }
     if (ctx.lang === 'en') {
       f = find(segs, /golden ratio/i);
-      if (f) return { score: SCORE.gold, style: 'S2', text: 'GOLDEN RATIO', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
+      if (f) return { score: SCORE.gold, style: ctx.mode === 'opening' ? 'S2' : 'emph', text: 'GOLDEN RATIO', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
     }
     return null;
   },
-  // 70: 兩個月 → S2 small in normal play, S5 in the opening / pay day
+  // 70: 兩個月 → S5 in the opening / pay day, subtitle emphasis in normal play
   (segs, ctx) => {
     const zh = find(segs, /兩個月/);
     const f = zh || (ctx.lang === 'en' ? find(segs, /two months/i) : null);
     if (!f) return null;
-    const text = zh ? '兩個月後' : 'TWO MONTHS';
     const big = ctx.mode === 'opening' || ctx.mode === 'payday';
-    return { score: SCORE.months, style: big ? 'S5' : 'S2', size: big ? undefined : 'sm', text, seg: f.seg, ratio: ratioOf(f.text, f.idx) };
+    return { score: SCORE.months, style: big ? 'S5' : 'emph', text: zh ? '兩個月後' : 'TWO MONTHS', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
   },
 ];
 
-function setupQuestion(segs) {
-  const s = segs.setup;
-  if (!s) return null;
-  const limit = isLatin(s) ? 16 : 5;
-  if (charLen(s) <= limit && /[？?]$/.test(s)) return { score: SCORE.setupQ, style: 'S3', text: s, seg: 'setup', ratio: 0 };
-  return null;
+const SIGNATURE = /[一-龥]你媽|你嗶|your mom|250|二百五|251|520|黃金比例最好喝|golden ratio/i;
+
+/** Direct ui.huazi() calls go through the same list: S5 / S4 (symbols) / emph always, S1 / S2 only signature words
+ * or items marked big (charge 2, the boss's last step), S3 never. */
+export function isAllowedHuazi(item = {}) {
+  const st = typeof item.style === 'number' || /^[1-5]$/.test(String(item.style)) ? 'S' + item.style : String(item.style || '');
+  if (!item.text) return false;
+  if (st === 'S5' || st === 'S4' || st === 'emph') return true;
+  if (st === 'S1' || st === 'S2') return !!item.big || SIGNATURE.test(String(item.text));
+  return false;
 }
 
-function tailClause(segs) {
-  const p = segs.punch;
-  if (!p) return null;
-  const parts = p.split(/[，,。.！!？?；;…]+/).map((x) => x.trim()).filter(Boolean);
-  const last = parts[parts.length - 1];
-  if (!last) return null;
-  const limit = isLatin(last) ? 16 : 6;
-  if (charLen(last) > limit) return null;
-  const idx = p.lastIndexOf(last);
-  return { score: SCORE.tail, style: 'S3', text: last, seg: 'punch', ratio: ratioOf(p, idx) };
+/** S4 (a customer's inner voice): symbols only (8.3). Words map to a symbol; a mark names the drawn extra. */
+export function s4Symbol(text) {
+  const t = stripStage(text) || String(text ?? '');
+  const sym = t.replace(/[^？?！!…。.～~]/g, '').replace(/\?/g, '？').replace(/!/g, '！').replace(/\.{2,}|。{2,}/g, '…');
+  if (sym && sym.length === t.replace(/\s/g, '').length) return { text: [...sym].slice(0, 3).join(''), mark: /！/.test(sym) && !/？/.test(sym) ? 'bang' : 'q' };
+  const s = String(text ?? '');
+  if (/自信|得意|confident|proud/i.test(s)) return { text: '！', mark: 'sparkle' };
+  if (/呆|frozen|stunned/i.test(s)) return { text: '…', mark: 'sweat' };
+  if (/調|adjust/i.test(s)) return { text: '…', mark: 'sweat' };
+  if (/停|freeze|stop/i.test(s)) return { text: '！？', mark: 'bang' };
+  return { text: '？？？', mark: 'q' };
 }
 
 function manual(line, hua) {
@@ -160,52 +200,45 @@ function manual(line, hua) {
     if (idx < 0 && segs.setup.includes(probe)) { seg = 'setup'; idx = segs.setup.indexOf(probe); }
     out.push({ score: 0, style, text: t, seg, ratio: ratioOf(segs[seg], Math.max(0, idx)) });
   }
-  // Limit 1 still holds: one S3 + one big at most.
-  const s3 = out.find((x) => x.style === 'S3');
-  const big = out.find((x) => x.style !== 'S3');
-  return [s3, big].filter(Boolean);
+  return out;
 }
 
 /**
- * Pick at most two 花字 for one clerk line. Pure: ctx is read, never written.
+ * Pick the 花字 for one clerk line: at most one item. Pure: ctx is read, never written.
  */
 export function pickHuazi(line, ctx = {}) {
-  const c = { lang: 'zh', mode: 'normal', recent: {}, index: 0, lastS1Index: null, exempt: false, ...ctx };
+  const c = { lang: 'zh', mode: 'normal', recent: {}, index: 0, ...ctx };
+  c.big = !!(ctx.big ?? ctx.exempt);
   let list;
   if (Array.isArray(c.hua) && c.hua.length) {
-    list = manual(line, c.hua);
+    list = manual(line, c.hua).map((it) => (isAllowedHuazi({ ...it, big: c.big }) && it.style !== 'S4' ? it : { ...it, style: it.style === 'S3' ? null : 'emph' }))
+      .filter((it) => it.style);
   } else {
     const segs = splitLine(line);
-    let big = null;
+    let best = null;
     for (const rule of RULES) {
       const r = rule(segs, c);
-      if (r && (!big || r.score > big.score)) big = r;
+      if (!r) continue;
+      // an allowed 花字 always beats a subtitle emphasis
+      const rank = (x) => (x.style === 'emph' ? 0 : 1000) + x.score;
+      if (!best || rank(r) > rank(best)) best = r;
     }
-    const q = setupQuestion(segs);
-    list = [q, big].filter(Boolean);
-    if (!list.length) {
-      const t = tailClause(segs);
-      if (t) list = [t];
-    }
+    list = best ? [best] : [];
   }
-  return list
-    .map((it) => ({ ...it, text: capText(it.text), key: normKey(it.text) }))
-    .map((it) => limit(it, c))
-    .sort((a, b) => (a.seg === b.seg ? 0 : a.seg === 'setup' ? -1 : 1));
+  const big = list.find((it) => it.style !== 'emph');
+  const one = big ? [big] : list.slice(0, 1);
+  return one.map((it) => ({ ...it, text: capText(it.text), key: normKey(it.text) })).map((it) => limit(it, c));
 }
 
-// Rate limits 2 (one S1 per 3 customers) and 3 (same keyword not within 5 customers), normal play only.
+// Repeat limit: the same keyword is not a 花字 again within 5 customers (normal play only).
 function limit(it, c) {
-  if (c.mode !== 'normal' || it.style === 'S3' || it.style === 'S4') return it;
+  if (c.mode !== 'normal' || it.style === 'emph') return it;
   const seen = c.recent[it.key];
   if (seen != null && c.index - seen < 5) return { ...it, style: 'emph', limited: 'repeat' };
-  if (it.style === 'S1' && !c.exempt && c.lastS1Index != null && c.index - c.lastS1Index < 3) {
-    return { ...it, style: 'emph', limited: 's1' };
-  }
   return it;
 }
 
-const DUR = { S1: 1000, S2: 1500, S3: 1160, S4: 1300, emph: 0 };
+const DUR = { S1: 1000, S2: 1500, S4: 1300, emph: 0 };
 
 /** On-screen time of one item (S5 depends on its length and typing speed). */
 export function huaziDuration(it = {}) {
@@ -218,10 +251,10 @@ export function huaziDuration(it = {}) {
 
 /**
  * Start times (ms after the line starts) for each item.
- * timing = { setupStartMs = 0, setupMs = 0, punchStartMs, punchMs }; S3 appears at its segment start, the
- * others at segment start + clip length × ratio. Items are kept at least minGapMs apart (rule 4).
+ * timing = { setupStartMs = 0, setupMs = 0, punchStartMs, punchMs }; S4 appears at its segment start, the
+ * others at segment start + clip length × ratio. Items are kept at least minGapMs apart.
  */
-export function huaziTimes(list, timing = {}, minGapMs = 450) {
+export function huaziTimes(list, timing = {}, minGapMs = HZ_GAP_MS) {
   const setupStart = timing.setupStartMs ?? 0;
   const setupMs = timing.setupMs ?? 0;
   const punchStart = timing.punchStartMs ?? setupStart + setupMs;
@@ -230,7 +263,7 @@ export function huaziTimes(list, timing = {}, minGapMs = 450) {
     if (it.at != null) return it.at;
     const start = it.seg === 'setup' ? setupStart : punchStart;
     const len = it.seg === 'setup' ? setupMs : punchMs;
-    if (it.style === 'S3' || it.style === 'S4') return start;
+    if (it.style === 'S4') return start;
     return start + len * (it.ratio || 0);
   });
   const order = raw.map((t, i) => i).sort((a, b) => raw[a] - raw[b]);
@@ -245,27 +278,25 @@ export function huaziTimes(list, timing = {}, minGapMs = 450) {
 }
 
 /**
- * Keeps the recent-history records needed by the rate limits. One tracker per round.
+ * Keeps the recent-history records needed by the repeat limit. One tracker per round.
  *   next()                 call once per new customer (normal play)
  *   pick(line, extra)      pickHuazi with the tracker's records; records what was actually shown
  */
 export function createHuaziTracker({ mode = 'normal', lang = 'zh' } = {}) {
   let index = -1;
-  let lastS1Index = null;
   let recent = {};
   return {
     next() { index++; return index; },
     pick(line, extra = {}) {
-      const ctx = { lang, mode, ...extra, index: Math.max(0, index), lastS1Index, recent };
+      const ctx = { lang, mode, ...extra, index: Math.max(0, index), recent };
       const list = pickHuazi(line, ctx);
       for (const it of list) {
-        if (it.style === 'emph' || it.style === 'S3' || it.style === 'S4') continue;
+        if (it.style === 'emph') continue;
         recent = { ...recent, [it.key]: ctx.index };
-        if (it.style === 'S1') lastS1Index = ctx.index;
       }
       return list;
     },
-    reset() { index = -1; lastS1Index = null; recent = {}; },
+    reset() { index = -1; recent = {}; },
     setLang(l) { lang = l === 'en' ? 'en' : 'zh'; },
     get index() { return index; },
   };

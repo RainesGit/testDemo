@@ -87,7 +87,9 @@ Run from `game/`:
   opening by shouting, voice answers, the 反差 bonus, rage swept by sustained shouting, self-replay, the loudest-shout row;
   `tools/shots/voice-*.png` or `--out=dir`): `node tools/check-voice.mjs`; no Simplified Chinese on screen (a zh-CN
   browser through the opening and day 1, then days 3–7; fails on any character of `tools/hans-chars.mjs`;
-  `tools/shots/hant-*.png` or `--out=dir`): `node tools/check-hant.mjs`. All take the base URL as an argument. These use the globally installed Playwright
+  `tools/shots/hant-*.png` or `--out=dir`): `node tools/check-hant.mjs`; the `docs/art-direction-v2.md` 9 kill list (no
+  mechanic words such as 反差 / 快嘴 / ×2 / STRIKE on the play screen, one allowed 花字 at a time, no stage directions in
+  subtitles; UI-chrome words are WARN, fatal with `--strict`): `node tools/check-killlist.mjs`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 

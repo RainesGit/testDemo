@@ -108,41 +108,53 @@ button { font: inherit; color: inherit; }
    every 花字 entry / wobble frame re-laid out its caption text */
 .cam svg text, .hz text { text-rendering: geometricPrecision; }
 
-/* Shop background (SHOP_SVG) */
+/* Shop background (SHOP_SVG; docs/art-direction-v2.md §6.1). The light pool is an SVG radialGradient, not CSS.
+   Tokens come from :root (§2.1) with literal fallbacks. */
 .shop { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .shop-svg, .counter-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.shop::before, .shop::after { content: ''; position: absolute; top: 7.2%; width: 46cqw; height: 46cqw; margin: -6cqw 0 0 -23cqw;
-  border-radius: 50%; background: radial-gradient(closest-side, #FFF4DC55, transparent 70%); z-index: 1; }
-.shop::before { left: 27.8%; }
-.shop::after { left: 72.2%; }
-.lb-text { font: 900 13px var(--font-zh); fill: var(--ink); text-anchor: middle; }
-.goldsign { fill: var(--gun); transition: fill .12s; }
-.gs-glow { display: none; }
-.gs-g1 { stroke: var(--ink); stroke-width: 3px; }
-.gs-g2 { stroke: var(--lemon); stroke-width: 7px; opacity: .75; }
-.gs-g3 { stroke: var(--lemon); stroke-width: 12px; opacity: .35; }
-.shop[data-gold] .gs-glow { display: inline; animation: glow .5s ease-in-out infinite alternate; }
-.shop[data-gold] .goldsign { fill: var(--lemon); }
+.lb-text { font: 400 13px "Huninn", var(--font-zh, "Noto Sans TC"), sans-serif; fill: var(--wood-dk, #3A2418); }
+.lb-price { font: 800 15px "Baloo 2", "Huninn", var(--font-zh, sans-serif); fill: var(--wood-dk, #3A2418); }
+.goldsign { text-anchor: middle; }
+.goldsign .gs-a { fill: var(--paper, #FFF7E6); }
+.goldsign .gs-b { font-weight: 900; fill: var(--lemon, #FFD84A); }
+.gs-halo, .gs-gold { display: none; }
+/* E6: the 不能調 cell turns solid gold with a glowing ring */
+.shop[data-gold] :is(.gs-halo, .gs-gold) { display: inline; }
+.shop[data-gold] .gs-halo { animation: glow .5s ease-in-out infinite alternate; }
+.shop[data-gold] .goldsign :is(.gs-a, .gs-b) { fill: var(--ink, #1B1311); }
 .shop.latin .lb-text { font-size: 12px; }
-.caller-label { font: 700 12px var(--font-zh); fill: #FF8A80; text-anchor: end; }
-.caller-num { font: 700 28px ui-monospace, Menlo, Consolas, monospace; fill: #FF3B30; text-anchor: middle; letter-spacing: 2px; }
-.caller-num.ghost { opacity: .12; }
-.gate-tag { font: 900 64px var(--font-zh); fill: none; stroke: #C0392B; stroke-width: 3px; text-anchor: middle; opacity: .55; }
+.shop.latin .lb-price { font-size: 13px; }
+.caller-label { font: 400 12px "Huninn", var(--font-zh, "Noto Sans TC"), sans-serif; fill: #FF8A80; text-anchor: middle; }
+.caller-num { font: 700 24px "DSEG7 Classic", ui-monospace, Menlo, Consolas, monospace; fill: #FF3B30; text-anchor: middle; letter-spacing: 1px; }
+.caller-num.ghost { fill: #3A1414; }
+.gate-tag { font: 900 64px "Huninn", var(--font-zh, sans-serif); fill: none; stroke: #C0392B; stroke-width: 3px; text-anchor: middle; opacity: .5; }
+/* pendant lamps: they swing while the clerk rages */
+.lamp { transform-box: view-box; }
+.lamp-l { transform-origin: 96px -120px; }
+.lamp-r { transform-origin: 264px -120px; }
+.stage.rage .lamp { animation: lampSwing .42s ease-in-out infinite alternate; }
+.stage.rage .lamp-r { animation-delay: -.21s; }
+@keyframes lampSwing { from { rotate: -2.2deg; } to { rotate: 2.2deg; } }
+/* forced politeness (§2.3): the light pool turns pink instead of tinting the whole screen */
+.stage.polite .shop .wall-hi { stop-color: #FFE0EA; }
+.stage.polite .shop .wall-mid { stop-color: #F2C0B4; }
+.stage.polite .shop .pool-hi { stop-color: #FFE0EA; }
 
-/* Door monitor (monitorHTML) at (262,96)-(348,160), rotate 3deg; milestone zoom = data-zoom */
+/* Door monitor (monitorHTML) at (262,96)-(348,160), rotate 3deg; milestone zoom = data-zoom.
+   Dark case, dark blue-green screen, blinking red dot; the scenes are cool night views. */
 .monitor { position: absolute; left: 72.8%; top: 15%; width: 23.9%; height: 10%; z-index: 2; rotate: 3deg;
-  border: 1.7cqw solid var(--ink); border-radius: 1.2cqw; background: #3F4A44; overflow: hidden;
-  box-shadow: 0 1cqw 0 var(--wood-sh); transform-origin: 50% 50%; will-change: transform;
+  border: 1.7cqw solid #1A1320; border-radius: 1.4cqw; background: #24364A; overflow: hidden;
+  box-shadow: 0 0 0 .45cqw var(--ink-bg, #4A2C1C), 0 1cqw 0 .45cqw rgb(74 44 28 / .45); transform-origin: 50% 50%; will-change: transform;
   transition: transform .26s cubic-bezier(.3, 1.4, .5, 1), rotate .26s; }
 .monitor::after { content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: repeating-linear-gradient(#0000 0 2px, #0002 2px 3px); }
+  background: repeating-linear-gradient(#0000 0 2px, rgb(14 17 32 / .18) 2px 3px); }
 .mon-screen { position: absolute; inset: 0; }
 .mon-svg { display: block; width: 100%; height: 100%; }
 .mon-svg g { transform-box: view-box; transform-origin: 43px 32px; }
-.mon-label { font: 700 14px var(--font-zh); fill: #fff; }
-.mon-label:lang(en), .mon-flash { font-family: system-ui, sans-serif; }
-.mon-flash { font-size: 9px; font-weight: 900; fill: #fff; text-anchor: middle; }
-.mon-ticker { font: 700 14px var(--font-zh); fill: #fff; animation: ticker 7s linear infinite; }
+.mon-label { font: 400 14px "Huninn", var(--font-zh, "Noto Sans TC"), sans-serif; fill: var(--paper, #FFF7E6); }
+.mon-label:lang(en), .mon-flash { font-family: "Baloo 2", system-ui, sans-serif; font-weight: 800; }
+.mon-flash { font-size: 9px; fill: #fff; text-anchor: middle; }
+.mon-ticker { font: 700 14px var(--font-zh, "Noto Sans TC"), sans-serif; fill: #fff; animation: ticker 7s linear infinite; }
 .mon-dot { animation: blink 1s steps(2) infinite; }
 .snake { animation: crawl 1.6s linear infinite; }
 .monitor[data-zoom] { transform: translate(-34.75cqw, 7.1cqw) scale(3.5); rotate: 0deg; z-index: 12; }
@@ -151,49 +163,68 @@ button { font: inherit; color: inherit; }
 .monitor[data-zoom] .L2 { animation: par2 .9s .26s ease-in-out both; }
 .monitor[data-zoom] .L3 { animation: par3 .9s .26s ease-in-out both; }
 
-/* Counter (COUNTER_SVG) — in front of the clerk */
+/* Counter (COUNTER_SVG, §6.2) — in front of the clerk: steel top y 48–51%, dark purple acrylic front below,
+   the cool queue silhouettes outside, and the clerk's resting hands (they follow the clerk's pose). */
 .counter { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-.plaque-text { font: 900 16px var(--font-zh); fill: var(--ink); text-anchor: middle; letter-spacing: 6px; }
-.counter.latin .plaque-text { font-size: 12px; letter-spacing: 1px; }
-.counter :is(.q-p1, .q-p2, .q-p3, .q-c1, .q-c2, .q-c3, .q-cap) { display: none; }
+.plaque-text { font: 400 17px "Huninn", var(--font-zh, "Noto Sans TC"), sans-serif; fill: var(--lemon, #FFD84A); text-anchor: middle; }
+.counter.latin .plaque-text { font: 800 14px "Baloo 2", system-ui, sans-serif; }
+.counter :is(.q-p1, .q-p2, .q-p3, .q-c1, .q-c2, .q-c3) { display: none; }
 .counter[data-q="1"] .q-p1,
 .counter[data-q="2"] :is(.q-p1, .q-p2),
 .counter[data-q="3"] :is(.q-p1, .q-p2, .q-p3),
 .counter[data-crowd="1"] .q-c1,
 .counter[data-crowd="2"] :is(.q-c1, .q-c2),
-.counter[data-crowd="3"] :is(.q-c1, .q-c2, .q-c3),
-.counter.cap .q-cap { display: inline; }
+.counter[data-crowd="3"] :is(.q-c1, .q-c2, .q-c3) { display: inline; }
+/* §9: no resident "+N" pill; the flying +N lands in the monitor instead */
+.counter .q-cap { display: none; }
 /* a new person steps into line (plays whenever a figure is shown; individual translate keeps the SVG transform) */
-.counter :is(.q-in, .q-crowd) > g { animation: qIn .26s cubic-bezier(.3, 1.5, .5, 1); }
-.q-num { font: 900 13px var(--font-zh); fill: var(--lemon); text-anchor: middle; }
+.counter :is(.q-in > g, .q-crowd > path) { animation: qIn .26s cubic-bezier(.3, 1.5, .5, 1); }
+.q-num { font: 800 13px "Baloo 2", system-ui, sans-serif; fill: var(--lemon, #FFD84A); text-anchor: middle; }
 .counter.slam { animation: slam .28s ease-out; }
+/* the clerk's hands on the steel top: only for the poses whose arm rests (see the .a-rest-* rules below) */
+.counter .ch { display: none; }
+.clerk:is([data-mood=idle], [data-mood=over], [data-mood=perfect]) ~ .counter .ch-l,
+.clerk[data-mood=hit].point-sign ~ .counter .ch-l,
+.clerk:is([data-mood=idle], [data-mood=over]):not(.reach) ~ .counter .ch-r,
+.clerk[data-mood=hit]:not(.point-sign) ~ .counter .ch-r { display: inline; }
+.counter .ch { transform-box: view-box; }
+.clerk.tap ~ .counter .ch { animation: counterTap 120ms ease-in-out 3; }
 
-/* ---------- Clerk (CLERK_SVG, §2.6) ---------- */
-.clerk { position: absolute; left: 20%; width: 60%; bottom: 52.5%; z-index: 3; overflow: visible; }
+/* ---------- Clerk (CLERK_SVG, §5.1) ---------- */
+/* 66% of the stage wide; hair top at y 15% (never over the menu box), the counter lip of the drawing on y 48% */
+.clerk { position: absolute; left: 17%; width: 66%; bottom: 49.25%; z-index: 3; overflow: visible; }
 .clerk * { transform-box: view-box; }
-.clerk .c-skin { fill: #F4C9A0; } .clerk .c-skin-sh { fill: #DFA27A; }
-.clerk .c-badge, .clerk .c-tk { font: 900 20px var(--font-en); fill: #E8402F; stroke: none; text-anchor: middle; }
-.clerk .c-tk { fill: #1B1311; font-size: 26px; }
+.clerk .c-skin { fill: var(--skin, #F2C7A0); } .clerk .c-skin-sh { fill: var(--skin-sh, #D99B78); } .clerk .c-skin-hi { fill: var(--skin-hi, #FFE2C6); }
+.clerk .c-badge, .clerk .c-tk { font: 800 19px "Baloo 2", system-ui, sans-serif; fill: var(--gun, #EE4130); stroke: none; text-anchor: middle; }
+.clerk .c-tk { fill: var(--ink, #1B1311); font-size: 26px; }
 .clerk .m, .clerk .a, .clerk .crack { display: none; }
-.clerk[data-mood=idle] :is(.m-idle, .a-rest), .clerk[data-mood=over] :is(.m-idle, .a-rest),
-.clerk[data-mood=hit] :is(.m-hit, .a-point), .clerk[data-mood=perfect] :is(.m-calm, .a-ticket),
-.clerk[data-mood=polite] :is(.m-polite, .a-rest), .clerk[data-mood=rage] :is(.m-rage, .a-up) { display: inline; }
+.clerk:is([data-mood=idle], [data-mood=over]) .m-idle, .clerk[data-mood=hit] .m-hit, .clerk[data-mood=perfect] .m-calm,
+.clerk[data-mood=polite] .m-polite, .clerk[data-mood=rage] .m-rage { display: inline; }
+/* arms: resting (hands on the counter, COUNTER_SVG .ch-*), pointing, tidying, ticket, bow, fists up */
+.clerk:is([data-mood=idle], [data-mood=over], [data-mood=perfect]) .a-rest-l,
+.clerk[data-mood=hit].point-sign .a-rest-l,
+.clerk:is([data-mood=idle], [data-mood=over]):not(.reach) .a-rest-r,
+.clerk[data-mood=hit]:not(.point-sign) :is(.a-rest-r, .a-point),
+.clerk[data-mood=hit].point-sign .a-sign,
+.clerk[data-mood=perfect]:not(.reach) .a-tidy,
+.clerk.reach:is([data-mood=idle], [data-mood=over], [data-mood=perfect]) .a-ticket,
+.clerk[data-mood=polite] .a-bow, .clerk[data-mood=rage] .a-up { display: inline; }
 .clerk.crack .crack { display: inline; stroke-dasharray: 80; stroke-dashoffset: 80; animation: crack 100ms linear forwards; }
-.clerk .m-idle .eyes { transform-origin: 120px 95px; transition: transform 80ms; }
+.clerk .m-idle .eyes { transform-origin: 130px 125px; transition: transform 80ms; }
 .clerk.squint .m-idle .eyes { transform: scaleY(.45); }
-.clerk .c-head { transform-origin: 120px 150px; transition: transform 90ms cubic-bezier(.3, 1.6, .5, 1); will-change: transform;
-  transform: rotate(-5deg) translateY(-2px); }
-.clerk .c-all { transform-origin: 120px 300px; transition: transform 90ms ease-out; }
-.clerk .c-body { transform-origin: 120px 300px; transition: transform 300ms ease-out; }
-.clerk .c-bangs { transform-origin: 120px 96px; }
+.clerk .c-head { transform-origin: 130px 196px; transition: transform 90ms cubic-bezier(.3, 1.6, .5, 1); will-change: transform;
+  transform: rotate(-4deg) translateY(-2px); }
+.clerk .c-all { transform-origin: 130px 330px; transition: transform 90ms ease-out; }
+.clerk .c-body { transform-origin: 130px 330px; transition: transform 300ms ease-out; }
+.clerk .c-bangs { transform-origin: 130px 96px; }
 .clerk .a { will-change: transform; }
 .clerk .brow-r { transition: transform 120ms ease-out; }
 /* idle / over: smug, breathing */
 .clerk:is([data-mood=idle], [data-mood=over]) .c-body { animation: breathe1 1.2s ease-in-out infinite alternate; }
 .clerk[data-mood=over] .c-head { transform: rotate(-10deg); }
-/* hit: lean in and yell */
-.clerk[data-mood=hit] .c-head { transform: translate(0, 8px) rotate(4deg) scale(1.08); }
-.clerk[data-mood=hit] .c-all { transform: rotate(-3deg); }
+/* hit: lean in and yell (hard cut, no transition into it) */
+.clerk[data-mood=hit] .c-head { transform: translate(0, 10px) rotate(3deg) scale(1.08); transition: none; }
+.clerk[data-mood=hit] .c-all { transform: translateY(6px) scale(1.03); }
 .clerk[data-mood=hit] .vein { animation: vein 80ms steps(1) 4; }
 /* perfect: hard cut back to zero */
 .clerk[data-mood=perfect] *, .clerk[data-mood=perfect] { transition: none !important; }
@@ -203,28 +234,28 @@ button { font: inherit; color: inherit; }
 .clerk[data-mood=polite] .c-skin { fill: #F9DCC0; }
 /* rage */
 .clerk[data-mood=rage] .c-head { animation: rageShake 60ms steps(2) infinite; }
-.clerk[data-mood=rage] .c-bangs { transform: scaleY(1.18); }
+.clerk[data-mood=rage] .c-bangs { transform: scaleY(1.14); }
 .clerk[data-mood=rage] .c-skin { fill: #F59A7E; }
 .clerk[data-mood=rage] .steam { animation: steam .5s ease-out infinite; }
 /* overlay flags (opening beats) */
-.clerk.brow .brow-r { transform: translateY(-6px); }
-.clerk.look-down .c-head { transform: rotate(6deg); }
+.clerk.brow .brow-r { transform: translateY(-7px); }
+.clerk.look-down .c-head { transform: rotate(6deg) translateY(2px); }
 .clerk.sigh .c-body { animation: none; transform: translateY(3px); }
 .clerk.tidy .c-body { animation: tidy 80ms ease-out 2 alternate; }
-.clerk.point-sign .pt-arm { transform-origin: 164px 182px; transform: rotate(-126deg) translateX(-88px) scaleX(-1); }
-.clerk.point-sign .pt-rest { transform-origin: 120px 0; transform: scaleX(-1); }
-.clerk.reach .a-rest { display: none; }
-.clerk.reach .a-ticket { display: inline; }
-.clerk.reach .tk-arm { transform: translateY(46px); transition: transform 200ms ease-out; }
-.clerk.tap .a-rest { animation: counterTap 120ms ease-in-out 3; }
 .clerk.stand .c-all { transform: translateY(-8px) scale(1.03); }
 
-/* ---------- Customer (customerSVG, §2.7) ---------- */
-.cust-wrap { position: absolute; left: 12%; top: 61.5%; width: 34cqw; height: 22.2cqw; z-index: 5; pointer-events: none; }
+/* ---------- Customer (customerSVG, §5.2) ---------- */
+/* 46cqw half head centred at x 30%; the clip shows down to just under the nose (viewBox y 150), so the eyes are
+   always on screen; the mouth only shows when they fly. The boss (day 7) is 1.15x and never clipped. */
+.cust-wrap { position: absolute; left: 7%; top: 59%; width: 46cqw; height: 34.5cqw; z-index: 5; pointer-events: none; }
 .cust-clip { width: 100%; height: 100%; overflow: hidden; }
-.cust { display: block; width: 34cqw; height: 34cqw; overflow: visible; will-change: transform; }
+.cust { display: block; width: 46cqw; height: 46cqw; overflow: visible; will-change: transform; }
+.cust-wrap.boss { left: 3.5%; top: 56%; width: 53cqw; height: 66cqw; }
+.cust-wrap.boss .cust-clip { overflow: visible; }
+.cust-wrap.boss .cust { width: 53cqw; height: 66.25cqw; }
 .cust * { transform-box: view-box; }
-.cust .h-all { transform: rotate(-12deg); transform-origin: 100px 200px; transition: transform 200ms ease-out; }
+.cust .h-all { transform: rotate(-10deg); transform-origin: 100px 200px; transition: transform 200ms ease-out; }
+.cust.boss .h-all { transform: rotate(-4deg); transform-origin: 100px 250px; }
 .cust .brows, .cust .pupils { transition: transform 150ms ease-out; }
 .cust .x { display: none; }
 .cust-wrap.flying .cust-clip, .cust-wrap:is([data-face=gun], [data-face=gun2], [data-face=shut], [data-face=take]) .cust-clip { overflow: visible; }
@@ -248,8 +279,9 @@ button { font: inherit; color: inherit; }
 @keyframes cowerShake { 50% { translate: .8cqw 0; } }
 .cust-wrap.wobble .cust { transform-origin: 50% 90%; animation: custWobble 450ms ease-in-out; }
 
-/* ---------- Order signs (signSVG, §6) ---------- */
-.sign { --u: 1cqw; --kc: var(--gun); position: absolute; left: 30%; top: 55%; z-index: 6; translate: -50% -50%;
+/* ---------- Order signs (signSVG; §2.5 frame 0.9cqw in the key colour, §3 numbers in Baloo 2, words in WenKai) ---------- */
+/* held up on the counter top: centre (32%, 53%), the brightest thing on screen (§2.2) */
+.sign { --u: 1cqw; --kc: var(--gun, #EE4130); position: absolute; left: 32%; top: 53%; z-index: 6; translate: -50% -50%;
   perspective: 90cqw; pointer-events: none; will-change: transform; opacity: 1;
   transition: transform 160ms cubic-bezier(.2, 1.6, .5, 1), opacity 80ms; }
 .sign[data-state=down] { opacity: 0; transform: translateY(40%); transition: none; }
@@ -257,78 +289,82 @@ button { font: inherit; color: inherit; }
 .sign-card { position: relative; display: block; transform-style: preserve-3d; rotate: var(--rot, 0deg); }
 .sign-face { position: relative; backface-visibility: hidden; }
 .sign-back { position: absolute; inset: 0; backface-visibility: hidden; transform: rotateY(180deg);
-  border: 1cqw solid var(--ink); border-radius: 2cqw; background: repeating-linear-gradient(45deg, #C98F00 0 2cqw, #B07C00 2cqw 4cqw); }
+  border: .9cqw solid var(--ink, #1B1311); border-radius: 2cqw; background: repeating-linear-gradient(45deg, #D9A100 0 2cqw, #C28E00 2cqw 4cqw); }
 .sign-badge { position: absolute; left: -2.7cqw; top: -2.7cqw; width: 9cqw; height: 9cqw; z-index: 3; transform: translateZ(1px); backface-visibility: hidden; }
 .sign-badge .key-icon { display: block; width: 100%; height: 100%; }
 .sign-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-family: var(--font-sign); font-weight: 700; color: var(--ink); line-height: 1.1; text-align: center; white-space: nowrap; }
+  font-family: "LXGW WenKai TC", var(--font-sign, serif); font-weight: 700; color: var(--ink, #1B1311); line-height: 1.1; text-align: center; white-space: nowrap; }
 .sign-line { display: block; font-size: var(--fs, 7cqw); }
 .sign-text.is-num { flex-direction: row; align-items: baseline; gap: .4cqw; }
-.sign-num { font-size: 11cqw; line-height: 1; }
-.sign-unit { font-size: 5cqw; }
+.sign-num { font: 800 13cqw/1 "Baloo 2", "Huninn", var(--font-zh, sans-serif); }
+.sign-unit { font-size: 5.4cqw; }
 .sign-text.is-hesitant .sign-line { color: #7A6A58; letter-spacing: -.12em; }
-.sign .jade { color: var(--jade); text-shadow: .3cqw .3cqw 0 var(--ink); }
-.sign[lang=en] .sign-text:not(.is-num) { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 800; }
-.sign[lang=en] .sign-num { font-family: var(--font-en); font-weight: 400; }
+.sign .jade { color: color-mix(in oklab, var(--mint, #3CC98E) 72%, #3A2A5A); }
+.sign[lang=en] .sign-text:not(.is-num) { font-family: "Baloo 2", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 800; }
+.sign[lang=en] .sign-num { font-family: "Baloo 2", system-ui, sans-serif; font-weight: 800; }
 
 /* 滾: torn paper slip, red frame, tape */
-.sign-gun { --rot: -6deg; --kc: var(--gun); }
-.sign-gun .sign-face { width: 34cqw; height: 22cqw; background: var(--cream); border: 1cqw solid var(--gun); border-bottom: 0;
+.sign-gun { --rot: -6deg; --kc: var(--gun, #EE4130); }
+.sign-gun .sign-face { width: 34cqw; height: 22cqw; background: var(--paper, #FFF7E6); border: .9cqw solid var(--gun, #EE4130); border-bottom: 0;
   clip-path: polygon(-20% -40%, 120% -40%, 120% 86%, 100% 86%, 95.8% 100%, 91.7% 86%, 87.5% 100%, 83.3% 86%, 79.2% 100%, 75% 86%,
     70.8% 100%, 66.7% 86%, 62.5% 100%, 58.3% 86%, 54.2% 100%, 50% 86%, 45.8% 100%, 41.7% 86%, 37.5% 100%, 33.3% 86%,
     29.2% 100%, 25% 86%, 20.8% 100%, 16.7% 86%, 12.5% 100%, 8.3% 86%, 4.2% 100%, 0% 86%, -20% 86%); }
 .sign-gun .sign-text { bottom: 2.4cqw; }
-.sign-gun .sign-back { background: #E9D9B5; border-color: var(--gun); border-radius: 0; }
-.sign-tape { position: absolute; top: -2.2cqw; width: 9cqw; height: 4cqw; background: color-mix(in srgb, var(--gun) 85%, transparent); }
-.sign-tape.t1 { left: 4cqw; rotate: -18deg; }
-.sign-tape.t2 { right: -2.6cqw; rotate: 24deg; }
+.sign-gun .sign-back { background: var(--paper-sh, #EAD8B4); border-color: var(--gun, #EE4130); border-radius: 0; }
+.sign-tape { position: absolute; top: -2.2cqw; width: 9cqw; height: 4cqw; background: color-mix(in srgb, var(--gun, #EE4130) 85%, transparent); }
+.sign-tape.t1 { left: 4cqw; rotate: -16deg; }
+.sign-tape.t2 { right: -2.6cqw; rotate: 20deg; }
 
 /* 閉嘴: speech-box sign, purple frame, tail bottom-right */
-.sign-shut { --rot: -2deg; --kc: var(--shut); }
-.sign-shut .sign-face { width: 52cqw; min-height: 14cqw; padding: 2.6cqw 3cqw 3cqw; background: #EEE9FF; border: 1cqw solid var(--shut); border-radius: 3cqw; }
-.sign-shut .sign-face::after { content: ''; position: absolute; right: 6cqw; bottom: -3.3cqw; width: 5cqw; height: 5cqw; background: #EEE9FF;
-  border: solid var(--shut); border-width: 0 1cqw 1cqw 0; transform: skewY(-28deg) rotate(45deg); }
+.sign-shut { --rot: -2deg; --kc: var(--shut, #7658F2); }
+.sign-shut .sign-face { width: 52cqw; min-height: 14cqw; padding: 2.6cqw 3cqw 3cqw; background: #EFEAFF; border: .9cqw solid var(--shut, #7658F2); border-radius: 3cqw; }
+.sign-shut .sign-face::after { content: ''; position: absolute; right: 6cqw; bottom: -3.3cqw; width: 5cqw; height: 5cqw; background: #EFEAFF;
+  border: solid var(--shut, #7658F2); border-width: 0 .9cqw .9cqw 0; transform: skewY(-28deg) rotate(45deg); }
 .sign-shut .sign-text { position: relative; inset: auto; min-height: 7cqw; white-space: nowrap; }
-.sign-shut .sign-back { background: #CFC6F7; border-color: var(--shut); border-radius: 3cqw; }
+.sign-shut .sign-back { background: #D3CAF8; border-color: var(--shut, #7658F2); border-radius: 3cqw; }
 .sign-circle { position: relative; display: inline-block; }
 .sign-circle svg { position: absolute; left: -14%; top: -10%; width: 128%; height: 124%; overflow: visible; }
-.sign-circle ellipse { fill: none; stroke: var(--shut); stroke-width: .7cqw; stroke-linecap: round; vector-effect: non-scaling-stroke;
+.sign-circle ellipse { fill: none; stroke: var(--shut, #7658F2); stroke-width: .7cqw; stroke-linecap: round; vector-effect: non-scaling-stroke;
   stroke-dasharray: 320; stroke-dashoffset: 320; animation: drawCircle 300ms 120ms ease-out forwards; }
-.sign-scribble { display: block; margin-top: .6cqw; color: var(--ink); opacity: .6; white-space: nowrap; }
+.sign-scribble { display: block; margin-top: .6cqw; color: var(--ink, #1B1311); opacity: .6; white-space: nowrap; }
 .sign-scribble i { font-style: normal; font-size: max(3.4cqw, calc(4.6cqw - var(--i) * .18cqw)); }
-.sign-strike { position: absolute; left: -3%; top: 50%; width: 106%; height: 1.6cqw; margin-top: -.8cqw; background: var(--ink);
+.sign-strike { position: absolute; left: -3%; top: 50%; width: 106%; height: 1.6cqw; margin-top: -.8cqw; background: var(--ink, #1B1311);
   border-radius: 1cqw; rotate: -4deg; transform: scaleX(0); transform-origin: left; }
 
 /* 收: gold number ticket */
-.sign-take, .sign-trap { --rot: 4deg; --kc: var(--take); }
-.sign-take .sign-face, .sign-trap .sign-face { width: 44cqw; height: 26cqw; border-radius: 2cqw; border: 1cqw solid var(--ink);
-  background: linear-gradient(var(--take), var(--take-deep)); box-shadow: inset 0 -1.4cqw 0 color-mix(in srgb, var(--take-deep) 78%, #1B1311); }
-.sign-take .sign-text, .sign-trap .sign-text { top: 4.4cqw; font-family: var(--font-zh); font-weight: 900; }
+.sign-take, .sign-trap { --rot: 4deg; --kc: var(--take, #FFC21A); }
+.sign-take .sign-face, .sign-trap .sign-face { width: 44cqw; height: 26cqw; border-radius: 2cqw; border: .9cqw solid var(--ink, #1B1311);
+  background: linear-gradient(#FFD54A, #FFB800); box-shadow: inset 0 -1.4cqw 0 var(--take-deep, #DE9800); }
+.sign-take .sign-text, .sign-trap .sign-text { top: 4.4cqw; }
 .sign-take .sign-num, .sign-trap .sign-num { font-size: 13cqw; }
 .sign-take .sign-unit, .sign-trap .sign-unit { font-size: 6cqw; }
 .sign-hole { position: absolute; left: 50%; top: 1.4cqw; width: 3cqw; height: 3cqw; margin-left: -1.5cqw; border-radius: 50%;
-  background: var(--ink); box-shadow: 0 0 0 .6cqw var(--cream); }
-.sign-stamp { position: absolute; right: 2cqw; bottom: 1.4cqw; padding: 0 1.4cqw; font: 900 9cqw/1.1 var(--font-zh); font-style: normal;
-  color: var(--gun); border: .8cqw solid var(--gun); border-radius: 1.6cqw; rotate: -12deg; opacity: 0; transform: scale(2.2); }
-.sign-stamp:lang(en) { font: 400 7cqw/1.1 var(--font-en); }
+  background: var(--ink, #1B1311); box-shadow: 0 0 0 .6cqw var(--paper, #FFF7E6); }
+.sign-stamp { position: absolute; right: 2cqw; bottom: 1.4cqw; padding: 0 1.4cqw; font: 400 9cqw/1.1 "Huninn", var(--font-zh, sans-serif); font-style: normal;
+  color: var(--gun, #EE4130); border: .8cqw solid var(--gun, #EE4130); border-radius: 2cqw; rotate: -12deg; opacity: 0; transform: scale(2.2); }
+.sign-stamp:lang(en) { font: 800 7cqw/1.1 "Baloo 2", system-ui, sans-serif; }
 .sign.is-250 .sign-card { scale: 1.15; animation: wobble250 600ms ease-in-out infinite; }
 .sign-burst { position: absolute; left: 50%; top: 50%; width: 76cqw; height: 76cqw; margin: -38cqw 0 0 -38cqw; border-radius: 50%;
-  background: repeating-conic-gradient(color-mix(in srgb, var(--gun) 35%, transparent) 0 11.25deg, transparent 11.25deg 22.5deg);
+  background: repeating-conic-gradient(color-mix(in srgb, var(--lemon, #FFD84A) 45%, transparent) 0 11.25deg, transparent 11.25deg 22.5deg);
   -webkit-mask: radial-gradient(closest-side, #000 55%, transparent); mask: radial-gradient(closest-side, #000 55%, transparent);
   animation: spin 4s linear infinite; will-change: transform; }
-/* 249 trap: gold ticket, red frame, gray crack, missing corner, arrow badge */
-.sign-trap { --kc: var(--gun); }
-.sign-trap .sign-face { border-color: var(--gun); clip-path: polygon(0 0, 80% 0, 100% 26%, 100% 100%, 0 100%); }
+/* 249 trap: gold ticket, red frame, grey crack, missing corner, arrow badge */
+.sign-trap { --kc: var(--gun, #EE4130); }
+.sign-trap .sign-face { border-color: var(--gun, #EE4130); clip-path: polygon(0 0, 80% 0, 100% 26%, 100% 100%, 0 100%); }
 .sign-crack { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sign-crack path { fill: none; stroke: #7D7468; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 
-/* timer bar (R7): appended to .sign-card at t0 */
-.sign-timer { position: absolute; left: 2cqw; right: 2cqw; bottom: 1.8cqw; height: 1.2cqw; z-index: 2; border-radius: .6cqw;
-  background: var(--kc); box-shadow: 0 0 0 .35cqw var(--ink); transform-origin: left center; will-change: transform;
+/* timer bar (R7): appended to .sign-card at t0. .sign-timer-hot = the fast window (speed bonus) as a gold glint
+   on the part of the bar that runs out first; it is scaled away with the bar (startSignTimer steps). */
+.sign-timer { position: absolute; left: 2cqw; right: 2cqw; bottom: 1.8cqw; height: 1.2cqw; z-index: 2; border-radius: .6cqw; overflow: hidden;
+  background: var(--kc); box-shadow: 0 0 0 .35cqw var(--ink, #1B1311); transform-origin: left center; will-change: transform;
   animation: timerIn 80ms ease-out; backface-visibility: hidden; }
+.sign-timer-hot { position: absolute; top: 0; bottom: 0; right: 0; left: var(--hot, 70%); background: linear-gradient(90deg, #FFD23A, var(--gold-hi, #FFF3B0) 60%, #FFD23A);
+  animation: hotGlint .6s ease-in-out infinite alternate; }
+@keyframes hotGlint { to { opacity: .55; } }
 .sign-gun .sign-timer { bottom: 4.6cqw; }
 .sign-shut .sign-timer { bottom: 1.4cqw; }
-.sign-take .sign-timer { background: var(--cream); }
+.sign-take .sign-timer { background: var(--paper, #FFF7E6); }
 .sign-timer.blink { animation: blink 150ms steps(2) infinite; }
 /* gameplay v2: speed multiplier tag on the sign corner (×2 while talking, ×1.5 / ×1.2 as the timer shrinks) */
 .sign-mult { position: absolute; right: -3cqw; top: -3.4cqw; z-index: 3; padding: .4cqw 1.4cqw; border-radius: 1.4cqw;
@@ -349,10 +385,10 @@ button { font: inherit; color: inherit; }
 .sign[data-state=out-take] { animation: slideTake 450ms 220ms cubic-bezier(.4, 0, .9, .5) forwards; }
 .sign.shatter .sign-card { visibility: hidden; }
 .sign[data-state=out-gun].to-monitor { animation: flyMonitor 520ms 100ms cubic-bezier(.3, 0, .8, .4) forwards; }
-.sign-shard { position: absolute; left: 50%; top: 50%; width: 14cqw; height: 9cqw; margin: -4.5cqw 0 0 -7cqw; background: #EEE9FF;
-  border: .7cqw solid var(--shut); z-index: 6; pointer-events: none; animation: shard 500ms cubic-bezier(.2, .6, .4, 1) forwards; }
+.sign-shard { position: absolute; left: 50%; top: 50%; width: 14cqw; height: 9cqw; margin: -4.5cqw 0 0 -7cqw; background: #EFEAFF;
+  border: .7cqw solid var(--shut, #7658F2); z-index: 6; pointer-events: none; animation: shard 500ms cubic-bezier(.2, .6, .4, 1) forwards; }
 
-/* mini signs (recap F3, closing card 3.8) */
+/* mini signs (recap F3, closing card 3.8, preview rail) */
 .sign.mini { position: relative; left: auto; top: auto; translate: none; display: inline-block; vertical-align: middle; z-index: auto;
   transform: none; opacity: 1; transition: none; }
 .sign.mini .sign-face { width: auto; height: auto; min-width: 12cqw; min-height: 0; padding: 1.4cqw 2cqw 1.8cqw; border-width: .6cqw; }
@@ -494,8 +530,11 @@ button { font: inherit; color: inherit; }
    whole key pad (y 80–100%, input is locked during these beats) and leaves the subtitle band readable. */
 .letterbox::after { bottom: 0; height: 20%; transform: translateY(100%); }
 .letterbox.on::before, .letterbox.on::after { transform: none; }
-.gate { position: absolute; inset: 0; z-index: 60; pointer-events: none; will-change: transform; }
-.gate svg { display: block; width: 100%; height: 100%; }
+/* opening iron shutter (DOOR_GATE_SVG; package A): covers the bleed too; a warm spill under its rising edge */
+.gate { position: absolute; inset: calc(-1 * var(--bleed-t, 0px)) 0 calc(-1 * var(--bleed-b, 0px)); z-index: 60; pointer-events: none; will-change: transform; }
+.gate svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.gate .gate-glow { opacity: 0; transition: opacity 120ms; }
+.gate.open .gate-glow { opacity: 1; }
 .gate.open { transform: translateY(-100%); transition: transform 500ms cubic-bezier(.5, 0, .2, 1); }
 .finger { position: absolute; z-index: 35; width: 13cqw; margin: -1.3cqw 0 0 -1.7cqw; pointer-events: none; animation: fingerTap 400ms ease-in-out infinite; will-change: transform; }
 .finger svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -510,21 +549,24 @@ button { font: inherit; color: inherit; }
   background: var(--ink); border: .5cqw solid var(--c, var(--cream)); border-radius: 2cqw; white-space: nowrap; pointer-events: none; animation: pop .16s ease-out; }
 .skip { position: absolute; top: 14cqw; right: 3cqw; z-index: 55; font: 900 5cqw var(--font-zh); color: var(--cream); background: #0008; border: 0;
   border-radius: 99px; padding: 1.2cqw 3.4cqw; cursor: pointer; animation: pop .2s ease-out; }
+/* E11/E12 number ticket (ticketHTML; package A): lemon paper, Baloo number, WenKai words */
 .ticket { position: absolute; z-index: 14; width: 30cqw; padding: 3cqw 2cqw 2cqw; display: flex; flex-direction: column; align-items: center; gap: .6cqw;
-  font-family: var(--font-sign); font-weight: 700; color: var(--ink); background: var(--lemon); border: .8cqw solid var(--ink); border-radius: 2cqw;
-  box-shadow: 0 1.2cqw 0 #C9A21E; rotate: -6deg; will-change: transform; }
-.ticket-hole { position: absolute; top: 1cqw; left: 50%; width: 2.4cqw; height: 2.4cqw; margin-left: -1.2cqw; border-radius: 50%; background: var(--ink); }
-.ticket-no { font-size: 6.4cqw; line-height: 1; }
+  font-family: "LXGW WenKai TC", var(--font-sign, serif); font-weight: 700; color: var(--ink, #1B1311); background: var(--lemon, #FFD84A);
+  border: .7cqw solid var(--ink, #1B1311); border-radius: 2cqw; box-shadow: 0 1.4cqw 0 #B57A00; rotate: -6deg; will-change: transform; }
+.ticket-hole { position: absolute; top: 1cqw; left: 50%; width: 2.4cqw; height: 2.4cqw; margin-left: -1.2cqw; border-radius: 50%; background: var(--ink, #1B1311); }
+.ticket-no { font: 800 6.4cqw/1 "Baloo 2", system-ui, sans-serif; }
 .ticket-cups { font-size: 5cqw; line-height: 1.1; }
 .ticket-when { font-size: 3.6cqw; line-height: 1.1; text-align: center; } /* wraps: "Pick up in 2 months" was cut by the ticket edge */
-.ticket.glow { box-shadow: 0 1.2cqw 0 #C9A21E, 0 0 0 1.4cqw #FFE14D88; }
+.ticket.glow { box-shadow: 0 1.4cqw 0 #B57A00, 0 0 0 1.4cqw rgb(255 216 74 / .55); }
 
-/* Tints */
-.tint { position: absolute; inset: 0 0 26% 0; pointer-events: none; opacity: 0; transition: opacity .2s; z-index: 8; mix-blend-mode: multiply; }
-.tint-polite { background: #ffb3d4; }
-.tint-rage { background: radial-gradient(circle, #ff6a6a 30%, #b00000); }
-.stage.polite .tint-polite { opacity: .55; }
-.stage.rage .tint-rage { opacity: .6; animation: ragePulse .35s infinite alternate; }
+/* State light (package A, §2.3), no full-screen tint: forced politeness turns the wall light pink (.stage.polite
+   .shop .wall-hi, above) and the clerk sweats; rage gets a red vignette round the edges, the centre stays clean,
+   and the lamps swing. .tint-polite stays in the DOM, unused. */
+.tint { position: absolute; inset: calc(-1 * var(--bleed-t, 0px)) 0 calc(-1 * var(--bleed-b, 0px)); pointer-events: none; opacity: 0; transition: opacity .2s; z-index: 8; }
+.tint-polite { display: none; }
+.tint-rage { background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgb(238 65 48 / .45)); }
+.stage.rage .tint-rage { opacity: 1; animation: rageVignette .35s infinite alternate; }
+@keyframes rageVignette { from { opacity: .75; } to { opacity: 1; } }
 
 /* Shake (px amplitudes, §2.11) + freeze */
 .stage.shake-0 .shaker { animation: shake .1s; --amp: 3px; }
@@ -745,8 +787,8 @@ button { font: inherit; color: inherit; }
 @keyframes meterHit { 0% { scale: 1; } 30% { scale: 1.5; background: #fff; } 100% { scale: 1; } }
 @keyframes meterOver { 0%, 100% { translate: 0; } 25% { translate: -2cqw; } 75% { translate: 2cqw; } }
 /* group box: the other heads stand beside the first one */
-.group-row { position: absolute; left: 44%; top: 62%; width: 54cqw; height: 18cqw; z-index: 6; pointer-events: none; }
-.group-head { position: absolute; left: calc(var(--i) * 13cqw); top: calc(var(--i) * .8cqw); width: 24cqw; height: 15.6cqw; animation: custPop .18s cubic-bezier(.2, 1.5, .5, 1); }
+.group-row { position: absolute; left: 50%; top: 61.5%; width: 50cqw; height: 22cqw; z-index: 6; pointer-events: none; }
+.group-head { position: absolute; left: calc(var(--i) * 13cqw); top: calc(var(--i) * 1.2cqw); width: 26cqw; height: 19.5cqw; animation: custPop .18s cubic-bezier(.2, 1.5, .5, 1); }
 .group-head .cust-clip { width: 100%; height: 100%; overflow: hidden; }
 .group-head .cust-clip svg { width: 100%; height: auto; display: block; }
 .group-head .group-mini { position: absolute; left: 50%; top: -6cqw; translate: -50% 0; scale: .6; }
@@ -769,11 +811,13 @@ button { font: inherit; color: inherit; }
 .event-panel[data-type=calculator] .ev-big { font-family: "Courier New", monospace; background: #B9D3A0; color: #1E2A14; text-shadow: none; border-radius: 1.6cqw; margin: 1cqw 4cqw; letter-spacing: .6cqw; }
 .ev-hint { font: 700 4cqw var(--font-zh); color: var(--text-dim); }
 /* the last 5 s: the iron shutter rolls down */
-.shutter-fx { position: absolute; left: 0; right: 0; top: 0; height: 74%; z-index: 21; pointer-events: none; transform-origin: 50% 0; scale: 1 0;
-  background: repeating-linear-gradient(#5E6266 0 2.2cqw, #3E4246 2.2cqw 2.6cqw); border-bottom: 1.6cqw solid var(--ink); }
+/* (package A) cool grey metal slats with a thin highlight; it slides (not stretches) down to the counter top */
+.shutter-fx { position: absolute; left: 0; right: 0; top: calc(-1 * var(--bleed-t, 0px)); height: calc(47% + var(--bleed-t, 0px)); z-index: 21; pointer-events: none;
+  translate: 0 -100%; background: repeating-linear-gradient(#A3ABB6 0 .4cqw, #7A828D .4cqw 2.3cqw, #4E555F 2.3cqw 2.8cqw);
+  border-bottom: 1.8cqw solid #2A2D33; box-shadow: 0 .9cqw 0 rgb(255 217 140 / .35); }
 .shutter-fx[hidden] { display: none; }
 .shutter-fx.down { animation: shutterDown var(--ms, 5000ms) linear forwards; }
-@keyframes shutterDown { from { scale: 1 .05; } to { scale: 1 .62; } }
+@keyframes shutterDown { from { translate: 0 -94%; } to { translate: 0 0; } }
 /* day card banner at round start */
 .day-banner { position: absolute; left: 50%; top: 17%; translate: -50% 0; z-index: 34; width: max-content; max-width: 90cqw; padding: 1.8cqw 4cqw; text-align: center; pointer-events: none;
   border-radius: 3cqw; background: rgb(27 19 17 / .88); border: .6cqw solid var(--lemon); }
@@ -865,16 +909,25 @@ button { font: inherit; color: inherit; }
 .g-hint[data-key=shut] { border-color: var(--shut); }
 .g-hint[data-key=take] { border-color: var(--take); }
 /* the queue at the right edge (bowling pins for a fling that way) */
-.g-pins { position: absolute; right: 0; top: 35.5%; width: 19%; height: 10.5%; z-index: 2; display: none; pointer-events: none; }
+/* (package A) the pins are the queue silhouettes outside (art.queueSilhouetteSVG, full-stage svgs); in gesture mode
+   they stand in for the counter's own q-p figures and follow the same count (data-q). Hit: they topple backwards
+   with a cool flash, then step back in. */
+.g-pins { position: absolute; inset: 0; z-index: 4; display: none; pointer-events: none; }
 .stage[data-input=gesture] .g-pins { display: block; }
-.g-pin { position: absolute; bottom: 0; left: calc(var(--i) * 30%); width: 40%; transform-origin: 50% 100%; }
-.g-pin svg { display: block; width: 100%; height: auto; }
+.stage[data-input=gesture] .counter .q-in { display: none; }
+.counter[data-q="0"] ~ .g-pins .g-pin, .counter[data-q="1"] ~ .g-pins .g-pin:nth-child(n+2), .counter[data-q="2"] ~ .g-pins .g-pin:nth-child(3) { display: none; }
+.g-pin { position: absolute; inset: 0; transform-origin: 92% 100%; }
+.g-pin:nth-child(2) { transform-origin: 78% 100%; }
+.g-pin:nth-child(3) { transform-origin: 67% 100%; }
+.g-pin svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .g-pin.down { animation: pinDown 1.2s var(--d, 0ms) both; }
-@keyframes pinDown { 0% { rotate: 0deg; } 14% { rotate: 84deg; translate: 20% 0; } 72% { rotate: 84deg; translate: 20% 0; opacity: 1; } 80% { opacity: 0; rotate: 0deg; translate: 0 40%; } 100% { opacity: 1; rotate: 0deg; translate: 0 0; } }
+.g-pin.down svg { animation: pinFlash 1.2s var(--d, 0ms) both; }
+@keyframes pinDown { 0% { rotate: 0deg; } 14% { rotate: 24deg; translate: 4cqw 0; } 72% { rotate: 24deg; translate: 4cqw 0; opacity: 1; } 80% { opacity: 0; rotate: 0deg; translate: 0 8cqw; } 100% { opacity: 1; rotate: 0deg; translate: 0 0; } }
+@keyframes pinFlash { 0%, 100% { opacity: 1; } 8% { opacity: .55; } 16% { opacity: 1; } }
 /* gesture rage: a row of half heads, one swipe can cross several */
 .rage-row { position: absolute; left: 0; top: 59%; width: 100%; height: 24cqw; z-index: 8; pointer-events: none; }
 .stage.rage .preview { opacity: 0; }
-.rage-head { position: absolute; left: calc(var(--i) * 24cqw - 1cqw); top: calc(mod(var(--i), 2) * 2.4cqw); width: 28cqw; height: 18cqw; animation: custPop .16s cubic-bezier(.2, 1.5, .5, 1); }
+.rage-head { position: absolute; left: calc(var(--i) * 24cqw - 1cqw); top: calc(mod(var(--i), 2) * 2.4cqw); width: 28cqw; height: 21cqw; animation: custPop .16s cubic-bezier(.2, 1.5, .5, 1); }
 .rage-head .cust-clip { width: 100%; height: 100%; overflow: hidden; }
 .rage-head .cust-clip svg { width: 100%; height: auto; display: block; }
 .rage-head .rage-mini { position: absolute; left: 50%; top: -5cqw; translate: -50% 0; scale: .5; }

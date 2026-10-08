@@ -151,7 +151,7 @@ test('boss: every press moves him to the next step; a wrong key too (+1, combo f
   const ev = log(g, ['step', 'resolve']);
   g.start();
   answerNow(g, 'take');
-  answerNow(g, 'gun'); // wrong on 调甜 (shut)
+  answerNow(g, 'gun'); // wrong on 調甜 (shut)
   const steps = ev.filter((e) => e.ev === 'step');
   assert.deepEqual(steps.map((s) => [s.prev, s.step, s.correct]), [[0, 1, true], [1, 2, false]]);
   assert.equal(steps[1].queueDelta, 1);
@@ -221,7 +221,7 @@ test('meter: 收 adds cups (correct or off-key, null = 1); exactly 250 = +25 and
   assert.equal(over.queueDelta, 5);
   assert.equal(g.state.meter, 0);
   answerNow(g, 'take'); // 100
-  answerNow(g, 'gun'); // a 滚 adds nothing
+  answerNow(g, 'gun'); // a 滾 adds nothing
   assert.equal(g.state.meter, 100);
   const g2 = make({ meter: true, furyEnabled: true, fixedOrder: [30] }, [...PLAIN, r250]);
   const ev2 = log(g2, ['meter', 'furyFull']);
@@ -336,7 +336,7 @@ test('content: every day has a name, rule, ★2 and riddle; the boss has eight s
     const sys = getContent(lang).system;
     for (let n = 1; n <= 7; n++) assert.ok(sys.days[n].name && sys.days[n].rule && sys.days[n].riddle, `${lang} day ${n}`);
     assert.equal(sys.boss.steps.length, 8);
-    assert.ok(sys.unlock.aura.includes(lang === 'zh' ? '被迫营业' : 'forced'), 'no early close any more');
+    assert.ok(sys.unlock.aura.includes(lang === 'zh' ? '被迫營業' : 'forced'), 'no early close any more');
   }
 });
 

@@ -1,4 +1,4 @@
-// art.js — all character, prop and scene art for 《来250杯！》 as SVG / HTML strings.
+// art.js — all character, prop and scene art for 《來250杯！》 as SVG / HTML strings.
 // Pure string templates: no DOM access, no randomness except seeded (same input -> same output),
 // safe to import from node for unit tests. Styling lives in style.css (spec docs/first-minute-spec.md §2).
 //
@@ -124,8 +124,8 @@ export const KEY_ICONS = {
 };
 
 // Gesture icons (gesture mode, docs/gameplay-v2.md 9): the same ringed badge in the key colour, showing the hand
-// move instead of the key's picture. 甩 = an up-right fling arrow with speed lines, 连拍 = two small palms,
-// 按住盖章 = a rubber stamp pressing down.
+// move instead of the key's picture. 甩 = an up-right fling arrow with speed lines, 連拍 = two small palms,
+// 按住蓋章 = a rubber stamp pressing down.
 const palm = (x, y, s) =>
   `<g transform="translate(${x} ${y}) scale(${s})"><path fill="${CREAM}" stroke="${INK}" stroke-width="2.2" ` +
   `d="M-5 6 V-4 Q-5 -6 -3.4 -6 Q-1.8 -6 -1.8 -4 V-8 Q-1.8 -10 0 -10 Q1.8 -10 1.8 -8 V-4 Q1.8 -6 3.4 -6 Q5 -6 5 -4 V3 Q5 9 0 9 Q-5 9 -5 6 Z"/></g>`;
@@ -338,13 +338,13 @@ export function customerSVG(customer, visitIndex = 0, { fixed, gray = false } = 
 // ─── Order signs (§6) ──────────────────────────────────────────────────────────────────────────
 const STAGE_RE = /[（(][^）)]*[）)]/g;
 const stripStage = (s) => String(s ?? '').replace(STAGE_RE, '').replace(/\|/g, '').trim();
-const ZH_PARTICLE = /(喔|啦|齁|欸|啊|吧|谢谢|～|~)+$/;
+const ZH_PARTICLE = /(喔|啦|齁|欸|啊|吧|謝謝|～|~)+$/;
 const ZH_PUNCT_TAIL = /[。！!？?…~～\s]+$/;
-const ZH_HESITANT = /^(嗯|那个|等一下)/;
+const ZH_HESITANT = /^(嗯|那個|等一下)/;
 const EN_HESITANT = /^(u+m+|uh+|hmm+|hold on|wait|oh,? you go)/i;
 
 const ZH_INTERJ = /^[欸啊喔齁蛤嘿]+[～~？?！!\s]+/;
-const ZH_FILLER = /^([欸啊喔齁蛤嘿嗯～~\s]+|那个|等一下|请问)[？?！!…]*$/;
+const ZH_FILLER = /^([欸啊喔齁蛤嘿嗯～~\s]+|那個|等一下|請問)[？?！!…]*$/;
 const ZH_LEAD_PUNCT = /^[，,。！!？?…～~\s]+/;
 
 function zhClause(text) {
@@ -435,7 +435,7 @@ export function signKind(customer) {
   return customer.key === 'shut' || customer.key === 'take' ? customer.key : 'gun';
 }
 
-const REQ_ZH = ['不要太冰', '正常冰', '去冰', '少冰', '微冰', '多冰', '无糖', '半糖', '微糖', '少糖', '少甜', '全糖', '去糖', '甜度', '冰块', '常温', '热的', '温的', '加珍珠', '去珍珠'];
+const REQ_ZH = ['不要太冰', '正常冰', '去冰', '少冰', '微冰', '多冰', '無糖', '半糖', '微糖', '少糖', '少甜', '全糖', '去糖', '甜度', '冰塊', '常溫', '熱的', '溫的', '加珍珠', '去珍珠'];
 const REQ_EN = /\b(no ice|less ice|light ice|extra ice|no sugar|half sugar|less sugar|sugar|ice|extra|swap|without|warm|hot)\b/i;
 
 function circleFirst(line, lang, done) {
@@ -458,7 +458,7 @@ function circleFirst(line, lang, done) {
     esc(line.slice(idx + len));
 }
 
-const jade = (html) => html.replace(/翡翠柠檬/g, '<span class="jade">翡翠柠檬</span>');
+const jade = (html) => html.replace(/翡翠檸檬/g, '<span class="jade">翡翠檸檬</span>');
 
 // Text cells: CJK = 1, Latin/digits ≈ 0.55. Used to fit sign text (font size in cqw via --fs).
 const cellsOf = (line) => [...line].reduce((a, c) => a + (/[\u2e80-\u9fff\uff00-\uffef]/.test(c) ? 1 : 0.55), 0);
@@ -528,12 +528,12 @@ export const DOOR_GATE_SVG = `<svg class="gate-svg" viewBox="0 0 360 640" preser
 <rect width="360" height="640" fill="#5E6266"/>
 <path stroke="#3E4246" stroke-width="3" d="${Array.from({ length: 39 }, (_, i) => `M0 ${16 + i * 16} H360`).join(' ')}"/>
 <path stroke="#7E8388" stroke-width="1.5" d="${Array.from({ length: 39 }, (_, i) => `M0 ${19 + i * 16} H360`).join(' ')}"/>
-<text class="gate-tag" x="180" y="300" transform="rotate(-8 180 300)">来250杯</text>
+<text class="gate-tag" x="180" y="300" transform="rotate(-8 180 300)">來250杯</text>
 <rect x="-10" y="610" width="380" height="40" fill="${INK}"/>
 <rect x="150" y="594" width="60" height="16" rx="5" fill="#2A2D30" stroke="${INK}" stroke-width="3"/>
 </svg>`;
 
-export function ticketHTML(lines = ['No.001', '250杯', '两个月后取餐']) {
+export function ticketHTML(lines = ['No.001', '250杯', '兩個月後取餐']) {
   const [a, b, c] = lines;
   return `<div class="ticket"><i class="ticket-hole"></i><b class="ticket-no">${esc(a ?? '')}</b>` +
     `<span class="ticket-cups">${esc(b ?? '')}</span><span class="ticket-when">${esc(c ?? '')}</span></div>`;
@@ -581,13 +581,13 @@ export const SHOP_SVG = `<svg class="shop-svg" viewBox="0 0 360 640" preserveAsp
 <polygon points="58,52 302,52 306,92 54,92" fill="${INK}" stroke="${INK}" stroke-width="4"/>
 <polygon points="63,56 297,56 300,88 60,88" fill="${CREAM}"/>
 <path d="M180 56 V88" stroke="#DDAE66" stroke-width="1.6"/>
-<text class="lb-text" x="92" y="69"><tspan x="92" y="69">翡翠柠檬</tspan><tspan x="92" y="85">75</tspan></text>
-<g class="gs-glow"><text class="lb-text gs-g3" x="268" y="69"><tspan x="268" y="69">黄金比例</tspan><tspan x="268" y="85">不能调</tspan></text><text class="lb-text gs-g2" x="268" y="69"><tspan x="268" y="69">黄金比例</tspan><tspan x="268" y="85">不能调</tspan></text><text class="lb-text gs-g1" x="268" y="69"><tspan x="268" y="69">黄金比例</tspan><tspan x="268" y="85">不能调</tspan></text></g>
-<text class="lb-text goldsign" id="goldsign" x="268" y="69"><tspan x="268" y="69">黄金比例</tspan><tspan x="268" y="85">不能调</tspan></text>
+<text class="lb-text" x="92" y="69"><tspan x="92" y="69">翡翠檸檬</tspan><tspan x="92" y="85">75</tspan></text>
+<g class="gs-glow"><text class="lb-text gs-g3" x="268" y="69"><tspan x="268" y="69">黃金比例</tspan><tspan x="268" y="85">不能調</tspan></text><text class="lb-text gs-g2" x="268" y="69"><tspan x="268" y="69">黃金比例</tspan><tspan x="268" y="85">不能調</tspan></text><text class="lb-text gs-g1" x="268" y="69"><tspan x="268" y="69">黃金比例</tspan><tspan x="268" y="85">不能調</tspan></text></g>
+<text class="lb-text goldsign" id="goldsign" x="268" y="69"><tspan x="268" y="69">黃金比例</tspan><tspan x="268" y="85">不能調</tspan></text>
 </g>
 <g class="caller">
 <rect x="14" y="104" width="84" height="42" rx="6" fill="${INK}" stroke="#3A2C27" stroke-width="1.6"/>
-<text class="caller-label" x="94" y="117">取餐号码</text>
+<text class="caller-label" x="94" y="117">取餐號碼</text>
 <text class="caller-num ghost" x="56" y="142">888</text>
 <text id="callnum" class="caller-num" x="56" y="142">000</text>
 </g>
@@ -674,7 +674,7 @@ export const COUNTER_SVG = `<svg class="counter-svg" viewBox="0 0 360 640" prese
 <path fill="none" stroke="#A7602F" stroke-width="1.6" d="M-8 297 H368"/>
 <rect x="222" y="326" width="110" height="32" rx="4" fill="#FFD23F" stroke="${INK}" stroke-width="2"/>
 <path fill="${shade(LEMON)}" d="M224 352 H330 V356 H224 Z"/>
-<text class="plaque-text" x="277" y="348">现点现做</text>
+<text class="plaque-text" x="277" y="348">現點現做</text>
 </g>
 ${QUEUE_SVG}
 <g class="q-cap"><rect x="276" y="366" width="76" height="24" rx="12" fill="${INK}" stroke="#FFD23F" stroke-width="2"/><text class="q-num" x="314" y="383"></text></g>
@@ -728,10 +728,10 @@ const along = (n, x0, y0, x1, y1) =>
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
 
 const LABEL = {
-  door: { zh: '门口', en: 'DOOR' },
-  arcade: { zh: '骑楼', en: 'ARCADE' },
-  metro: { zh: '捷运出口', en: 'METRO' },
-  news: { zh: '新闻快报', en: 'NEWS' },
+  door: { zh: '門口', en: 'DOOR' },
+  arcade: { zh: '騎樓', en: 'ARCADE' },
+  metro: { zh: '捷運出口', en: 'METRO' },
+  news: { zh: '新聞快報', en: 'NEWS' },
   aerial: { zh: '空拍', en: 'SKY CAM' },
 };
 const LIVE_IDS = []; // the blinking red dot reads as LIVE; the word does not fit at ≥12px
@@ -788,7 +788,7 @@ export const MONITOR_SCENES = [
         const a = t * Math.PI * 2;
         loop.push([43 + Math.cos(a) * 30, 46 + Math.sin(a) * 7]);
       }
-      const ticker = lang === 'en' ? 'BREAKING  ENDLESS LINE AT TEA STAND  ' : '快讯  夜市惊现超长人龙  民众：被骂很爽  ';
+      const ticker = lang === 'en' ? 'BREAKING  ENDLESS LINE AT TEA STAND  ' : '快訊  夜市驚見超長人龍  民眾：被罵很爽  ';
       return `<g class="L0"><rect x="-20" y="-20" width="126" height="104" fill="#2E3B55"/><path fill="#3F4E6C" d="M-4 40 V18 H8 V40 Z M66 40 V12 H76 V40 Z M78 40 V22 H90 V40 Z"/></g>` +
         `<g class="L1"><path fill="#8C9BB4" stroke="${INK}" stroke-width="1" d="M36 44 V8 L43 2 L50 8 V44 Z"/><path fill="none" stroke="#5E6E8A" stroke-width="1" d="M36 16 H50 M36 24 H50 M36 32 H50"/></g>` +
         `<g class="L2">${crowd(loop, 7)}</g>` +

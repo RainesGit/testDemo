@@ -17,14 +17,14 @@
 // Effects: { kind: 'queue', n } | { kind: 'fury', n } | { kind: 'cue', cue, ... } | { kind: 'end', result }
 //
 // Event types
-//   megaphone   a passer-by with a loudspeaker ("这家店——店员很凶喔——！"); 5 s, any key +1 (cap 20), the clerk shouts back
+//   megaphone   a passer-by with a loudspeaker ("這家店——店員很兇喔——！"); 5 s, any key +1 (cap 20), the clerk shouts back
 //   phone       the ex-boss calls (day 5); press any key twice to hang up: fury +20 (+furyFast when within fastMs of the
 //               ring: he had not finished his sentence). No penalty for letting it ring out.
 //   calculator  a 250-cup order and the calculator slot: hold 收, the display cycles 0 / 249 / 250 / 251 / 300, release on
 //               250 = JACKPOT +25; any other number +2 and its own line. Other keys do nothing. Up to 3 tries in 7 s.
-//   stamp       "250杯！每杯都要盖章喔！": 8 s of mashing 收; every press stamps 10 (the last one 240 → 249 → 250);
+//   stamp       "250杯！每杯都要蓋章喔！": 8 s of mashing 收; every press stamps 10 (the last one 240 → 249 → 250);
 //               each press +1 (cap 20), all 250 stamped = +25 more. Other keys: feedback only.
-//   shutter     the last 5 s (拉铁门): any key +1, cap min(300, 10% of the queue).
+//   shutter     the last 5 s (拉鐵捲門): any key +1, cap min(300, 10% of the queue).
 
 export const EVENTS = {
   megaphone: { durationMs: 5000, cap: 20, perPress: 1 },

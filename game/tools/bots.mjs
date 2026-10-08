@@ -161,7 +161,7 @@ async function run({ profile, day, seed }) {
       setTimeout(mash, mashMs);
     };
     setTimeout(mash, mashMs);
-    // mini events (the panel says what to do): mash any key (盖章: 收) at the profile's pace; the calculator: the expert
+    // mini events (the panel says what to do): mash any key (蓋章: 收) at the profile's pace; the calculator: the expert
     // holds 收 and lets go when the display shows 250, the others hold it for a random 0.2–1.2 s
     const eventMs = { expert: 120, normal: 300, sloppy: 600 }[profile];
     let calcHeld = false;

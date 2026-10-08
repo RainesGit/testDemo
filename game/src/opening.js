@@ -1,4 +1,4 @@
-// opening.js — Day 1 opening routine director for 《来250杯！》 (docs/first-minute-spec.md section 3, 8.4).
+// opening.js — Day 1 opening routine director for 《來250杯！》 (docs/first-minute-spec.md section 3, 8.4).
 //
 // The routine is a beat list played on its own clock; the engine stays 'idle' the whole time and this
 // module never touches it. UI, audio, the clock and storage are injected, so test/opening.test.mjs runs
@@ -32,9 +32,9 @@
 // pack is rebuilt.
 //
 // Wait points (3.1): hint escalation (new key: dim others + breathe → +900 counter taps → +1500 finger and
-// dashed line; old key: +1200 breathe → +2000 finger), +5000 timeout once (forced polite voice + "……刚刚那不是我。"
+// dashed line; old key: +1200 breathe → +2000 finger), +5000 timeout once (forced polite voice + "……剛剛那不是我。"
 // then the finger), first wrong press → quip (≤ 2 s, input locked) then finger; second wrong press on the same
-// beat → "算了，我自己来。" and the beat resolves as if answered. Nothing ever costs points.
+// beat → "算了，我自己來。" and the beat resolves as if answered. Nothing ever costs points.
 
 import { splitPunch, stripStage, estimateSpeechMs } from './audio.js';
 
@@ -43,7 +43,7 @@ const STORE_KEY = '250cups.openingDone';
 /** People in line when the routine ends: 2 scrammed customers + 10 (bonus250). main carries them into day 1. */
 export const OPENING_QUEUE = 12;
 
-/** How long "调你妈！" holds the screen alone (review: it was covered after 376 ms). */
+/** How long "調你媽！" holds the screen alone (review: it was covered after 376 ms). */
 export const CLIMAX_HZ_MS = 1400;
 
 export const OPENING_TIMING = {
@@ -66,14 +66,14 @@ export const BEATS = [
     { lock: true }, { cover: ['shut', true] }, { queue: 0 }, { mood: 'idle' }, { flags: { squint: false } },
     { cam: ['FACE', 1.30, 0] }, { gate: true }, { sfx: 'gate' }, { bed: true },
   ] },
-  // Review fix (A1 3.9 s): the day card types faster (40 ms/char, 300 ms hold) and "你要几杯？" starts while it
-  // is still up; the S3 copy of "你要几杯？" is gone (it repeated the subtitle, R5).
+  // Review fix (A1 3.9 s): the day card types faster (40 ms/char, 300 ms hold) and "你要幾杯？" starts while it
+  // is still up; the S3 copy of "你要幾杯？" is gone (it repeated the subtitle, R5).
   { id: 'A2', at: 300, do: [{ hz: { style: 'S5', text: 'dayCard', charMs: 40, holdMs: 300, tick: true } }] },
   { id: 'A3', at: 500, do: [{ sfx: 'slam' }, { cam: ['WIDE', 1.0, 450] }] },
   { id: 'A4', at: 300, do: [{ say: { line: 'ask' } }] },
   { id: 'A4b', at: ['punchRatio', 0.8], do: [{ shake: [3, 100] }] },
 
-  // ---- 3.4 customer 1 "嗯……" (teach 滚)
+  // ---- 3.4 customer 1 "嗯……" (teach 滾)
   { id: 'B1', at: ['clipEnd', 50], do: [{ cust: { who: 1, enter: 'pop', ms: 220 } }, { sfx: 'pop' }, { cam: ['CUST', 1.08, 300] }] },
   { id: 'B2', at: 200, do: [{ sign: { key: 'gun', text: 'signs.s1', flip: 'up' } }, { sfx: 'card' }, { signUp: 160 }] },
   { id: 'B3', at: 100, do: [{ say: { line: 'c1', who: 'cust', color: 'gun' } }, { pose: { look: true, talk: true } }] },
@@ -91,7 +91,7 @@ export const BEATS = [
   { id: 'B9', at: ['cue', 300], do: [{ mood: 'perfect' }, { flags: { tidy: true } }, { cam: ['WIDE', 1.0, 350] }, { sfx: 'crowdOh' }] },
   { id: 'B10', at: ['cue', 900], do: [{ queue: 1 }, { sfx: 'ding' }, { mood: 'idle' }, { flags: { tidy: false } }] },
 
-  // ---- 3.5 customer 2 "15杯" (review 滚)
+  // ---- 3.5 customer 2 "15杯" (review 滾)
   { id: 'C1', at: 0, do: [{ cust: { who: 2, enter: 'pop', ms: 220 } }, { sfx: 'pop' }, { cam: ['CUST', 1.08, 300] }] },
   { id: 'C2', at: 250, do: [{ sign: { key: 'gun', text: 'signs.s2', cups: 15, flip: 'up' } }, { sfx: 'card' }, { signUp: 160 }] },
   { id: 'C3', at: 100, do: [{ say: { line: 'c2', who: 'cust', color: 'gun' } }, { pose: { chin: true, talk: true } }, { hz: { style: 'S4', text: 'hz.proud' } }] },
@@ -110,7 +110,7 @@ export const BEATS = [
   { id: 'C10', at: ['cue', 300], do: [{ mood: 'perfect' }, { flags: { tidy: true } }, { cam: ['WIDE', 1.0, 350] }, { sfx: 'crowdOh' }] },
   { id: 'C11', at: ['cue', 900], do: [{ queue: 2 }, { sfx: 'ding' }, { mood: 'idle' }, { flags: { tidy: false } }] },
 
-  // ---- 3.6 customer 3 "250杯" (teach 收, then 闭嘴)
+  // ---- 3.6 customer 3 "250杯" (teach 收, then 閉嘴)
   { id: 'D1', at: 0, do: [
     { cust: { who: 3, enter: 'rise', ms: 400 } }, { cam: ['CUST', 1.12, 400] }, { duck: [-60, 120] }, { sfx: ['drumroll', { duration: 0.6 }] },
   ] },
@@ -123,7 +123,7 @@ export const BEATS = [
   { id: 'D5', at: ['clipEnd', 0], do: [{ pose: { talk: false } }, { flags: { brow: true } }, { cam: ['FACE', 1.15, 250] }] },
   { id: 'W3', at: 250, wait: { key: 'take', isNew: true, id: 'w3', timeout: 't3', blink: true, reach: true } },
   { id: 'D7', at: ['P', 0], do: [{ flags: { brow: false, reach: false } }, { cam: ['FACE', 1.10, 400] }, { sfx: 'bell' }] },
-  // (the "（突然很冷静）" / "（陷阱题）" S3 cards are gone: stage directions as big captions read as clutter; the
+  // (the "（突然很冷靜）" / "（陷阱題）" S3 cards are gone: stage directions as big captions read as clutter; the
   // perfect / polite faces and the camera play them)
   { id: 'D8', at: ['P', 150], do: [{ mood: 'perfect' }, { say: { line: 'r3', style: 'cold' } }] },
   { id: 'D9', at: ['clipEnd', 100], do: [
@@ -140,13 +140,13 @@ export const BEATS = [
   { id: 'D11b', at: 200, do: [{ hz: { style: 'S4', text: 'hz.adjusting' } }] },
   { id: 'W4', at: ['clipEnd', 0], wait: { key: 'shut', isNew: true, id: 'w4', timeout: 't4', uncover: true, crack: true } },
 
-  // ---- 3.7 the punch "调你妈！" and the close
+  // ---- 3.7 the punch "調你媽！" and the close
   { id: 'E1', at: ['P', 0], do: [{ hush: 20 }, { freeze: 100 }, { loop: 'hum' }, { clearGuide: true }] },
   { id: 'E2', at: ['P', 120], do: [{ flags: { crack: true } }] },
-  // MOUTH at 1.34 (spec 1.40): at 1.40 the left crop cut 取餐号码 so that 取 read as 收 (review)
+  // MOUTH at 1.34 (spec 1.40): at 1.40 the left crop cut 取餐號碼 so that 取 read as 收 (review)
   { id: 'E3', at: ['P', 220], do: [{ cam: ['MOUTH', 1.34, 80] }, { sfx: ['whoosh', { duration: 0.08 }] }] },
-  // Review fix 1 + idea 1: "调你妈！" owns the screen for 1400 ms (S1 hold), 120 ms white flash, focus lines,
-  // the customer's half head ducks, a 150 ms freeze once the slam has landed. "黄金比例最好喝！" waits until the
+  // Review fix 1 + idea 1: "調你媽！" owns the screen for 1400 ms (S1 hold), 120 ms white flash, focus lines,
+  // the customer's half head ducks, a 150 ms freeze once the slam has landed. "黃金比例最好喝！" waits until the
   // S1 is gone and lands lower, on the counter (sign already shattered), so the two never overlap.
   { id: 'E4', at: ['P', 300], do: [
     { flags: { crack: false } }, { mood: 'hit' }, { say: { line: 'r4', fx: 'mega', cue: 'cue.r4' } },
@@ -244,7 +244,7 @@ export function runOpening({
   let index = -1;
   // Marks on the routine's own time axis (ms since start).
   const m = { prev: 0, clipEnd: 0, setupEnd: 0, punch: 0, punchMs: 0, cue: 0, P: 0, signUp: 0, beat: {} };
-  let timeouts = 0; // how many wait points timed out (the "……刚刚那不是我。" variants rotate)
+  let timeouts = 0; // how many wait points timed out (the "……剛剛那不是我。" variants rotate)
   let wait = null; // { spec, start, wrong, timedOut, locked, hintTimers }
   let skipHide = null;
   let letterboxOn = 0;
@@ -451,7 +451,7 @@ export function runOpening({
     showFinger();
   }
 
-  // Review (A5): five timeouts all said "……刚刚那不是我。"; later ones use timeout.notMeAlt[] when present.
+  // Review (A5): five timeouts all said "……剛剛那不是我。"; later ones use timeout.notMeAlt[] when present.
   function notMeLine(i) {
     const alts = get('timeout.notMeAlt');
     if (i === 0 || !Array.isArray(alts) || !alts.length) return 'timeout.notMe';
@@ -483,7 +483,7 @@ export function runOpening({
 
   // First wrong press: the quip plays at once (subtitle only: the S3 copy repeated it, R5). The keys stay live:
   // a press after quipCutMs cuts the quip — the right key answers, a wrong one is the second wrong press
-  // ("算了，我自己来。" right away instead of after the quip, review A4).
+  // ("算了，我自己來。" right away instead of after the quip, review A4).
   function wrongPress(key) {
     wait.wrong++;
     clearHints();
@@ -537,7 +537,7 @@ export function runOpening({
     });
   }
 
-  // Second wrong press on the same beat: "算了，我自己来。", then the beat resolves (P = end of that line).
+  // Second wrong press on the same beat: "算了，我自己來。", then the beat resolves (P = end of that line).
   function autoAnswer() {
     call('setClerk', 'idle');
     call('setClerkFlags', { squint: false });

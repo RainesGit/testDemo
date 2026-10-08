@@ -1,4 +1,4 @@
-// ui.js — DOM rendering, input, camera, 花字 and guidance for 《来250杯！》.
+// ui.js — DOM rendering, input, camera, 花字 and guidance for 《來250杯！》.
 // No game logic lives here: the UI only draws what it is told and forwards input.
 // Spec: docs/first-minute-spec.md (2.3 layout, 2.6–2.8 art hooks, 2.11 camera, 3.1–3.8, 4.4, 5, 6, 8.8).
 //
@@ -23,32 +23,30 @@
 //   setGestureHints(on)                     the three tiny gesture chips on the counter top (day 1 / opening)
 //   slap(n, { x, y })                       a tap on the face: squash + "啪" pop (n = taps in the burst so far)
 //   stampHold(level | null)                 the gold stamp above the customer's head grows (0 / 1 / 2); null hides it
-//   stampSlam(text)                         the stamp slams onto the forehead with the caption ("啪！两个月")
+//   stampSlam(text)                         the stamp slams onto the forehead with the caption ("啪！兩個月")
 //   setFling({ dir, speed } | null)         the next customerReact('gun'|'gun2') flings the customer that way (physics)
 //   bowl(n, text)                           n (1–3) queue silhouettes at the right edge topple; 3 = STRIKE text
 //   rageHeadAdd(customer, n, { liveMs }) / rageHeadHit(n, key) / clearRageHeads()   rage heads in a row (gesture rage)
 //   gestureHint(key, text)                  the gesture chip of key pulses with a short text above it
-// ---- 吼骂模式 / voice mode (docs/gameplay-v2.md 10; the gesture surface stays on, inputMode reads 'gesture')
+// ---- 吼罵模式 / voice mode (docs/gameplay-v2.md 10; the gesture surface stays on, inputMode reads 'gesture')
 //   setInputMode('voice')                   gestures + the voice layer (stage[data-voice=1]); the start card toggle shows 吼
 //   setVoiceOptions({ whisper, replay, keywords, keywordsAvailable })   the small switches under the toggle (voice only)
-//   voicePrompt(texts) → Promise<boolean>   the "这家店要你亲口骂" microphone card (allow / use gestures instead)
+//   voicePrompt(texts) → Promise<boolean>   the "這家店要你親口罵" microphone card (allow / use gestures instead)
 //   karaoke({ setup, punch, key } | null)   the suggested clerk line above the subtitles: setup small, punch big
 //   karaokeProgress({ setup, punch })       0..1 each: how far the player's voice has lit it up
 //   voiceMeter(on) / voiceLevel(v, level, { marks })   the loudness meter at the right edge (v 0..1, level -1..2)
 //   voiceStatus(text)                       a small label under the meter (calibrating …)
 //   voiceToast(text, cls)                   a floating caption ("反差 +24dB", "250!")
-//   showSummary / showClosing: t.loudest = { text, replay, onReplay }  "今日最大声" row with a replay button
+//   showSummary / showClosing: t.loudest = { text, replay, onReplay }  "今日最大聲" row with a replay button
 // ---- HUD / texts
 //   render(state, hud?)                     hud = { showAura = true, showFury = true, showTime = true } (remembered)
 //                                           queue number, combo (only shown at combo >= 5), bars, sign timer sync
 //   setHud(hud)                             same options without a state
 //   setQueue(n, { bump = true })            show a queue number while the engine is idle (opening); render() of a
 //                                           non-idle state takes over again
-//   setTicket(n)                            叫号器 number (000 → 001 flip); also +1 on every customerReact('take')
+//   setTicket(n)                            叫號器 number (000 → 001 flip); also +1 on every customerReact('take')
 //   setTexts(uiTexts)                       SYSTEM.ui: { gun, shut, take, queue, aura, fury, start, again, bleep, lang? }
-//                                           (also relabels the scene props: lightbox, 叫号器, counter plaque)
-//   setScript('hans'|'hant')                'hant' converts every text node drawn under root to Traditional
-//                                           (src/hant.js; content and voice keys stay Simplified)
+//                                           (also relabels the scene props: lightbox, 叫號器, counter plaque)
 //   queueGain(n)                            "+n" flies from the counter into the door monitor, HUD number pops
 // ---- Clerk (art.CLERK_SVG)
 //   setClerk(mood, ms?)                     mood idle|hit|perfect|polite|rage|over → svg data-mood; ms: back to idle/rage
@@ -68,7 +66,7 @@
 //   relabelCustomer(customer)               language switch: redraw sign face / customer subtitle without animation
 //   showSign(spec, { flip = 'up'|'rotY'|'rotX'|'none', ms }) → Promise
 //                                           spec: a customer, or { key, sign, cups, sub } for scripted signs (sub = the
-//                                           shrinking scribble under a 闭嘴 sign). 'rotX' on a visible sign = page turn.
+//                                           shrinking scribble under a 閉嘴 sign). 'rotX' on a visible sign = page turn.
 //   signFx(kind)                            'shatter' (E4, 6 shards) | 'hint' (corner badge pulse)
 //   hideSign()
 //   startSignTimer(ms, { steps }) / stopSignTimer()   bar on the sign's lower edge, right to left, .blink in the last
@@ -78,12 +76,12 @@
 //   setSignMult(text)                       speed multiplier tag on the sign corner ('×2' while the customer talks;
 //                                           '' hides it); kept for the next sign that mounts
 //   kick(face, { word, n })                 jab while the answered customer flies (gameplay-v2 3): the customer flies
-//                                           40% farther (+180° for 滚), shake 4 px / 80 ms, freeze 30 ms, S4 word
+//                                           40% farther (+180° for 滾), shake 4 px / 80 ms, freeze 30 ms, S4 word
 //   setForced(on)                           forced politeness (too slow): service tint, polite clerk until off
 //   signExit(face)                          the sign leaves now (5.2: on the press, 150 ms, before the result 花字):
 //                                           'gun' crumple | 'gun2' to the monitor | 'shut' strike + sink | 'take' stamp + slide
 //   customerReact(face)                     'gun'|'gun2'|'shut'|'take' (fly-out, plus signExit if the sign is still up)
-//                                           | 'suck' | 'sink' | 'miss' ('take' also advances the 叫号器 number)
+//                                           | 'suck' | 'sink' | 'miss' ('take' also advances the 叫號器 number)
 //   customerPose({ look, chin, talk, gray, cower }) look → .drift, chin → .proud, talk → .talk, cower → .cower (head
 //                                           ducks down a third); gray re-renders the grey copy
 //   showPlate(lines, { ms = 350 }) → Promise ticket flies from the clerk's hand to the forehead (E11); plateGlow(on); clearPlate()
@@ -91,14 +89,14 @@
 // ---- Camera + screen fx (2.11)
 //   camera(focus, scale, ms = 0, ease?)     focus 'FACE'|'MOUTH'|'SIGN'|'CUST'|'GOLDSIGN'|'WIDE' or [x%, y%]; ease defaults to
 //                                           cubic-bezier(.2,.8,.2,1), or (.5,0,.2,1) for ms <= 120. Reduced motion: scale <= 1.10
-//   flash(ms = 40)                          white flash (120 ms on the 调你妈 beat; off with reduced motion)
+//   flash(ms = 40)                          white flash (120 ms on the 調你媽 beat; off with reduced motion)
 //   speedLines(ms = 700)                    manga focus lines over the scene (CSS conic stripes; off with reduced motion)
 //   setLite(on) / lite                      K4 lite mode: camera cuts, no idle loops (auto-detected on slow devices)
 //   shake(px, ms = 200)                     any px (spec uses 3 / 6 / 10 / 14; halved with reduced motion)
 //   freeze(ms)                              pause every animation / transition on the stage for ms (定格)
 //   letterbox(on)                           14% black bars (ref-counted; S5 uses it too)
 //   gate(open, ms = 500) → Promise          gate('close') shows the shutter; gate(true) rolls it up and removes it
-//   goldsign(on)                            lightbox "黄金比例" glow (.shop[data-gold])
+//   goldsign(on)                            lightbox "黃金比例" glow (.shop[data-gold])
 // ---- 花字 (section 5; picking lives in src/huazi.js)
 //   huazi(list, timing?) → { done: Promise, cancel() }
 //                                           items { text, style: 'S1'..'S5'|1..5|'emph', seg, ratio, at?, size?: 'sm',
@@ -107,7 +105,7 @@
 //                                           timing { setupStartMs, setupMs, punchStartMs, punchMs, minAt }; ≥ 450 ms apart,
 //                                           none before minAt (e.g. while a sign is still showing its wrong-answer hint).
 //                                           Kept ≥ 4cqw clear of the sign (push up to y 8%, then shrink to 9cqw, else the
-//                                           words are emphasised in the subtitle instead). Bleep mode: X你妈 → X你哔 (boxed).
+//                                           words are emphasised in the subtitle instead). Bleep mode: X你媽 → X你嗶 (boxed).
 //   clearHuazi({ pendingOnly })             removes visible and pending 花字 (pendingOnly: only those not shown yet;
 //                                           a sign that rises later still clears the visible ones in its way)
 // ---- Subtitles (2.3)
@@ -128,7 +126,7 @@
 //   showClosing(t, summary, onTap?)         3.8; t = SYSTEM.opening.closing { title, lines } (+ queueFmt, tap);
 //                                           summary = { queue, stars?, star1 = 30 }; tap → onTap (default onStart)
 //   showRecap(t, { ms = 1800 }) → Promise   F3; t = SYSTEM.opening (uses .recap) or the recap array; tap skips
-//   showSkip(onSkip, { delayMs = 1200, label }) → hide()   "跳过 ▸" top right
+//   showSkip(onSkip, { delayMs = 1200, label }) → hide()   "跳過 ▸" top right
 //   showSummary(summary, texts)             report card; texts { bestLine, verdict, again, star1? } (star1 → ★1 verdict line)
 //   showMilestone(level, text)              door monitor zooms up (2.8); the round is not paused; text may be a getter
 //   relabelMilestone()
@@ -151,7 +149,6 @@
 //   rectsOverlap, placeHuazi, hzFontSize.
 
 import * as art from './art.js';
-import { toHant } from './hant.js';
 import { createRecognizer } from './gesture.js';
 
 const KEYS = ['gun', 'shut', 'take'];
@@ -159,7 +156,7 @@ const KEYBOARD = { j: 'gun', k: 'shut', l: 'take' };
 const CHARGE_MS = [300, 800];
 const SVGNS = 'http://www.w3.org/2000/svg';
 
-const FONT_ZH = '"Noto Sans TC","Noto Sans SC","PingFang TC","PingFang SC","Microsoft JhengHei","Heiti TC","Noto Sans CJK TC",sans-serif';
+const FONT_ZH = '"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Noto Sans CJK TC",sans-serif';
 const FONT_SIGN = '"LXGW WenKai TC","Kaiti TC","STKaiti","BiauKai","DFKai-SB",' + FONT_ZH;
 const FONT_EN = '"Bangers","Impact","Arial Black",sans-serif';
 const KEY_COLOR = { gun: '#E8402F', shut: '#6A4EE8', take: '#FFC21A' };
@@ -171,28 +168,28 @@ const EASE = 'cubic-bezier(.2,.8,.2,1)';
 const EASE_FAST = 'cubic-bezier(.5,0,.2,1)';
 
 const DECOR = {
-  zh: { rage: '爆气！', boo: ['嘘～～', '好软喔', '退钱！'], skip: '跳过 ▸', firstStart: '点一下 开店', day: (n) => `开店（第 ${n} 天）`, sub: '嚣张店员，越骂越多人排队。', queueFmt: (t, n) => `${t} ｜ 门口排了 ${n} 人`, tap: '点一下继续' },
+  zh: { rage: '爆氣！', boo: ['噓～～', '好軟喔', '退錢！'], skip: '跳過 ▸', firstStart: '點一下 開店', day: (n) => `開店（第 ${n} 天）`, sub: '囂張店員，越罵越多人排隊。', queueFmt: (t, n) => `${t} ｜ 門口排了 ${n} 人`, tap: '點一下繼續' },
   en: { rage: 'RAGE!', boo: ['Booo~', 'So soft!', 'Refund!'], skip: 'Skip ▸', firstStart: 'Tap to open', day: (n) => `Open (Day ${n})`, sub: 'Rude clerk. The ruder, the longer the line.', queueFmt: (t, n) => `${t} | ${n} in line`, tap: 'Tap to continue' },
 };
 
 // gesture mode labels (not spoken): the chip verbs, the slap / stamp captions, the start card toggle, hints
 const GESTURE_TEXT = {
-  zh: { verb: { gun: '甩', shut: '连拍', take: '按住' }, slap: '啪', stamp: '啪！两个月', strike: '全倒！', input: '操作', gesture: '手势', buttons: '按键',
-    hint: { shut: '连拍三下！', gun: '甩出去！', take: '按住盖章！' } },
+  zh: { verb: { gun: '甩', shut: '連拍', take: '按住' }, slap: '啪', stamp: '啪！兩個月', strike: '全倒！', input: '操作', gesture: '手勢', buttons: '按鍵',
+    hint: { shut: '連拍三下！', gun: '甩出去！', take: '按住蓋章！' } },
   en: { verb: { gun: 'Flick', shut: 'Tap×3', take: 'Hold' }, slap: 'SLAP', stamp: 'SLAM! 2 months', strike: 'STRIKE!', input: 'Controls', gesture: 'Gestures', buttons: 'Buttons',
     hint: { shut: 'Tap 3 times!', gun: 'Flick them out!', take: 'Hold to stamp!' } },
 };
 
 // voice mode labels (not spoken): the toggle, the switches, the karaoke tags, the meter marks, the summary row
 const VOICE_TEXT = {
-  zh: { voice: '吼', whisper: '小声模式', replay: '回放我的吼', keywords: '听懂我骂什么', kwNote: '浏览器的语音辨识可能会用云端服务',
-    setup: '小声客气', punch: '大声骂！', marks: ['说', '骂', '吼'], replayBtn: '再听一次 ▸' },
+  zh: { voice: '吼', whisper: '小聲模式', replay: '回放我的吼', keywords: '聽懂我罵什麼', kwNote: '瀏覽器的語音辨識可能會用雲端服務',
+    setup: '小聲客氣', punch: '大聲罵！', marks: ['說', '罵', '吼'], replayBtn: '再聽一次 ▸' },
   en: { voice: 'Shout', whisper: 'Whisper mode', replay: 'Replay my shout', keywords: 'Understand my words', kwNote: "The browser's speech recognizer may use a cloud service",
     setup: 'polite, quiet', punch: 'SHOUT IT!', marks: ['talk', 'yell', 'ROAR'], replayBtn: 'Play again ▸' },
 };
 
 const DEFAULT_UI = {
-  zh: { gun: '滚！', shut: '闭嘴！', take: '收！', queue: '排队', aura: '气势', fury: '火气', start: '开店！', again: '再骂一天', bleep: '消音', combo: '连击', time: '秒' },
+  zh: { gun: '滾！', shut: '閉嘴！', take: '收！', queue: '排隊', aura: '氣勢', fury: '火氣', start: '開店！', again: '再罵一天', bleep: '消音', combo: '連擊', time: '秒' },
   en: { gun: 'SCRAM!', shut: 'SHUT IT!', take: 'DEAL!', queue: 'Queue', aura: 'Swagger', fury: 'Fury', start: 'OPEN SHOP!', again: 'Rant Again', bleep: 'Bleep', combo: 'Combo', time: 's' },
 };
 
@@ -361,7 +358,6 @@ const normStyle = (s) => (typeof s === 'number' ? 'S' + s : /^[1-5]$/.test(Strin
 
 export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onGesture = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {}, onToggleInput = () => {}, onVoiceOption = () => {} } = {}) {
   let lang = 'zh';
-  let script = 'hans'; // 'hant': Traditional characters on screen (setScript)
   let extLocked = false; // lockInput()
   let extTimer = 0;
   let bleepOn = false;
@@ -534,14 +530,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     bleepBtn.textContent = texts.bleep;
     bleepBtn.classList.toggle('on', bleepOn);
     bleepBtn.setAttribute('aria-pressed', String(bleepOn));
-    root.lang = lang === 'zh' ? (script === 'hant' ? 'zh-Hant' : 'zh-Hans') : 'en';
+    root.lang = lang === 'zh' ? 'zh-Hant-TW' : 'en'; // Chinese is Traditional (Taiwan) at the source
     stage.dataset.lang = lang;
     localizeProps();
   }
 
-  // Scene props follow the language (review: the English build still showed 翡翠柠檬 / 黄金比例 / 现点现做).
+  // Scene props follow the language (review: the English build still showed 翡翠檸檬 / 黃金比例 / 現點現做).
   const PROPS = {
-    zh: { lb1: ['翡翠柠檬', '75'], lb2: ['黄金比例', '不能调'], caller: '取餐号码', plaque: '现点现做' },
+    zh: { lb1: ['翡翠檸檬', '75'], lb2: ['黃金比例', '不能調'], caller: '取餐號碼', plaque: '現點現做' },
     en: { lb1: ['JADE', 'LEMON 75'], lb2: ['GOLD MIX', 'NO EDITS'], caller: 'ORDER NO.', plaque: 'MADE FRESH' },
   };
   function localizeProps() {
@@ -558,34 +554,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (pl) pl.textContent = P.plaque;
     shop.classList.toggle('latin', lang === 'en');
     counter.classList.toggle('latin', lang === 'en');
-    if (monitor && monitor.dataset.lang !== lang) { monitorMarkup = ''; paintMonitor(last.queue || 0); } // 门口 / DOOR
-  }
-
-  // Traditional script (zh-TW / zh-HK / zh-MO): every text node drawn under the app is converted as it is
-  // written, so content, voice keys and logic stay Simplified. toHant is idempotent, so re-writes settle.
-  let hantObserver = null;
-  function convertTree(node) {
-    if (node.nodeType === 3) { const v = toHant(node.data); if (v !== node.data) node.data = v; return; }
-    if (node.nodeType !== 1) return;
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-    for (let t = walker.nextNode(); t; t = walker.nextNode()) { const v = toHant(t.data); if (v !== t.data) t.data = v; }
-  }
-  function setScript(next) {
-    script = next === 'hant' ? 'hant' : 'hans';
-    hantObserver?.disconnect();
-    hantObserver = null;
-    if (script === 'hant' && typeof MutationObserver === 'function') {
-      convertTree(root);
-      hantObserver = new MutationObserver((list) => {
-        for (const m of list) {
-          if (m.type === 'characterData') convertTree(m.target);
-          else m.addedNodes.forEach(convertTree);
-        }
-      });
-      hantObserver.observe(root, { subtree: true, childList: true, characterData: true });
-      if (typeof document !== 'undefined') document.title = toHant(document.title);
-    }
-    applyTexts();
+    if (monitor && monitor.dataset.lang !== lang) { monitorMarkup = ''; paintMonitor(last.queue || 0); } // 門口 / DOOR
   }
 
   function setTexts(uiTexts = {}) {
@@ -841,7 +810,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
   const vibe = (p) => { try { navigator.vibrate?.(p); } catch { /* optional */ } };
 
-  // 连拍: each tap is a cartoon slap on the counter-side of the face: a squash, a "啪" pop, a tiny shake. No marks.
+  // 連拍: each tap is a cartoon slap on the counter-side of the face: a squash, a "啪" pop, a tiny shake. No marks.
   function slap(n = 1, { x, y } = {}) {
     const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
     const clip = custWrap.querySelector('.cust-clip');
@@ -859,7 +828,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     vibe(n >= 3 ? [12, 30, 12] : 8);
   }
 
-  // 按住盖章: the stamp grows above the head while held (charge 0 / 1 / 2); null hides it
+  // 按住蓋章: the stamp grows above the head while held (charge 0 / 1 / 2); null hides it
   let stampLevel = null;
   function stampHold(level) {
     if (level == null) {
@@ -1045,7 +1014,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     flashEl.animate([{ opacity: 0 }, { opacity: 0.85, offset: Math.min(0.4, 20 / ms) }, { opacity: 0.85, offset: ms > 60 ? 0.55 : 0.4 }, { opacity: 0 }], { duration: ms, easing: 'linear' });
   }
 
-  // Manga focus lines behind everything on the stage (the 调你妈 beat): CSS conic stripes, no filters.
+  // Manga focus lines behind everything on the stage (the 調你媽 beat): CSS conic stripes, no filters.
   function speedLines(ms = 700) {
     if (reduced) return;
     const n = el('div', 'speedlines', shaker);
@@ -1244,7 +1213,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
 
   let signSpec = null;
   let signGen = 0;
-  // spec: a customer, or { key, sign, cups, sub } for scripted signs (sub = scribble line under a 闭嘴 sign).
+  // spec: a customer, or { key, sign, cups, sub } for scripted signs (sub = scribble line under a 閉嘴 sign).
   function signMarkup(spec) {
     const kind = spec.kind || (spec.key && !spec.id ? (spec.key === 'take' || spec.key === 'shut' ? spec.key : 'gun') : undefined);
     return art.signSVG(spec, lang, { kind, text: spec.sign != null ? String(spec.sign) : undefined, scribble: spec.sub });
@@ -1283,7 +1252,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     paintMult();
   }
   const multLabel = (m) => (m > 1 ? '×' + m : '');
-  // A new sign has priority (5.2 "绝不压在牌子上"): a 花字 still showing where it rises ends now.
+  // A new sign has priority (5.2 "絕不壓在牌子上"): a 花字 still showing where it rises ends now.
   function clearHuaziNear(node) {
     if (!liveHz.size) return;
     const r = signRect(node);
@@ -1452,7 +1421,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     custLater(() => { if (gen === custGen) clearCustomer(); }, (FLY_MS[face] || 520) + 80);
   }
 
-  // Jab (gameplay-v2 3): the flying customer gets kicked again: 40% farther per kick (+180° for 滚), shake
+  // Jab (gameplay-v2 3): the flying customer gets kicked again: 40% farther per kick (+180° for 滾), shake
   // 4 px / 80 ms, freeze 30 ms, the key's word as a small S4. A customer not flying yet (the clerk is still in the
   // setup) wobbles instead.
   const KICK = { gun: [-36, -20, -180], gun2: [-22, -34, -180], shut: [0, 14, 0], take: [32, -3, 0] };
@@ -1630,8 +1599,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (item.style === 'S4') text = text.replace(/^[（(]\s*|\s*[）)]$/g, '');
     let bleepIdx = -1;
     if (bleepOn && item.style === 'S1') {
-      const m = /([一-龥])你妈/.exec(text);
-      if (m) { text = text.replace('你妈', '你哔'); bleepIdx = m.index + 2; }
+      const m = /([一-龥])你媽/.exec(text);
+      if (m) { text = text.replace('你媽', '你嗶'); bleepIdx = m.index + 2; }
     }
     const latin = isLatin(text);
     const id = ++hzId;
@@ -1680,7 +1649,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     svg.classList.add('placed');
     const lb = { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1, w: bw, h: bh };
 
-    // Bleep: black box behind 哔 (white glyph).
+    // Bleep: black box behind 嗶 (white glyph).
     if (bleepIdx >= 0) {
       try {
         const ext = inner.getExtentOfChar(bleepIdx);
@@ -1751,7 +1720,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
         }, 150);
         return 460;
       }
-      // item.ms lengthens the hold (the 调你妈 beat owns the screen for 1400 ms); entry, shake and exit keep
+      // item.ms lengthens the hold (the 調你媽 beat owns the screen for 1400 ms); entry, shake and exit keep
       // their absolute timing (90 / 150 / 330 ms in, 140 ms out).
       const D = Math.max(1000, item.ms || 1000);
       const o = (ms) => Math.min(1, ms / D);
@@ -1937,7 +1906,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       delete fingerEl.dataset.g;
       const k0 = keyCenter(key);
       // fingertip on the upper right of the key (next to its icon): the hand then lies right of and below the
-      // label, so "滚！" stays readable and the sleeve ends above the stage edge (review)
+      // label, so "滾！" stays readable and the sleeve ends above the stage edge (review)
       const c = { x: k0.x + k0.r.w * 0.16, y: k0.y - k0.r.h * 0.2 };
       if (fingerEl.hidden) {
         fingerEl.hidden = false;
@@ -2258,7 +2227,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     try {
       if (!document.fonts?.load) return;
       fontsPromise = Promise.all([
-        document.fonts.load('900 1em "Noto Sans TC"', '滚闭嘴收调你妈250'),
+        document.fonts.load('900 1em "Noto Sans TC"', '滾閉嘴收調你媽250'),
         document.fonts.load('700 1em "LXGW WenKai TC"', '嗯杯少甜冰'),
         document.fonts.load('1em "Bangers"', 'SCRAM250'),
       ]).catch(() => {});
@@ -2280,7 +2249,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     startCard.textContent = '';
     startCard.dataset.first = firstRun ? '1' : '0';
     startCard.classList.remove('ready');
-    const title = String(t.title || (lang === 'zh' ? '来250杯！' : '250 Cups!'));
+    const title = String(t.title || (lang === 'zh' ? '來250杯！' : '250 Cups!'));
     const h1 = el('h1', 'start-title', startCard);
     for (const part of title.split(/(\d+)/).filter(Boolean)) {
       if (/^\d+$/.test(part)) el('span', 'num', h1, part);
@@ -2303,7 +2272,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const label = firstRun ? t.start || d.firstStart : typeof t.startDay === 'function' ? t.startDay(day) : t.startDay ? String(t.startDay).replace('{n}', day) : d.day(day);
     const btn = el('button', 'start-btn', startCard, label);
     btn.type = 'button';
-    // controls toggle (docs/gameplay-v2.md 9): 手势 / 按键; does not start the shop
+    // controls toggle (docs/gameplay-v2.md 9): 手勢 / 按鍵; does not start the shop
     const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
     const tog = el('div', 'input-tog', startCard);
     el('span', 'it-label', tog, gt.input);
@@ -2381,7 +2350,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   // Closing card (3.8). t = SYSTEM.opening.closing { title, lines[3] } (+ optional queueFmt, tap, keys);
-  // summary = { queue, stars? , star1? }. Rows: red → 滚, purple → 闭嘴, gold → 收. Tap anywhere → onTap.
+  // summary = { queue, stars? , star1? }. Rows: red → 滾, purple → 閉嘴, gold → 收. Tap anywhere → onTap.
   let closingEl = null;
   function closeClosing() {
     closingEl?.remove();
@@ -2393,7 +2362,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     zh: { gun: '嗯……', shut: '少冰', take: '250杯' },
     en: { gun: 'Ummm…', shut: 'Less ice', take: '250 cups' },
   };
-  // Review fixes: the title is two lines ("第一天 打烊" / "门口排了 78 人"), the day's ticket and savagest line sit
+  // Review fixes: the title is two lines ("第一天 打烊" / "門口排了 78 人"), the day's ticket and savagest line sit
   // on top (summary.plate / summary.bestLine), and only a big centered button opens day 2 — enabled after
   // CLOSING_LOCK_MS so a player still mashing the keys cannot skip the card.
   const CLOSING_LOCK_MS = 1000;
@@ -2425,7 +2394,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (typeof t.queueFmt === 'function' || t.queueFmt) {
       q.textContent = typeof t.queueFmt === 'function' ? t.queueFmt('', n).replace(/^\s*[｜|]\s*/, '') : String(t.queueFmt).replace('{title}', '').replace('{n}', n).replace(/^\s*[｜|]\s*/, '');
     } else {
-      // "门口排了 78 人" with the number in <b>
+      // "門口排了 78 人" with the number in <b>
       const [pre, post] = d.queueFmt('', '\u0000').replace(/^\s*[｜|]\s*/, '').split('\u0000');
       q.append(pre);
       el('b', '', q, n);
@@ -2437,7 +2406,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       row.dataset.key = k;
       row.style.setProperty('--kc', keyColor(k));
       miniSign(row, k, MINI_TEXT[lang][k]);
-      // "嗯……／杯数太少 → 滚": description left, key word right.
+      // "嗯……／杯數太少 → 滾": description left, key word right.
       const [desc, keyWord] = String(lines[i] || '').split(/\s*(?:→|->)\s*/);
       el('span', 'dc-text', row, desc || '');
       el('span', 'dc-key', row, keyWord || String(texts[k] || '').replace(/[！!]$/, ''));
@@ -2451,7 +2420,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       st.style.animationDelay = i * 150 + 'ms';
       st.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7L12 17.4 5.8 21.1l1.6-7L2 9.3l7.1-.7z" fill="#FFD23F" stroke="#1B1311" stroke-width="1.5" stroke-linejoin="round"/></svg>';
     }
-    const btn = el('button', 'dc-btn', inner, t.next || (lang === 'zh' ? '开第二天 ▸' : 'Open day 2 ▸'));
+    const btn = el('button', 'dc-btn', inner, t.next || (lang === 'zh' ? '開第二天 ▸' : 'Open day 2 ▸'));
     btn.type = 'button';
     btn.disabled = true;
     const since = performance.now();
@@ -2469,11 +2438,11 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   // F3 recap: three mini signs float above their keys for ms (tap anywhere to skip). Resolves when gone.
-  // t = SYSTEM.opening ({ recap }) or the recap array: ['嗯…… / 15杯 → 滚', '250杯 → 收', '少甜少冰 → 闭嘴'].
+  // t = SYSTEM.opening ({ recap }) or the recap array: ['嗯…… / 15杯 → 滾', '250杯 → 收', '少甜少冰 → 閉嘴'].
   function showRecap(t = {}, { ms = 1800 } = {}) {
     const lines = Array.isArray(t) ? t : t.recap || [];
     const byKey = {};
-    const words = { gun: [texts.gun, '滚', 'scram'], shut: [texts.shut, '闭嘴', 'shut'], take: [texts.take, '收', 'deal', 'booked'] };
+    const words = { gun: [texts.gun, '滾', 'scram'], shut: [texts.shut, '閉嘴', 'shut'], take: [texts.take, '收', 'deal', 'booked'] };
     lines.forEach((l, i) => {
       const [sign, key = ''] = String(l).split(/\s*(?:→|->)\s*/);
       const k = KEYS.find((kk) => words[kk].some((w) => w && key.toLowerCase().includes(String(w).replace(/[！!]$/, '').toLowerCase()))) || ['gun', 'take', 'shut'][i];
@@ -2531,21 +2500,21 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     summaryCard.textContent = '';
     const card = el('div', 'card report', summaryCard);
     el('div', 'report-stamp', card, zh ? '打烊' : 'CLOSED');
-    el('h2', 'card-title', card, t.title || (zh ? '今日战报' : "Today's Report"));
+    el('h2', 'card-title', card, t.title || (zh ? '今日戰報' : "Today's Report"));
     const grid = el('div', 'report-grid', card);
     const stat = (label, val, cls = '') => {
       const c = el('div', 'stat ' + cls, grid);
       el('div', 'stat-val', c, val);
       el('div', 'stat-label', c, label);
     };
-    stat(t.cursedLabel || (zh ? '开骂' : 'Rants'), fmt(s.cursed) + (zh ? ' 次' : ''), 'hot');
-    stat(t.queueLabel || (zh ? '排队' : 'In line'), fmt(s.queue) + (zh ? ' 人' : ''), 'gold');
-    stat(t.comboLabel || (zh ? '最高连击' : 'Best combo'), '×' + fmt(s.maxCombo));
+    stat(t.cursedLabel || (zh ? '開罵' : 'Rants'), fmt(s.cursed) + (zh ? ' 次' : ''), 'hot');
+    stat(t.queueLabel || (zh ? '排隊' : 'In line'), fmt(s.queue) + (zh ? ' 人' : ''), 'gold');
+    stat(t.comboLabel || (zh ? '最高連擊' : 'Best combo'), '×' + fmt(s.maxCombo));
     // stage 2: the stars and the rating take the score's place
-    if (!Array.isArray(t.stars)) stat(t.scoreLabel || (zh ? '分数' : 'Score'), fmt(s.score));
+    if (!Array.isArray(t.stars)) stat(t.scoreLabel || (zh ? '分數' : 'Score'), fmt(s.score));
     else card.classList.add('has-stars');
-    if (s.polite) stat(zh ? '被迫客气' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
-    stat(zh ? '接客' : 'Served', fmt(s.served));
+    if (s.polite) stat(zh ? '被迫客氣' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
+    stat(zh ? '接待' : 'Served', fmt(s.served));
     // stage 2: stars (★1 / ★2 / ★3 with their goals), the rating (C/B/A/S, gold 250), record, ★3 riddle, tomorrow
     if (Array.isArray(t.stars)) {
       const head = el('div', 'report-rate', card);
@@ -2564,7 +2533,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     } else if (t.star1 != null) {
       // ★1 verdict (days 2+): reached → the button opens the next day; missed → this day again
       const got = (s.queue ?? 0) >= t.star1;
-      el('p', 'report-star' + (got ? ' on' : ''), card, zh ? `★1 目标 ${fmt(t.star1)} 人：${got ? '达成！' : '没达到，再来一次'}` : `★1 goal ${fmt(t.star1)}: ${got ? 'reached!' : 'missed — try again'}`);
+      el('p', 'report-star' + (got ? ' on' : ''), card, zh ? `★1 目標 ${fmt(t.star1)} 人：${got ? '達成！' : '沒達到，再來一次'}` : `★1 goal ${fmt(t.star1)}: ${got ? 'reached!' : 'missed — try again'}`);
     }
     const best = el('div', 'best', card);
     el('div', 'best-label', best, t.bestLabel || (zh ? '最狠一句' : 'Savagest line'));
@@ -2581,13 +2550,13 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     syncLock();
   }
 
-  // ---------- 吼骂模式 / voice mode (docs/gameplay-v2.md 10) ----------
+  // ---------- 吼罵模式 / voice mode (docs/gameplay-v2.md 10) ----------
   const voiceOpts = { whisper: false, replay: true, keywords: false, keywordsAvailable: false };
   function setVoiceOptions(o = {}) {
     Object.assign(voiceOpts, o);
     startCard.querySelectorAll('.vo-opt').forEach((b) => b.setAttribute('aria-pressed', String(!!voiceOpts[b.dataset.opt])));
   }
-  // "今日最大声：98 分贝级" with a replay button (the clip lives in memory only)
+  // "今日最大聲：98 分貝級" with a replay button (the clip lives in memory only)
   function loudestRow(parent, l) {
     if (!l || !l.text) return;
     const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
@@ -2680,7 +2649,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     previewEl.textContent = '';
     previewEl.classList.toggle('show', list.length > 0);
     if (!list.length) return;
-    el('span', 'preview-label', previewEl, lang === 'zh' ? '后面' : 'Next');
+    el('span', 'preview-label', previewEl, lang === 'zh' ? '後面' : 'Next');
     list.slice(0, 3).forEach((p, i) => {
       const m = miniSign(previewEl, p.kind || 'gun', p.text || '');
       m.classList.add('preview-sign');
@@ -2790,7 +2759,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
 
   return {
     // HUD / texts
-    render, setHud, setQueue, setTicket, setTexts, setScript, queueGain,
+    render, setHud, setQueue, setTicket, setTexts, queueGain,
     // clerk
     setClerk, setClerkFlags, clerkBeat, clerkTap, resetClerk,
     // customer + sign

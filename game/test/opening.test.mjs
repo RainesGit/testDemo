@@ -110,7 +110,7 @@ function drive(s, strategy, { dt = 50, maxMs = 180000 } = {}) {
   return events;
 }
 
-test('BEATS: ids are unique, waits teach 滚 → 滚 → 收 → 闭嘴, and only W1/W3/W4 are new keys', () => {
+test('BEATS: ids are unique, waits teach 滾 → 滾 → 收 → 閉嘴, and only W1/W3/W4 are new keys', () => {
   const ids = BEATS.map((b) => b.id);
   assert.equal(new Set(ids).size, ids.length);
   const waits = BEATS.filter((b) => b.wait).map((b) => [b.id, b.wait.key, b.wait.isNew]);
@@ -183,7 +183,7 @@ test('route 1 timing with the shipped voice-pack manifest (falls back to estimat
   }
 });
 
-test('A3: from the 闭嘴 press to the end is >= 8 s and input stays locked throughout', () => {
+test('A3: from the 閉嘴 press to the end is >= 8 s and input stays locked throughout', () => {
   const s = setup();
   let pShut = null;
   drive(s, (k, since) => {
@@ -197,7 +197,7 @@ test('A3: from the 闭嘴 press to the end is >= 8 s and input stays locked thro
   const unlocks = log.map((e, i) => (e.name === 'unlockInput' ? i : -1)).filter((i) => i > lastLock);
   assert.ok(pShut != null);
   assert.ok(s.done.t - pShut >= 8000, `P4 → F4 = ${s.done.t - pShut}`);
-  assert.ok(unlocks.length <= 1, 'only finish() unlocks input after the 闭嘴 press');
+  assert.ok(unlocks.length <= 1, 'only finish() unlocks input after the 閉嘴 press');
 });
 
 test('route 2: mashing a random key every 300 ms still finishes within 120 s; quips start within 300 ms', () => {
@@ -229,7 +229,7 @@ test('route 2: mashing a random key every 300 ms still finishes within 120 s; qu
   }
 });
 
-// length of the last "……刚刚那不是我。" line, so the press lands 1 s after the finger reappears
+// length of the last "……剛剛那不是我。" line, so the press lands 1 s after the finger reappears
 const NOT_ME = [zh.system.opening.timeout.notMe, ...(zh.system.opening.timeout.notMeAlt || [])];
 const notMeMs = (text) => timingsFromManifest(null, 'zh', text).totalMs;
 
@@ -257,7 +257,7 @@ test('route 3: waiting out every timeout (then pressing 1 s after the finger) fi
   assert.equal(new Set(notMes).size, 4, notMes.join(' / '));
 });
 
-test('route 4: first wrong press → quip, then finger; second wrong press → "算了，我自己来。" and the beat resolves', () => {
+test('route 4: first wrong press → quip, then finger; second wrong press → "算了，我自己來。" and the beat resolves', () => {
   const s = setup();
   // reach W1
   while (s.op.waiting !== 'gun') s.clock.runUntil(s.clock.t + 10);
@@ -302,7 +302,7 @@ test('review A4: a second wrong press during the quip cuts it and auto-answers a
   }
 });
 
-test('review fix 1: "调你妈！" holds 1400 ms alone; "黄金比例最好喝！" starts after it, lower on the screen', () => {
+test('review fix 1: "調你媽！" holds 1400 ms alone; "黃金比例最好喝！" starts after it, lower on the screen', () => {
   const s = setup();
   const at = {};
   let seen = 0;
@@ -342,7 +342,7 @@ test('W3 wrong key brakes: curse cut after 150 ms, scratch, backtrack line, cust
   assert.equal(texts.filter((t) => t === o.c3).length, 2, 'customer repeats the order');
   assert.equal(s.op.waiting, 'take');
   const hz = s.ui.log.filter((e) => e.name === 'huazi').map((e) => e.args[0][0]);
-  assert.ok(hz.some((h) => h.style === 'S1' && h.break === true && h.text === '滚'));
+  assert.ok(hz.some((h) => h.style === 'S1' && h.break === true && h.text === '滾'));
 });
 
 test('the engine is never touched and no timer bar exists: the routine gets no game object', () => {

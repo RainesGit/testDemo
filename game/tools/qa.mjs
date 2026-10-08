@@ -2,7 +2,7 @@
 // Scenarios:
 //   correct  (every viewport) the routine answered 800 ms after each wait point, then Day 1 free play with the
 //            right key 300 ms after each customer is ready. Checks A1 A2 A3 A6 A7 A8 A9 A10 A11 + layout.
-//   mash     (390x844) a random key every 300 ms from "开店" on. Checks A4: closing card within 120 s, every
+//   mash     (390x844) a random key every 300 ms from "開店" on. Checks A4: closing card within 120 s, every
 //            wrong press in the routine answered by a new subtitle within 300 ms.
 //   timeout  (390x844) every wait point left to time out, then the right key 1 s after the finger is back.
 //            Checks A5: the routine ends (F4) within 70 s.

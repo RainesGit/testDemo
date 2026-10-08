@@ -1,4 +1,4 @@
-// main.js — wires content + engine + UI + audio + the opening script together for 《来250杯！》/ "250 Cups!".
+// main.js — wires content + engine + UI + audio + the opening script together for 《來250杯！》/ "250 Cups!".
 // Spec: docs/first-minute-spec.md 8.3 (this file), 4.1–4.4 (pace), 7 (one new system per day).
 //
 // Flow: start card → tap (unlocks audio) → first run on day 1: the opening script (src/opening.js drives
@@ -14,7 +14,7 @@
 //
 // Gameplay v2 stage 1 (docs/gameplay-v2.md 3–4): no dead input. A press while the answered customer flies (from
 // the answer until the punch line ends + 200 ms) is a jab (game.jab: kick, shake, slam, S4 word; no clerk voice,
-// the line is never cut). The first press after that is "下一位。" (SYSTEM.next, the clip of '（不抬头）下一位。')
+// the line is never cut). The first press after that is "下一位。" (SYSTEM.next, the clip of '（不抬頭）下一位。')
 // and game.summon() brings the next customer at once (the line always finished). A press up to 150 ms before the
 // next customer is answerable is buffered by the engine. The sign corner shows the speed multiplier (×2 while the
 // customer talks, ×1.5 / ×1.2 as the timer shrinks). A full fury bar glows; the next press starts rage: silent
@@ -28,23 +28,23 @@
 // the punch half — audio playClerk punchOnly — or the key's shout for lines without '|', landing 250 ms, enter 180 ms).
 // Each day has a rule (days.js `rule`): day 3 original customers 4–6 times, day 4 the 250 ticket meter, day 5 the
 // ex-boss's phone call, day 6 group boxes and change-order customers, day 7 the ex-boss (eight steps, the last one a
-// full hold on 收). One mini event mid-round (src/events.js via the engine) and the last 5 s 拉铁门 on days 2+.
+// full hold on 收). One mini event mid-round (src/events.js via the engine) and the last 5 s 拉鐵捲門 on days 2+.
 // The day card (start card / in-round banner) shows the rule; the summary shows ★1–★3 (days.js evaluateDay), the rating
-// (C / B / A / S / gold 250), 新纪录 and the ★3 riddle.
+// (C / B / A / S / gold 250), 新紀錄 and the ★3 riddle.
 //
 // Storage (all try/catch): 250cups.day (default 1, only goes up), 250cups.openingDone, 250cups.lang, 250cups.bleep,
 // 250cups.best.N (best queue of day N), 250cups.stars.N (stars of day N ever reached: bit 1 = ★1, 2 = ★2, 4 = ★3).
 // URL params: ?lang=zh|en  ?bleep=1  ?day=N  ?skipOpening=1  ?seed=N  ?debug (window.__250 for automated tests)
 //
-// 吼骂模式 / voice mode (docs/gameplay-v2.md 10; ?input=voice or the start card's 吼): the player says the clerk's lines out
-// loud. src/mic.js (local only) → src/voice.js detector: a shout reaching 骂 answers the customer with the sign's best
+// 吼罵模式 / voice mode (docs/gameplay-v2.md 10; ?input=voice or the start card's 吼): the player says the clerk's lines out
+// loud. src/mic.js (local only) → src/voice.js detector: a shout reaching 罵 answers the customer with the sign's best
 // key (charge 1, 吼 = 2), the customer reacts on the peak, the karaoke line above the subtitles lights up, the AI
 // clerk voice stays quiet for answers the player voiced, a soft setup followed by a roar is 反差 (+2), sustained
 // shouting sweeps rage heads, the shout is replayed through the shop megaphone after it ends. Gestures and J/K/L keep
 // working. Storage: 250cups.input = 'voice', 250cups.whisper, 250cups.replay, 250cups.keywords.
 //
 // Opening on day 1: the first run plays it without a skip button; once it was completed
-// (250cups.openingDone = '1') a later day 1 (e.g. after quitting mid-day) replays it with "跳过 ▸" (3.1).
+// (250cups.openingDone = '1') a later day 1 (e.g. after quitting mid-day) replays it with "跳過 ▸" (3.1).
 // ?skipOpening=1 starts day 1 free play directly (QA).
 
 import { getContent } from './content.js';
@@ -106,15 +106,6 @@ function initialLang() {
   if (s === 'zh' || s === 'en') return s;
   return /^zh\b/i.test(navigator.language || 'zh') ? 'zh' : 'en';
 }
-// Chinese script: Traditional for Taiwan / Hong Kong / Macau (the first markets), Simplified elsewhere.
-// ?lang=zh-TW / zh-Hant / zh-HK forces Traditional, ?lang=zh-CN / zh-Hans / zh-SG Simplified. Display only:
-// content, voice clip keys and the engine stay Simplified (ui.setScript converts what is drawn).
-function initialScript() {
-  const p = params.get('lang') || '';
-  const tag = /^zh/i.test(p) ? p : (navigator.languages && navigator.languages.find((l) => /^zh/i.test(l))) || navigator.language || '';
-  return /^zh[-_](tw|hk|mo|hant)/i.test(tag) ? 'hant' : 'hans';
-}
-
 let lang = initialLang();
 let bleep = params.has('bleep') ? params.get('bleep') !== '0' : stored(BLEEP_KEY) === '1';
 let inputMode = initialInput(); // 'gesture' | 'buttons' | 'voice' (250cups.input, ?input=); voice keeps gestures on
@@ -131,7 +122,6 @@ function saveDay(n) {
   if (n > prev) store(DAY_KEY, String(clampDay(n))); // only goes up
 }
 
-const script = initialScript();
 const audio = createAudio();
 audio.setLang(lang);
 audio.setBleep(bleep);
@@ -151,7 +141,7 @@ function originalCustomer() {
 function changeCustomer() {
   const o = getContent('zh').system.changeOrder;
   if (!o) return null;
-  return { id: 'change', name: o.name, cat: '数量', style: 'deadpan', key: 'gun', cups: null, says: o.says, sign: o.sign, reply: o.gun, alt: o.gun, flip: { key: 'take', cups: 250, atMs: 3200 } };
+  return { id: 'change', name: o.name, cat: '數量', style: 'deadpan', key: 'gun', cups: null, says: o.says, sign: o.sign, reply: o.gun, alt: o.gun, flip: { key: 'take', cups: 250, atMs: 3200 } };
 }
 
 // Day 7 boss (SYSTEM.boss): eight steps; 3–6 are the haggling phrase, the last one wants a full hold on 收.
@@ -160,7 +150,7 @@ function bossCustomer() {
   const b = getContent('zh').system.boss;
   if (!b || !Array.isArray(b.steps) || b.steps.length !== BOSS_KEYS.length) return null;
   return {
-    id: 'boss', boss: true, holdLast: true, name: b.name, cat: '职场社会', style: 'cold', cups: null, steps: BOSS_KEYS.slice(),
+    id: 'boss', boss: true, holdLast: true, name: b.name, cat: '職場社會', style: 'cold', cups: null, steps: BOSS_KEYS.slice(),
     key: 'take', haggle: [3, 4, 5, 6], stepSpeakMs: 9000, says: b.steps[0].says, sign: b.steps[0].sign, reply: b.steps[7].full, reply2: b.steps[7].full,
   };
 }
@@ -189,7 +179,7 @@ const zh = () => lang === 'zh';
 // Gesture mode (docs/gameplay-v2.md 9): on-screen hints that name the hand move instead of a key (display only, not
 // spoken): the rage tip and the mini-event panels.
 const GESTURE_HINTS = {
-  zh: { rageTip: '一把扫过去！', megaphone: '狂拍！', shutter: '狂拍！', phone: '甩掉电话！', calculator: '按住，停在 250 放开', stamp: '狂拍盖章！' },
+  zh: { rageTip: '一把掃過去！', megaphone: '狂拍！', shutter: '狂拍！', phone: '甩掉電話！', calculator: '按住，停在 250 放開', stamp: '狂拍蓋章！' },
   en: { rageTip: 'Sweep them all!', megaphone: 'TAP TAP TAP!', shutter: 'TAP TAP TAP!', phone: 'Flick the phone away!', calculator: 'Hold, let go on 250', stamp: 'Tap to stamp!' },
 };
 const gestureHint = (which) => (gestureOn() ? (GESTURE_HINTS[lang] || GESTURE_HINTS.zh)[which] : null);
@@ -200,23 +190,23 @@ function unlockText(which) {
   const u = sys().unlock;
   const order = ['aura', 'rage', 'rageTip', 'charge'];
   const fb = zh()
-    ? { aura: '气势没了＝被迫营业', rage: '爆气！', rageTip: '乱按都对！', charge: '狠骂！', hold: '按住＝狠骂' }
+    ? { aura: '氣勢沒了＝被迫營業', rage: '爆氣！', rageTip: '亂按都對！', charge: '狠罵！', hold: '按住＝狠罵' }
     : { aura: 'No swagger = forced politeness', rage: 'RAGE!', rageTip: 'Mash anything!', charge: 'HARDER!', hold: 'Hold = harder' };
   if (Array.isArray(u)) return u[order.indexOf(which)] || fb[which];
   return (u && (u[which] || (which === 'rageTip' && u.rageHint))) || fb[which];
 }
 function tipText(key) {
   const t = sys().tips;
-  const fb = zh() ? { gun: '红纸条＝滚', shut: '紫牌子＝闭嘴', take: '金牌子＝收' } : { gun: 'Red slip = SCRAM', shut: 'Purple = SHUT IT', take: 'Gold = DEAL' };
+  const fb = zh() ? { gun: '紅紙條＝滾', shut: '紫牌子＝閉嘴', take: '金牌子＝收' } : { gun: 'Red slip = SCRAM', shut: 'Purple = SHUT IT', take: 'Gold = DEAL' };
   if (Array.isArray(t)) {
-    const word = { gun: /滚|scram|red/i, shut: /闭嘴|shut|purple/i, take: /收|deal|gold/i }[key];
+    const word = { gun: /滾|scram|red/i, shut: /閉嘴|shut|purple/i, take: /收|deal|gold/i }[key];
     return t.find((s) => word.test(String(s))) || fb[key];
   }
   return (t && t[key]) || fb[key];
 }
 function daySlowText() {
   const d = sys().daySlow;
-  return (Array.isArray(d) ? d[0] : d) || (zh() ? '太慢！被迫营业' : 'Too slow! Forced to be nice');
+  return (Array.isArray(d) ? d[0] : d) || (zh() ? '太慢！被迫營業' : 'Too slow! Forced to be nice');
 }
 function signTextOf(spec) {
   try { return art.signText ? art.signText(spec, lang) : spec.says; } catch { return spec.says; }
@@ -231,7 +221,7 @@ function estimateMs(text) {
   return 180 + 95 * [...s].filter((c) => /[\p{L}\p{N}]/u.test(c)).length;
 }
 
-// ui.customerReact: fly-out per pressed key (滚 520 / 闭嘴 390 / 收 600 ms) + 80 ms until the customer is cleared
+// ui.customerReact: fly-out per pressed key (滾 520 / 閉嘴 390 / 收 600 ms) + 80 ms until the customer is cleared
 const FLY_CLEAR_MS = { gun: 600, shut: 470, take: 680 };
 let clerkEndAt = 0; // performance.now() when the clerk's current line ends (customers never talk over it)
 let subUntil = 0;   // performance.now() until which the clerk's subtitle must stay up (review: lines were unreadable)
@@ -318,7 +308,7 @@ function cutVoice() {
   else audio.stopSpeech();
 }
 
-// SYSTEM.rageLines (voice-bible 4.5 SBR01–SBR36) come in key groups: 10 滚, 10 闭嘴, 10 收, then 6 general
+// SYSTEM.rageLines (voice-bible 4.5 SBR01–SBR36) come in key groups: 10 滾, 10 閉嘴, 10 收, then 6 general
 // (same order in zh and en). The rage chant follows the key the player pressed last.
 const RAGE_GROUPS = { gun: [0, 10], shut: [10, 20], take: [20, 30], any: [30, 36] };
 function rageLinesFor(key) {
@@ -329,13 +319,13 @@ function rageLinesFor(key) {
 }
 
 // "下一位。" for the jab → next beat: the SYSTEM.next line whose clip is '下一位。' / 'Next.' (the stage direction
-// '（不抬头）' is not spoken), else the first one.
+// '（不抬頭）' is not spoken), else the first one.
 const noStage = (t) => String(t ?? '').replace(/（[^（）]*）|\([^()]*\)/g, '').trim();
 function nextLine() {
   const list = sys().next || [];
   return list.find((t) => /^(下一位。|Next\.)$/.test(noStage(t))) || list[0] || (zh() ? '下一位。' : 'Next.');
 }
-// rage end: a sigh and a polite "下一位" ('（叹气）……下一位。'), the clerk is back to professional
+// rage end: a sigh and a polite "下一位" ('（嘆氣）……下一位。'), the clerk is back to professional
 function rageCloseLine() {
   const list = sys().next || [];
   return list.find((t) => /^……下一位。$|^…Next\.$/.test(noStage(t))) || nextLine();
@@ -428,7 +418,7 @@ let opening = null;
 const openingActive = () => !!(opening && (typeof opening.active === 'function' ? opening.active() : opening.active));
 
 // ---------------------------------------------------------------- gesture input (docs/gameplay-v2.md 9)
-// The hand acts on the customer: 甩 (swipe / flick) = 滚, 连拍 (3 taps) = 闭嘴, 按住盖章 (hold, release) = 收. ui.js
+// The hand acts on the customer: 甩 (swipe / flick) = 滾, 連拍 (3 taps) = 閉嘴, 按住蓋章 (hold, release) = 收. ui.js
 // recognizes the strokes (src/gesture.js) and sends them here; this maps them to engine presses by context. Every
 // gesture works on every customer (an "off" gesture is an off-key curse: +1, combo frozen, never a penalty); a single
 // tap or two on a customer only slaps (squash + 啪, no answer), so a stray touch is never a wasted answer.
@@ -499,14 +489,14 @@ function gTap(e) {
   const c = gctx();
   if (c === 'none') return;
   if (c === 'opening') {
-    // the opening's wait points take the matching gesture: the 3rd tap is 闭嘴
+    // the opening's wait points take the matching gesture: the 3rd tap is 閉嘴
     const n = e.n - gs.offset;
     slapFx(Math.min(5, n), e);
     if (n === 3) { opening.press('shut'); gstat('taps:opening'); }
     return;
   }
   const st = game.state;
-  // taps right after the burst answered: the 4th / 5th charge it up (闭嘴 louder), then they are jabs / "下一位"
+  // taps right after the burst answered: the 4th / 5th charge it up (閉嘴 louder), then they are jabs / "下一位"
   if (gs.resolvedAt && e.n > gs.resolvedAt && c !== 'customer' && c !== 'group') {
     const extra = e.n - gs.resolvedAt;
     if (extra <= 2 && pressOk.shut) {
@@ -527,7 +517,7 @@ function gTap(e) {
     return;
   }
   if (c === 'group') {
-    // a 闭嘴 group: every tap shuts one of them up
+    // a 閉嘴 group: every tap shuts one of them up
     slapFx(Math.min(5, e.n), e);
     gpress('taps', 'shut');
     return;
@@ -702,7 +692,7 @@ function gHoldEnd(e) {
     ui.render(game.state);
   }
   if (['answer', 'wrong', 'step', 'holding', 'buffered', 'group'].includes(res.kind)) {
-    ui.stampSlam?.(zh() ? '啪！两个月' : 'SLAM! 2 months');
+    ui.stampSlam?.(zh() ? '啪！兩個月' : 'SLAM! 2 months');
     audio.sfx('stamp');
   } else ui.stampHold?.(null);
 }
@@ -730,14 +720,14 @@ function setInputMode(next) {
   else disableVoice();
 }
 
-// ---------------------------------------------------------------- 吼骂模式 / voice mode (docs/gameplay-v2.md 10)
+// ---------------------------------------------------------------- 吼罵模式 / voice mode (docs/gameplay-v2.md 10)
 // Display texts only (nothing here is spoken by the AI voice).
 const VOICE_UI = {
   zh: {
-    prompt: { title: '吼骂模式', body: '这家店要你亲口骂。允许麦克风？声音只在手机里处理，不会上传。', yes: '允许，开骂', no: '算了，用手势' },
-    denied: '麦克风没开？没关系，用手甩也很爽！', unavailable: '这台装置听不到你，先用手势骂。',
-    calib: '安静一秒……', ready: '开骂！', contrast: '反差！', contrastDb: '反差 +{n}dB', jackpot: '二百五！',
-    loudest: '今日最大声：{n} 分贝级', deaf: '回放中',
+    prompt: { title: '吼罵模式', body: '這家店要你親口罵。允許麥克風？聲音只在手機裡處理，不會上傳。', yes: '允許，開罵', no: '算了，用手勢' },
+    denied: '麥克風沒開？沒關係，用手甩也很爽！', unavailable: '這台裝置聽不到你，先用手勢罵。',
+    calib: '安靜一秒……', ready: '開罵！', contrast: '反差！', contrastDb: '反差 +{n}dB', jackpot: '二百五！',
+    loudest: '今日最大聲：{n} 分貝級', deaf: '回放中',
   },
   en: {
     prompt: { title: 'Shout Mode', body: 'This shop wants you to say it yourself. Allow the microphone? Your voice is processed on this device only, never uploaded.', yes: 'Allow & shout', no: 'Use gestures' },
@@ -994,7 +984,7 @@ function suggestLine() {
   const loc = local(c);
   let line = '';
   if (c.boss) line = (sys().boss?.steps?.[cur.step] || {})[key] || '';
-  else if (c.steps) line = cur.step ? loc.reply2 : loc.reply1 || (zh() ? '好，250杯什么？' : 'Okay. 250 cups of what?');
+  else if (c.steps) line = cur.step ? loc.reply2 : loc.reply1 || (zh() ? '好，250杯什麼？' : 'Okay. 250 cups of what?');
   else if (c.group) line = (sys().group?.[key] || [])[0] || '';
   else if (c.id === 'change') line = (sys().changeOrder || {})[key] || '';
   else line = c.key === key ? loc.reply : sys().ui?.[key];
@@ -1138,7 +1128,7 @@ function applyTexts() {
 
 function startTexts() {
   // SYSTEM.start { title, subtitle, start, startDay ('{n}') }; ui.js has the spec defaults (3.2) for anything missing.
-  return { title: zh() ? '来250杯！' : '250 Cups!', ...(sys().start || {}) };
+  return { title: zh() ? '來250杯！' : '250 Cups!', ...(sys().start || {}) };
 }
 
 function showStartCard() {
@@ -1189,13 +1179,13 @@ function closingTexts() {
   const c = sys().opening?.closing;
   if (c) return c;
   return zh()
-    ? { title: '第一天 打烊', lines: ['嗯……／杯数太少 → 滚', '有要求的 → 闭嘴', '大单 → 收'] }
+    ? { title: '第一天 打烊', lines: ['嗯……／杯數太少 → 滾', '有要求的 → 閉嘴', '大單 → 收'] }
     : { title: 'Day 1 — Closed', lines: ['Ummm… / tiny orders → SCRAM', 'Special requests → SHUT IT', 'Big orders → DEAL'] };
 }
 
 function showReport(summary, relocalize = false) {
   if (lastDay === 1) {
-    // 2 (review): the ticket "No.001 / 250杯 / 两个月后取餐" and the day's savagest line on top of the card
+    // 2 (review): the ticket "No.001 / 250杯 / 兩個月後取餐" and the day's savagest line on top of the card
     const bestC = local(content.customers.find((c) => c.id === summary.bestLineId));
     const bestRaw = bestC ? (bestLineMeta.id === summary.bestLineId && bestLineMeta.alt ? bestC.alt : bestC.reply) : '';
     ui.showClosing(closingTexts(), {
@@ -1219,7 +1209,7 @@ function showReport(summary, relocalize = false) {
   });
 }
 
-// voice mode: "今日最大声：98 分贝级" and a replay of that shout (memory only; nothing is saved or uploaded)
+// voice mode: "今日最大聲：98 分貝級" and a replay of that shout (memory only; nothing is saved or uploaded)
 function loudestTexts() {
   const l = vx.loudest;
   if (inputMode !== 'voice' || !Number.isFinite(l.db)) return null;
@@ -1619,7 +1609,7 @@ function wire(g) {
     rageKey = 'any';
     ui.clearCustomer?.(); // a waiting customer steps aside (comes back after rage)
     if (info.intro === 'rage' && !round.rageIntroDone) {
-      // 7, day 3: freeze 1000 ms, S1 "爆气！" + S3 "乱按都对！", then rage runs
+      // 7, day 3: freeze 1000 ms, S1 "爆氣！" + S3 "亂按都對！", then rage runs
       round.rageIntroDone = true;
       g.pause();
       ui.freeze?.(1000);
@@ -1651,7 +1641,7 @@ function wire(g) {
     round.rageHits += 1;
     rageKey = key;
     // 4.2: during rage one S1 every 5 hits
-    if (round.rageHits % 5 === 0) ui.huazi([{ text: sys().ui?.[key] || '滚！', style: 'S1', seg: 'punch', ratio: 0 }]);
+    if (round.rageHits % 5 === 0) ui.huazi([{ text: sys().ui?.[key] || '滾！', style: 'S1', seg: 'punch', ratio: 0 }]);
     else ui.showLine(pick(rageLinesFor(key)), { style: 'curse', who: 'clerk' });
   });
 
@@ -1769,14 +1759,14 @@ function customerTalks(gen, loc, signUpAt) {
   });
 }
 
-// Two-step original-film customer (7): 收 → "好，250杯什么？" → the sign flips to a purple one and the
-// customer says "少甜少冰！" → a second timed wait for 闭嘴.
+// Two-step original-film customer (7): 收 → "好，250杯什麼？" → the sign flips to a purple one and the
+// customer says "少甜少冰！" → a second timed wait for 閉嘴.
 function onStep(e) {
   const gen = round.arrivals;
   ui.stopSignTimer?.();
   if (e.cutIn) cutVoice();
   const o = local(e.customer);
-  const reply = o.reply1 || (zh() ? '好，250杯什么？' : 'Okay. 250 cups of what?');
+  const reply = o.reply1 || (zh() ? '好，250杯什麼？' : 'Okay. 250 cups of what?');
   const says2 = o.says2 || (zh() ? '少甜少冰！' : 'Less sugar, less ice!');
   clerkLine(reply, { style: 'cold' });
   audio.sfx('bell');
@@ -1816,8 +1806,8 @@ function onResolve(e) {
     line = (e.flipped ? o[key] : key === 'gun' ? o.early : o[key]) || e.line;
   } else {
     isAlt = !!customer.alt && e.line === customer.alt && e.line !== customer.reply;
-    // "今天第一个" (100 杯) only for the round's first booked order (review: it came twice in 45 s)
-    if (!isAlt && correct && round.takes > 0 && /今天第一个/.test(customer.reply || '') && customer.alt) isAlt = true;
+    // "今天第一個" (100 杯) only for the round's first booked order (review: it came twice in 45 s)
+    if (!isAlt && correct && round.takes > 0 && /今天第一個/.test(customer.reply || '') && customer.alt) isAlt = true;
     line = (isAlt ? loc.alt : loc.reply) || e.line;
   }
   if (correct && key === 'take') round.takes += 1;
@@ -1969,7 +1959,7 @@ function onBossStep(e) {
   });
 }
 
-// Day 4 meter (stage 2): exactly 250 = the gold-stamp scene, over = "两个月……喔，半年。" (after the clerk's reply).
+// Day 4 meter (stage 2): exactly 250 = the gold-stamp scene, over = "兩個月……喔，半年。" (after the clerk's reply).
 function onMeter(g, { hit, over, queueDelta, meter }) {
   ui.setMeter?.(meter, { hit, over });
   shown.meter = meter;
@@ -1987,7 +1977,7 @@ function onMeter(g, { hit, over, queueDelta, meter }) {
     sayClerk(line, { style, fx: hit ? 'mega' : 'normal' });
     if (queueDelta) ui.queueGain?.(queueDelta);
     if (hit) {
-      ui.showPlate?.(m.plate || ['No.250', '250杯', '两个月后取餐']);
+      ui.showPlate?.(m.plate || ['No.250', '250杯', '兩個月後取餐']);
       ui.huazi([{ text: '250', style: 'S1', seg: 'punch', ratio: 0 }]);
       ui.goldsign?.(true);
       later(2000, () => ui.goldsign?.(false));
@@ -2106,7 +2096,7 @@ function startRageScene() {
   });
 }
 
-// 7, day 2: the aura bar slides in with S3 "气势没了＝提早打烊" (first timeout, or 30 s in, during a landing).
+// 7, day 2: the aura bar slides in with S3 "氣勢沒了＝提早打烊" (first timeout, or 30 s in, during a landing).
 function showAuraIntro() {
   if (round.auraShown || !game) return;
   round.auraShown = true;
@@ -2153,7 +2143,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------------------------------------------------------------- boot
-ui.setScript?.(script); // zh-TW / zh-HK / zh-MO: Traditional characters on screen
 ui.setInputMode?.(inputMode); // gesture (default), the button pad, or voice (gestures + the microphone, asked on start)
 ui.setVoiceOptions?.({ whisper: vx.whisper, replay: vx.replay, keywords: vx.keywords, keywordsAvailable: !!SR });
 if (params.has('lite')) ui.setLite?.(params.get('lite') !== '0'); // K4 lite mode; otherwise auto-detected
@@ -2184,7 +2173,6 @@ if (params.has('debug')) {
     },
     get lastEval() { return lastEval; }, // stage 2: stars / rating of the last finished day
     evaluateDay, loadBest,
-    script,
     audio, ui, getContent, DAYS,
     startRound,
     startDay(n) { day = clampDay(n); startRound(); },

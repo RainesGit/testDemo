@@ -1,4 +1,4 @@
-/* 《来250杯！》 — strict 9:16 portrait stage. Sizes are in cqw (1cqw = 1% stage width) or stage %.
+/* 《來250杯！》 — strict 9:16 portrait stage. Sizes are in cqw (1cqw = 1% stage width) or stage %.
    Art direction and coordinates: docs/first-minute-spec.md §2. No filters, no blur, no emoji:
    every shadow is an offset block of color-mix(in srgb, c 78%, #1B1311). */
 :root {
@@ -33,7 +33,7 @@
   --fury: #FF7A1A;
   --panel: rgb(27 19 17 / .9);
   /* fonts (§2.4) */
-  --font-zh: "Noto Sans TC", "Noto Sans SC", "PingFang TC", "PingFang SC", "Microsoft JhengHei", "Heiti TC", "Noto Sans CJK TC", sans-serif;
+  --font-zh: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", "Noto Sans CJK TC", sans-serif;
   --font-sign: "LXGW WenKai TC", "Kaiti TC", "STKaiti", "BiauKai", "DFKai-SB", var(--font-zh);
   --font-en: "Bangers", "Impact", "Arial Black", sans-serif;
   --font: var(--font-zh);
@@ -243,7 +243,7 @@ button { font: inherit; color: inherit; }
 .cust-wrap.drift .pupils { animation: eyeDrift 600ms ease-in-out infinite; }
 .cust-wrap.proud .h-all { transform: rotate(-16deg); }
 .cust-wrap.gone { visibility: hidden; }
-/* 调你妈: the half head ducks a third of the way down behind the counter, with a little shudder */
+/* 調你媽: the half head ducks a third of the way down behind the counter, with a little shudder */
 .cust-wrap.cower .cust { transform: translateY(34%); transition: transform 140ms cubic-bezier(.3, 1.4, .5, 1); animation: cowerShake 90ms linear 3; }
 @keyframes cowerShake { 50% { translate: .8cqw 0; } }
 .cust-wrap.wobble .cust { transform-origin: 50% 90%; animation: custWobble 450ms ease-in-out; }
@@ -271,7 +271,7 @@ button { font: inherit; color: inherit; }
 .sign[lang=en] .sign-text:not(.is-num) { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 800; }
 .sign[lang=en] .sign-num { font-family: var(--font-en); font-weight: 400; }
 
-/* 滚: torn paper slip, red frame, tape */
+/* 滾: torn paper slip, red frame, tape */
 .sign-gun { --rot: -6deg; --kc: var(--gun); }
 .sign-gun .sign-face { width: 34cqw; height: 22cqw; background: var(--cream); border: 1cqw solid var(--gun); border-bottom: 0;
   clip-path: polygon(-20% -40%, 120% -40%, 120% 86%, 100% 86%, 95.8% 100%, 91.7% 86%, 87.5% 100%, 83.3% 86%, 79.2% 100%, 75% 86%,
@@ -283,7 +283,7 @@ button { font: inherit; color: inherit; }
 .sign-tape.t1 { left: 4cqw; rotate: -18deg; }
 .sign-tape.t2 { right: -2.6cqw; rotate: 24deg; }
 
-/* 闭嘴: speech-box sign, purple frame, tail bottom-right */
+/* 閉嘴: speech-box sign, purple frame, tail bottom-right */
 .sign-shut { --rot: -2deg; --kc: var(--shut); }
 .sign-shut .sign-face { width: 52cqw; min-height: 14cqw; padding: 2.6cqw 3cqw 3cqw; background: #EEE9FF; border: 1cqw solid var(--shut); border-radius: 3cqw; }
 .sign-shut .sign-face::after { content: ''; position: absolute; right: 6cqw; bottom: -3.3cqw; width: 5cqw; height: 5cqw; background: #EEE9FF;
@@ -460,7 +460,7 @@ button { font: inherit; color: inherit; }
 .key-lock svg { display: block; width: 100%; height: 100%; }
 .btn-shut[data-covered] .key-lock { display: block; }
 .btn-shut[data-covered] .key-icon { display: none; }
-/* input locked (opening beats, the 调你妈 climax): the keys visibly rest (review A3) */
+/* input locked (opening beats, the 調你媽 climax): the keys visibly rest (review A3) */
 .stage[data-locked="1"] .pad .btn:not([data-glow]) { opacity: .55; }
 .btn-shut.uncover { animation: uncover 200ms ease-out; transform-origin: 50% 100%; }
 .ring { position: absolute; inset: -1.2cqw; border-radius: 5cqw; pointer-events: none; opacity: 0; background: conic-gradient(var(--rc, #fff) calc(var(--charge) * 360deg), #fff1 0);
@@ -483,7 +483,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- Effects ---------- */
 .flash { position: absolute; inset: 0; z-index: 45; background: #fff; opacity: 0; pointer-events: none; }
-/* manga focus lines (调你妈): thin ink wedges around the clerk's mouth, under the 花字 layer */
+/* manga focus lines (調你媽): thin ink wedges around the clerk's mouth, under the 花字 layer */
 .speedlines { position: absolute; inset: -20%; z-index: 19; pointer-events: none; opacity: 0;
   background: repeating-conic-gradient(from 0deg at 50% 33%, #1B1311 0deg 2.6deg, transparent 2.6deg 6.5deg);
   -webkit-mask: radial-gradient(circle at 50% 33%, transparent 0 16%, #000 30%); mask: radial-gradient(circle at 50% 33%, transparent 0 16%, #000 30%); }
@@ -806,7 +806,7 @@ button { font: inherit; color: inherit; }
 .report .report-grid { margin: 1.6cqw 0; }
 .report.has-stars .card-title { font-size: 7cqw; margin-right: 12cqw; }
 
-/* ---------- Gesture mode (docs/gameplay-v2.md 9): 甩 = 滚, 连拍 = 闭嘴, 按住盖章 = 收 ---------- */
+/* ---------- Gesture mode (docs/gameplay-v2.md 9): 甩 = 滾, 連拍 = 閉嘴, 按住蓋章 = 收 ---------- */
 /* the gesture surface covers the stage (the HUD toggles, cards, skip and overlays sit above it) */
 .gsurf { position: absolute; inset: 0; z-index: 23; display: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .stage[data-input=gesture] .gsurf { display: block; }
@@ -895,7 +895,7 @@ button { font: inherit; color: inherit; }
   .g-stamp[data-level="2"] .g-stamp-face { animation: none; }
 }
 
-/* ---------- 吼骂模式 / voice mode (docs/gameplay-v2.md 10) ---------- */
+/* ---------- 吼罵模式 / voice mode (docs/gameplay-v2.md 10) ---------- */
 .input-tog { flex-wrap: wrap; justify-content: center; }
 .voice-opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6cqw; margin-top: 2.4cqw; max-width: 86cqw; }
 .voice-opts[hidden] { display: none; }
@@ -923,7 +923,7 @@ button { font: inherit; color: inherit; }
 .kk-punch .kk-text { --lit: var(--hz-yellow); font-size: 6.4cqw; }
 .karaoke.lit .kk-punch { animation: kkLit .25s ease-out; }
 @keyframes kkLit { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
-/* loudness meter at the right edge (说 / 骂 / 吼 marks) */
+/* loudness meter at the right edge (說 / 罵 / 吼 marks) */
 .vmeter { position: absolute; right: 2cqw; top: 33%; height: 27%; width: 8cqw; z-index: 24; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
 .vmeter[hidden] { display: none; }
 .vm-track { position: relative; flex: 1; width: 3.6cqw; border-radius: 99px; background: rgb(27 19 17 / .75); border: .4cqw solid var(--cream); }

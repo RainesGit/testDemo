@@ -918,7 +918,7 @@ test('patienceFor: window interpolates, intro bonus, combo tightening, floor', (
 
 // ---------------------------------------------------------------- two-step customer (7, 8.1 item 10)
 
-const ORIG = { id: 'orig', style: '250', key: 'take', steps: ['take', 'shut'], cups: 250, says: '250杯！', says2: '少甜少冰！', reply: 'r1', reply1: '好，250杯什么？', reply2: '调你妈！|黄金比例最好喝！' };
+const ORIG = { id: 'orig', style: '250', key: 'take', steps: ['take', 'shut'], cups: 250, says: '250杯！', says2: '少甜少冰！', reply: 'r1', reply1: '好，250杯什麼？', reply2: '調你媽！|黃金比例最好喝！' };
 
 test('two-step customer: take → step event, stays, talks again with a fresh window; shut → big finale', () => {
   const others = makeCustomers(6);

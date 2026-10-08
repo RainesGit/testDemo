@@ -25,7 +25,7 @@ docs/
                         over game-design.md where they conflict
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
-  localization-tw.md    Taiwan wording for the zh-TW display (mapping table, HK notes, voice re-word list)
+  localization-tw.md    Taiwan Traditional writing guide for zh text (wording, character choices, checks, HK notes, voice)
   audio-sourcing.md     Royalty-free SFX/music/voice sources and licensing notes
   voice/
     voice-bible.md      Voice direction: clerk voice, delivery marks, system lines, English "250" plan
@@ -46,16 +46,16 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, signs, monitor)
   src/huazi.js          花字 (caption) picking and rate limits (pure)
-  src/hant.js           Simplified → Traditional display conversion (zh-TW / zh-HK / zh-MO), generated with OpenCC,
-                        plus Taiwan wording (TW_PHRASES; see docs/localization-tw.md)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, runtime voice
                         punch chain (VOICE_FX; ?punchfx=0 turns it off), Web Speech fallback, bleep
-  src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening)
+  src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening); zh is
+                        Taiwan Traditional at the source
   src/main.js           Wires everything together (start → opening → days)
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
                         voice)
-  tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs)
+  tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs);
+                        hans-chars.mjs = Simplified-only characters (generated from OpenCC by gen-hans-chars.py)
                         (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
@@ -85,7 +85,9 @@ Run from `game/`:
   answers per gesture kind, multi-head rage swipes, bowling, errors; `tools/shots/gesture-*.png` or `--out=dir`):
   `node tools/check-gesture.mjs`; voice mode with a fake microphone playing a synthesized voice loop (`tools/voice-wav.mjs`:
   opening by shouting, voice answers, the 反差 bonus, rage swept by sustained shouting, self-replay, the loudest-shout row;
-  `tools/shots/voice-*.png` or `--out=dir`): `node tools/check-voice.mjs`. All take the base URL as an argument. These use the globally installed Playwright
+  `tools/shots/voice-*.png` or `--out=dir`): `node tools/check-voice.mjs`; no Simplified Chinese on screen (a zh-CN
+  browser through the opening and day 1, then days 3–7; fails on any character of `tools/hans-chars.mjs`;
+  `tools/shots/hant-*.png` or `--out=dir`): `node tools/check-hant.mjs`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 
@@ -116,11 +118,15 @@ Run from `game/`:
   before adding any audio file.
 - Voice lines come from `game/voice/` (Kokoro AI voices). After changing any line in
   `src/content.*.js`, rebuild the pack (`game/tools/voice/README.md`); `tools/check-content.mjs`
-  fails if a spoken line has no clip.
-- Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore, then English.
-  Not mainland China or the EU. Release builds need Traditional Chinese: zh-TW / zh-HK / zh-MO browsers
-  (or `?lang=zh-TW`) get it through `src/hant.js` (display only); regenerate its table when text adds new characters,
-  and add mainland-only words in new text to its Taiwan wording table (`docs/localization-tw.md`).
+  fails if a spoken line has no clip. Clip keys come from the Traditional text; `build_voice.py` converts zh lines to
+  Simplified (OpenCC t2s) only as the TTS input for Kokoro's G2P.
+- Languages: **Traditional Chinese (Taiwan wording) and English only; no Simplified Chinese anywhere a player can see**
+  (producer: 只支持繁体中文和英文，别搞简体，不会上中国大陆). Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore
+  (same Traditional text), then English. Not mainland China or the EU. The zh text is Traditional at the source
+  (`content.zh.js`, every Chinese string in `src/`, `index.html`, the SVG art); there is no Simplified build and no runtime
+  conversion. Any `zh*` browser gets Traditional Chinese, everything else English (`?lang=zh|en` forces). Write all new
+  player-facing Chinese in Taiwan Traditional following `docs/localization-tw.md`; `tools/check-content.mjs` T1 and
+  `tools/check-hant.mjs` fail on any Simplified-only character. Design docs stay in Simplified (internal).
 
 ## Development workflow
 
@@ -136,7 +142,8 @@ Run from `game/`:
    `docs/game-design.md` before changing rules or structure.
 2. **Keep this file current** when you add directories, commands or rules.
 3. **Language:** design docs and voice scripts are in Simplified Chinese (English
-   script lines in US English); code and code comments are in English.
+   script lines in US English); player-facing Chinese in the game is Taiwan Traditional; code and code comments
+   are in English.
 4. **Minimal changes.** Make only the changes the task needs.
 5. Repository history before the game (2021) only contained a deleted README
    about an unrelated iOS CocoaPods setup; ignore it.

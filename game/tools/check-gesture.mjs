@@ -1,6 +1,6 @@
 // Gesture mode check (docs/gameplay-v2.md 9): drives real pointer gestures (page.mouse → pointer events) at 390x844 with
-// empty storage through the day 1 opening (each wait point answered with its gesture: 甩 swipe / 连拍 three taps /
-// 按住盖章 hold), day 1 free play (shortened), then day 3 until a rage, where long swipes cross the row of heads.
+// empty storage through the day 1 opening (each wait point answered with its gesture: 甩 swipe / 連拍 three taps /
+// 按住蓋章 hold), day 1 free play (shortened), then day 3 until a rage, where long swipes cross the row of heads.
 // Reports resolves per gesture kind (window.__250.gestures), press outcomes (window.__250.inputs), rage hits per swipe,
 // bowling / STRIKE, stray-tap safety (one tap on a customer answers nothing) and errors. Fails on any console / page
 // error, on a gesture kind that never resolved, on the opening not finishing, on no multi-head rage swipe, and when the
@@ -195,7 +195,7 @@ async function play(untilFn, maxMs, opts = {}) {
         if (cur.id === 'boss' && cur.step === 7) { const q = await probe(); await hold(face(q).x, face(q).y, 1000); } // the full stamp
         else {
           if (cur.key === 'gun') gunN += 1;
-          await gesture(cur.key, await probe(), { fast: cur.key === 'gun' && gunN % 2 === 0 }); // every other 滚: a hard fling into the queue
+          await gesture(cur.key, await probe(), { fast: cur.key === 'gun' && gunN % 2 === 0 }); // every other 滾: a hard fling into the queue
         }
       }
     }

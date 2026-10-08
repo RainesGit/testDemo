@@ -1,4 +1,4 @@
-// 《来250杯！》/ "250 Cups!" — audio module.
+// 《來250杯！》/ "250 Cups!" — audio module.
 // All SFX are synthesized with WebAudio (no external audio files, zero copyright risk).
 // Speech uses the Web Speech API (speechSynthesis). Everything degrades silently when
 // the browser lacks support. Nothing makes sound until unlock() runs inside a user gesture.
@@ -30,11 +30,12 @@
 
 // Default words that get replaced with a bleep when bleep mode is on.
 // Strings match literally (ASCII words case-insensitively, on word boundaries);
-// RegExp entries are used as-is (lets us avoid bleeping 干杯 / 饼干 etc.).
+// RegExp entries are used as-is. Content is Traditional Chinese (Taiwan), so 乾杯 / 餅乾 / 乾淨 never contain the
+// curse 幹; the regex only skips the ordinary words built on 幹 (幹嘛, 不幹了, 幹活, 能幹, 幹部 ...).
 export const DEFAULT_BLEEP_WORDS = [
-  '你妈的', '你媽的', '你妈', '你媽', '他妈的', '他媽的', '他妈', '他媽', '妈的', '媽的',
-  '靠北', '靠杯', '靠腰', '干你', '幹你', '机掰', '機掰', '王八蛋', 'TMD',
-  /(?<![饼餅能不才若苦精])[干幹](?![杯嘛麼么净淨脆吗嗎啥活掉部燥扰擾涉預预事])/,
+  '你媽的', '你媽', '他媽的', '他媽', '媽的',
+  '靠北', '靠杯', '靠腰', '幹你', '機掰', '王八蛋', 'TMD',
+  /(?<![能不才苦精])幹(?![嘛麼嗎啥活掉部事])/,
   'your mom', 'yo mama', 'motherfucker', 'fucking', 'fuck', 'shit', 'damn', 'hell', 'bitch', 'ass',
 ];
 
@@ -103,20 +104,20 @@ function zhUnder10k(n, lead) {
     const d = Math.floor(n / u) % 10;
     if (d === 0) { if (out) zero = true; continue; }
     if (zero) { out += '零'; zero = false; }
-    // 2 before 千 reads 两; 二百 stays 二 (the signature number is 二百五十)
-    const digit = d === 2 && u === 1000 ? '两' : ZH_DIGIT[d];
+    // 2 before 千 reads 兩; 二百 stays 二 (the signature number is 二百五十)
+    const digit = d === 2 && u === 1000 ? '兩' : ZH_DIGIT[d];
     out += (u === 10 && d === 1 && !out && lead) ? name : digit + name;
   }
   return out;
 }
-/** Integer → Mandarin reading: 250 → 二百五十, 15 → 十五, 10000 → 一万. */
+/** Integer → Mandarin reading: 250 → 二百五十, 15 → 十五, 10000 → 一萬. */
 export function zhNumber(n) {
   n = Math.floor(Math.abs(Number(n) || 0));
   if (n === 0) return '零';
   if (n >= 1e8) return String(n).split('').map((d) => ZH_DIGIT[d]).join('');
   const hi = Math.floor(n / 10000);
   const lo = n % 10000;
-  let out = hi ? zhUnder10k(hi, true) + '万' : '';
+  let out = hi ? zhUnder10k(hi, true) + '萬' : '';
   if (lo) out += (hi && lo < 1000 ? '零' : '') + zhUnder10k(lo, !hi);
   return out;
 }
@@ -192,7 +193,7 @@ export const dbToGain = (db) => Math.pow(10, db / 20);
 /**
  * Runtime "voice punch" (Kokoro has no emotion control, so the hit is made in the mix). When enabled, the
  * hit half of a clerk line (normally the part after '|'; the half with the curse word when the curse comes
- * first, as in "调你妈！|黄金比例最好喝！"), rage lines and the 调你妈 climax go through:
+ * first, as in "調你媽！|黃金比例最好喝！"), rage lines and the 調你媽 climax go through:
  *   [megaphone blend, rage only] → WaveShaper (gentle; curse/mega/rage: the spec 8.5 k = 8 curve)
  *   → +driveDb → DynamicsCompressor (fast attack) → +makeupDb   (mega adds the spec's 70 ms / 25 % echo)
  * played at playbackRate punchRate (mega keeps PUNCH_RATE.mega, the slow-motion climax), with a synthesized
@@ -209,7 +210,7 @@ export const VOICE_FX = {
   liteDriveDb: 3,    // lite mode has no compressor: less drive
   makeupDb: 3,
   setupDb: -1.5,     // polite setup half, clean and slightly softer
-  breathMs: 60,      // silence before a hit that has no setup (rage lines, 调你妈)
+  breathMs: 60,      // silence before a hit that has no setup (rage lines, 調你媽)
   gentleK: 1.8,      // tanh saturation amount for ordinary punch halves
   impact: true,      // synthesized thump + slap at the onset of the hit
   impactGain: 0.7,   // 1.0 for mega
@@ -314,7 +315,7 @@ export function splitForBleep(text, words = DEFAULT_BLEEP_WORDS) {
   const list = (words || []).filter((w) => w instanceof RegExp || (w != null && String(w).length));
   if (!src) return [];
   if (!list.length) return [{ type: 'text', value: src }];
-  // Longer literal strings first so "你妈的" wins over "你妈".
+  // Longer literal strings first so "你媽的" wins over "你媽".
   const sorted = [...list].sort((a, b) => {
     const la = a instanceof RegExp ? 0 : String(a).length;
     const lb = b instanceof RegExp ? 0 : String(b).length;
@@ -906,7 +907,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
       s.frequency.exponentialRampToValueAtTime(420, t + dur);
       return t + dur;
     },
-    // Mic feedback squeal under "调你妈": 2.8 kHz, 150 ms, about -14 dB.
+    // Mic feedback squeal under "調你媽": 2.8 kHz, 150 ms, about -14 dB.
     feedback(t, o) {
       const dur = o.duration ?? 0.15;
       const gg = gain(master);
@@ -1525,7 +1526,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
   }
 
   /**
-   * 吼骂模式 (docs/gameplay-v2.md 10): the player's own shout (an AudioBuffer from src/mic.js) blasted back through the
+   * 吼罵模式 (docs/gameplay-v2.md 10): the player's own shout (an AudioBuffer from src/mic.js) blasted back through the
    * shop megaphone: the voice punch chain (megaphone band, hot saturation, compressor, mega echo) at +gainDb and a
    * slight pitch-up, with an impact on its onset. Not a speech source (a customer's cut() does not stop it).
    * Returns a Promise (resolves when it ends) that carries { ms }.

@@ -34,7 +34,7 @@
 // code is retired. The store page carries the only explanation (not voiced):
 // "In Chinese slang, '250' means idiot. Our clerk will not be explaining further."
 //
-// Cursing: Chinese "X你妈！" becomes "[KEYWORD] your MOM!", where the keyword is
+// Cursing: Chinese "X你媽！" becomes "[KEYWORD] your MOM!", where the keyword is
 // the word the customer stressed (seven main lines plus two alts; "ADJUST your
 // MOM!" only in the signature routine). Other forms: echo ("Wait? WAIT?!"),
 // "Split my ASS!", "Don't you ASK me!". Nothing stronger than damn, hell or ass,

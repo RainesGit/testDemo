@@ -85,17 +85,17 @@ test('customers: expression layers and the shared look-up eyes are present', () 
 test('signText follows §6.3', () => {
   assert.equal(signText(byId(ZH, 1)), '嗯……');
   assert.equal(signText(byId(ZH, 6)), '嗯……'); // 等一下…
-  assert.equal(signText(byId(ZH, 8)), '嗯……'); // 那个…
+  assert.equal(signText(byId(ZH, 8)), '嗯……'); // 那個…
   assert.equal(signText(byId(ZH, 43)), '15杯');
   assert.equal(signText(byId(ZH, 47)), '250杯');
-  assert.equal(signText(byId(ZH, 12)), '可以少冰吗？');
-  assert.equal(signText(byId(ZH, 14)), '微冰就好'); // trailing 谢谢喔～ dropped
-  assert.equal(signText(byId(ZH, 33)), '我自备杯'); // stage direction dropped
-  assert.equal(signText(byId(ZH, 3)), '你们推荐什么？'); // lone 欸 skipped
-  assert.equal(signText({ says: '甜度可以调吗？可以吗？可以吗？可以吗？' }), '甜度可以调吗？');
-  assert.equal(signText({ sign: '招牌翡翠柠檬' }), '招牌翡翠柠檬');
+  assert.equal(signText(byId(ZH, 12)), '可以少冰嗎？');
+  assert.equal(signText(byId(ZH, 14)), '微冰就好'); // trailing 謝謝喔～ dropped
+  assert.equal(signText(byId(ZH, 33)), '我自備杯'); // stage direction dropped
+  assert.equal(signText(byId(ZH, 3)), '你們推薦什麼？'); // lone 欸 skipped
+  assert.equal(signText({ says: '甜度可以調嗎？可以嗎？可以嗎？可以嗎？' }), '甜度可以調嗎？');
+  assert.equal(signText({ sign: '招牌翡翠檸檬' }), '招牌翡翠檸檬');
   assert.equal(signText({ says: '一二三四五六七八九十一二三四五六七' }), '一二三四五六七\n八九十一二……');
-  assert.equal(signText(byId(ZH, 93)), '有Wi-Fi吗？'); // Latin run is not split
+  assert.equal(signText(byId(ZH, 93)), '有Wi-Fi嗎？'); // Latin run is not split
   for (const c of ZH) {
     const lines = signText(c).split('\n');
     assert.ok(lines.length <= 2, `#${c.id}`);
@@ -130,7 +130,7 @@ test('sign kinds and shapes: color = key (R1), 249 trap', () => {
   assert.ok(signSVG(byId(ZH, 47)).includes('sign-burst'), '250 gets the burst');
   assert.ok(!signSVG(byId(ZH, 46)).includes('sign-burst'));
   assert.ok(signSVG(byId(ZH, 12)).includes('<span class="sign-circle">少冰'), 'first request word circled');
-  assert.ok(signSVG(null, 'zh', { kind: 'take', text: '招牌翡翠柠檬' }).includes('<span class="jade">翡翠柠檬</span>'));
+  assert.ok(signSVG(null, 'zh', { kind: 'take', text: '招牌翡翠檸檬' }).includes('<span class="jade">翡翠檸檬</span>'));
   assert.ok(!signSVG(byId(ZH, 1)).includes('sign-timer'), 'no timer until t0 (A2)');
   assert.ok(signSVG({ id: 1, key: 'gun', says: '<b>&' }).includes('&lt;b&gt;&amp;'), 'text is escaped');
   assert.match(miniSign('shut', '少甜少冰'), /^<div class="sign sign-shut mini"/);
@@ -142,14 +142,14 @@ test('key icons, props and tickets', () => {
   assert.match(DOOR_GATE_SVG, /viewBox="0 0 360 640"/);
   assert.match(STAR_SVG, /^<svg class="star-svg"/);
   const t = ticketHTML();
-  for (const s of ['No.001', '250杯', '两个月后取餐']) assert.ok(t.includes(s));
+  for (const s of ['No.001', '250杯', '兩個月後取餐']) assert.ok(t.includes(s));
 });
 
 test('shop, counter and monitor hooks', () => {
   for (const s of ['viewBox="0 0 360 640"', 'preserveAspectRatio="xMidYMid slice"', 'id="callnum"', 'id="goldsign"', '<symbol id="cup"', '<symbol id="q-p"']) {
     assert.ok(SHOP_SVG.includes(s), s);
   }
-  for (const s of ['q-p1', 'q-p2', 'q-p3', 'class="q-num"', '现点现做']) assert.ok(COUNTER_SVG.includes(s), s);
+  for (const s of ['q-p1', 'q-p2', 'q-p3', 'class="q-num"', '現點現做']) assert.ok(COUNTER_SVG.includes(s), s);
   assert.equal(queueCapText(3), '');
   assert.equal(queueCapText(1284), '+1,281');
   assert.deepEqual(MONITOR_SCENES.map((s) => s.id), ['door', 'arcade', 'metro', 'news', 'aerial']);

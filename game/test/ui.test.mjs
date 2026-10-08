@@ -119,16 +119,16 @@ test('placeHuazi: pushes up first, then shrinks, never overlaps the sign, else n
 });
 
 test('hzFontSize follows the 5.2 table and fits in 90cqw', () => {
-  assert.equal(hzFontSize('S1', '滚！'), 24);
-  assert.equal(hzFontSize('S1', '调你妈！'), 18);
+  assert.equal(hzFontSize('S1', '滾！'), 24);
+  assert.equal(hzFontSize('S1', '調你媽！'), 18);
   assert.equal(hzFontSize('S1', '下一位！', { size: 'sm' }), 12);
   assert.equal(hzFontSize('S2', '250'), 22);
-  assert.equal(hzFontSize('S2', '黄金比例最好喝'), 11);
+  assert.equal(hzFontSize('S2', '黃金比例最好喝'), 11);
   assert.equal(hzFontSize('S2', '250杯', { size: 'sm' }), 9);
-  assert.equal(hzFontSize('S3', '还在想？'), 7.5);
+  assert.equal(hzFontSize('S3', '還在想？'), 7.5);
   assert.equal(hzFontSize('S3', '一二三四五六七八九十一'), 6);
   assert.equal(hzFontSize('S4', '？？？'), 9);
-  assert.equal(hzFontSize('S5', '两个月后'), 13);
+  assert.equal(hzFontSize('S5', '兩個月後'), 13);
   assert.equal(hzFontSize('S1', 'x', { fontSize: 16 }), 16);
   assert.ok(hzFontSize('S1', 'GET OUT OF HERE!', { latin: true }) * 16 * 0.52 <= 90.01);
 });

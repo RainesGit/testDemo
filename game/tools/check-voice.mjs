@@ -1,7 +1,7 @@
-// Voice mode check (吼骂模式, docs/gameplay-v2.md 10): Chromium with a fake microphone that plays a synthesized voice loop
+// Voice mode check (吼罵模式, docs/gameplay-v2.md 10): Chromium with a fake microphone that plays a synthesized voice loop
 // (tools/voice-wav.mjs: room noise → soft setup → pause → loud shout → room → long shout), empty storage, ?input=voice.
 // Start card → the microphone card (allow) → the day 1 opening answered by shouts → day 1 free play (shortened) by voice
-// → day 3 until rage, swept by sustained shouting → the summary card's "今日最大声" and its replay button.
+// → day 3 until rage, swept by sustained shouting → the summary card's "今日最大聲" and its replay button.
 // Fails on any console / page error, when the mic never got ready, on fewer than 3 voice answers, no 反差 bonus, no rage
 // head swept by voice, no self-replay, no loudest-shout row, or the button pad on screen.
 // Screenshots (390x844): voice-prompt, voice-karaoke, voice-karaoke-lit, voice-contrast, voice-meter, voice-rage,
@@ -140,7 +140,7 @@ const before = p.voice.stats.replays;
 await page.click('.loudest-btn', { force: true }).catch(() => {});
 await wait(300);
 const after = (await probe()).voice.stats.replays;
-check('loudest', /今日最大声：\d+ 分贝级/.test(p.loudest) && after > before, `"${p.loudest}"; replay button ${after > before ? 'played it' : 'did nothing'}`);
+check('loudest', /今日最大聲：\d+ 分貝級/.test(p.loudest) && after > before, `"${p.loudest}"; replay button ${after > before ? 'played it' : 'did nothing'}`);
 check('no-errors', errors.length === 0, errors.slice(0, 5).join(' | ') || 'none');
 
 await browser.close();

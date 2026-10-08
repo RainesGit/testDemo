@@ -27,7 +27,7 @@
 //   rule text live in SYSTEM.days[n]), preview (next customers shown under the counter), quickAt (correct answers in a
 //   row before fast mouth; 0 = none), quickEnterMs (head pop in fast mouth), quickLandMs, specials ([{ type: 'original' |
 //   'group' | 'change' | 'boss', atMs }]: main.js turns them into engine specials with specialsForDay()), meter (day 4:
-//   the 250 ticket meter), events ([{ type, atMs }], src/events.js), shutterMs (the last N ms: 拉铁门),
+//   the 250 ticket meter), events ([{ type, atMs }], src/events.js), shutterMs (the last N ms: 拉鐵捲門),
 //   star2 / star3 (stat conditions on the engine summary, see meets()), ratingRef (the queue that rating tiers scale
 //   from when star1 is not a number: the boss day).
 //
@@ -40,15 +40,15 @@ export const DAY_COUNT = 7;
 
 // Customer categories (the `cat` field of content.zh.js; the engine always runs on zh customers).
 const CAT = {
-  hesitate: '犹豫磨叽',
-  sweet: '甜度冰块',
+  hesitate: '猶豫磨嘰',
+  sweet: '甜度冰塊',
   topping: '加料改料',
-  cheap: '贪小便宜',
-  count: '数量',
-  rush: '催单取餐',
-  pay: '付款发票',
-  influencer: '拍照网红',
-  work: '职场社会',
+  cheap: '貪小便宜',
+  count: '數量',
+  rush: '催單取餐',
+  pay: '付款發票',
+  influencer: '拍照網紅',
+  work: '職場社會',
   weird: '奇葩要求',
 };
 
@@ -89,7 +89,7 @@ const BASE = {
   ratingRef: null,
 };
 
-// Days 2+: the next two customers' mini signs, fast mouth after five correct in a row, the last 5 s 拉铁门.
+// Days 2+: the next two customers' mini signs, fast mouth after five correct in a row, the last 5 s 拉鐵捲門.
 const V2 = { preview: 2, quickAt: 5, shutterMs: 5000 };
 
 // 4.2 table: W / bonus / L / L+ / wrong / enter / rate / punch gap.
@@ -146,7 +146,7 @@ export const DAYS = [
     ...BASE, day: 6, durationMs: 90000, windowStartMs: 1400, windowEndMs: 1400, introBonusMs: 200,
     landMs: 320, landBigMs: 650, landWrongMs: 280, enterMs: 180, custRate: 1.08, punchGapMs: 140,
     pool: { cats: Object.values(CAT), allow249: true }, star1: 170, original: { atMs: 40000 },
-    // 晚八点人潮: group boxes and change-order customers (and the 249 trap in the pool)
+    // 晚八點人潮: group boxes and change-order customers (and the 249 trap in the pool)
     ...V2, rule: 'crowd',
     specials: [
       ...[15000, 33000, 51000, 68000].map((atMs) => ({ type: 'group', atMs })),

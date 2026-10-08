@@ -1,12 +1,12 @@
 // The "250" signature in the first-minute flow (docs/first-minute-spec.md R2, R12, R13, 3.6–3.7, 7):
 //   1. opening   the 250-cup customer of the Day 1 routine: gold number ticket "250杯" + S2 "250" (D4),
-//                收 → "好，250杯什么？" (D8), the trap and "调你妈！" (E4) with the purple sign shattering,
-//                "黄金比例最好喝！" with the lit menu box (E6), the ticket "No.001 / 250杯 / 两个月后取餐" stuck
+//                收 → "好，250杯什麼？" (D8), the trap and "調你媽！" (E4) with the purple sign shattering,
+//                "黃金比例最好喝！" with the lit menu box (E6), the ticket "No.001 / 250杯 / 兩個月後取餐" stuck
 //                on the forehead (E12), the queue +10 (bonus250, E13), keys locked from E4 to the recap.
 //   2. freeplay  a 250-cup customer in normal play (R13): 收 adds bonus250 (+25 since gameplay v2) and plays NO long scene —
 //                the engine never pauses and the next customer arrives within the normal landing pause.
 //   3. original  the two-step original-film customer on day 3 (7): 收 → 'step' (the sign flips to a purple
-//                闭嘴 sign, "好，250杯什么？") → 闭嘴 → resolve with the big landing (land 'step', +bonus250).
+//                閉嘴 sign, "好，250杯什麼？") → 閉嘴 → resolve with the big landing (land 'step', +bonus250).
 // Usage: (serve game/ first, e.g. python3 -m http.server 8765) node tools/check-signature.mjs [baseUrl]
 const pw = (await import('./pw.mjs')).default;
 
@@ -109,14 +109,14 @@ async function opening() {
   const d4 = seen.D4 || {};
   check('opening', 'D4 gold 250 ticket + S2', d4.sign && d4.sign.kind === 'take' && d4.sign.is250 && /250/.test(d4.sign.text) && d4.hz.some((h) => /^S2:.*250/.test(h)) && /250/.test(d4.sub),
     `sign ${JSON.stringify(d4.sign)}; 花字 ${d4.hz}; subtitle "${d4.sub}"`);
-  check('opening', 'D8 take → "好，250杯什么？"', seen.D8 && /250杯什么/.test(seen.D8.sub), `subtitle "${seen.D8 && seen.D8.sub}"`);
+  check('opening', 'D8 take → "好，250杯什麼？"', seen.D8 && /250杯什麼/.test(seen.D8.sub), `subtitle "${seen.D8 && seen.D8.sub}"`);
   const e4 = seen.E4 || {};
-  check('opening', 'E4 调你妈 + shatter, keys locked', /调你妈/.test(e4.sub) && e4.hz.some((h) => /^S1:调你妈/.test(h)) && leak === false,
+  check('opening', 'E4 調你媽 + shatter, keys locked', /調你媽/.test(e4.sub) && e4.hz.some((h) => /^S1:調你媽/.test(h)) && leak === false,
     `subtitle "${e4.sub}"; 花字 ${e4.hz}; input leaked: ${leak}`);
   const e6 = seen.E6 || {};
-  check('opening', 'E6 黄金比例最好喝 + menu box glow', /黄金比例最好喝/.test(e6.sub) && e6.gold && e6.hz.some((h) => /^S2:黄金比例/.test(h)), `subtitle "${e6.sub}"; gold ${e6.gold}; 花字 ${e6.hz}`);
+  check('opening', 'E6 黃金比例最好喝 + menu box glow', /黃金比例最好喝/.test(e6.sub) && e6.gold && e6.hz.some((h) => /^S2:黃金比例/.test(h)), `subtitle "${e6.sub}"; gold ${e6.gold}; 花字 ${e6.hz}`);
   const e12 = seen.E12 || {};
-  check('opening', 'E12 ticket No.001 / 250杯 / 两个月后取餐', /No\.001/.test(e12.plate) && /250杯/.test(e12.plate) && /两个月后取餐/.test(e12.plate), `ticket "${e12.plate}"`);
+  check('opening', 'E12 ticket No.001 / 250杯 / 兩個月後取餐', /No\.001/.test(e12.plate) && /250杯/.test(e12.plate) && /兩個月後取餐/.test(e12.plate), `ticket "${e12.plate}"`);
   const f1 = seen.F1 || {};
   check('opening', 'E13 queue 2 → 12 (bonus250)', e12.qnum === '2' && f1.qnum === '12', `queue at E12 ${e12.qnum}, at F1 ${f1.qnum}`);
   check('opening', 'errors', errors.length === 0, errors.slice(0, 3).join(' | '));
@@ -224,9 +224,9 @@ async function original() {
     const step = ev.find((e) => e.ev === 'step');
     const res = ev.find((e) => e.ev === 'resolve');
     check('original', 'gold sign first', s0.sign && s0.sign.kind === 'take' && /250/.test(s0.sign.text), `sign ${JSON.stringify(s0.sign)}`);
-    check('original', '收 → step + purple sign', step && s1 && /少甜少冰/.test(s1.sign.text) && /250杯什么|少甜少冰/.test(s1.sub),
+    check('original', '收 → step + purple sign', step && s1 && /少甜少冰/.test(s1.sign.text) && /250杯什麼|少甜少冰/.test(s1.sub),
       `step event ${!!step}; sign ${JSON.stringify(s1 && s1.sign)}; subtitle "${s1 && s1.sub}"`);
-    check('original', '闭嘴 → 调你妈 big landing', res && res.correct && res.land === 'step' && res.queueDelta >= 10 && /调你妈/.test(s2.sub),
+    check('original', '閉嘴 → 調你媽 big landing', res && res.correct && res.land === 'step' && res.queueDelta >= 10 && /調你媽/.test(s2.sub),
       `resolve correct ${res && res.correct}, land ${res && res.land}, queueDelta ${res && res.queueDelta}; subtitle "${s2.sub}"`);
     done = true;
   }

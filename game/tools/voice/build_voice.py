@@ -12,6 +12,11 @@ Output:
   <out>/manifest.json      { version, sampleRate, langs: { zh|en: { chunks: [...], clips: { key: clip } } } }
   <out>/<lang>-<n>.mp3     audio sprites; clip = { c: chunk, o: offset s, d: duration s, h: job hash, b?: bleeped clip }
 Clips are packed into ~60 s sprites so the game loads a handful of files instead of hundreds.
+
+Chinese: the game's text is Traditional Chinese (Taiwan) at the source and clip keys are computed from it, but the
+Kokoro / misaki G2P is trained on Simplified text, so zh jobs are converted with OpenCC t2s (Traditional ->
+Simplified) right before G2P. Only the TTS input changes; keys, job hashes and the manifest stay Traditional.
+Needs: pip install opencc-python-reimplemented (or the `opencc` package).
 """
 
 import argparse
@@ -26,6 +31,21 @@ import lameenc
 import numpy as np
 import onnxruntime as ort
 from kokoro_onnx import Kokoro
+
+try:
+    import opencc
+    _T2S = opencc.OpenCC('t2s')
+except ImportError:  # pragma: no cover
+    _T2S = None
+
+
+def zh_tts_input(text):
+    """Traditional (display / key text) -> Simplified for the Mandarin G2P. TTS input only."""
+    if _T2S is None:
+        sys.exit('build_voice.py: Chinese lines need OpenCC (pip install opencc-python-reimplemented)')
+    # OpenCC keeps 著 after verbs (站著, 坐著, 排著), which the G2P reads zhù; every 著 in the game is the
+    # aspect particle, so it goes to 着 (zhe), as in the old Simplified source.
+    return _T2S.convert(text).replace('著', '着')
 
 SR = 24000
 GAP = int(0.12 * SR)          # silence between clips inside a sprite (absorbs mp3 decoder offset)
@@ -104,7 +124,7 @@ class Synth:
             if self.zh is None:
                 from misaki import zh
                 self.zh = zh.ZHG2P()
-            phonemes, _ = self.zh(text)
+            phonemes, _ = self.zh(zh_tts_input(text))
             if not phonemes.strip():
                 return np.zeros(0, dtype=np.float32)
             audio, sr = self.k.create(phonemes, voice=voice, speed=speed, is_phonemes=True)
@@ -204,6 +224,8 @@ def main():
 
     jobs = json.load(open(args.jobs, encoding='utf-8'))
     os.makedirs(args.out, exist_ok=True)
+    if _T2S is None and any(j['lang'] == 'zh' for j in jobs):
+        sys.exit('build_voice.py: Chinese lines need OpenCC (pip install opencc-python-reimplemented)')
     old = {}
     manifest_path = os.path.join(args.out, 'manifest.json')
     if args.incremental and os.path.exists(manifest_path):

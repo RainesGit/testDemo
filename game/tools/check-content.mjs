@@ -2,12 +2,13 @@
 // Run from game/:  node tools/check-content.mjs
 // Prints one PASS/FAIL line per check and exits 1 if any check fails.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { CUSTOMERS_ZH, SYSTEM_ZH } from '../src/content.zh.js';
 import { CUSTOMERS_EN, SYSTEM_EN } from '../src/content.en.js';
 import { createGame, DEFAULT_CONFIG } from '../src/engine.js';
 import { stripStage, splitPunch, clipKey } from '../src/audio.js';
 import { exportJobs } from './voice/export-lines.mjs';
+import { HANS_ONLY, SUSPECT } from './hans-chars.mjs';
 
 const STYLES = new Set(['real', 'curse', 'disdain', 'cold', 'deadpan', 'chuuni', 'math', '250', 'twist']);
 const KEYS = new Set(['gun', 'shut', 'take']);
@@ -97,16 +98,16 @@ for (const [lang, sys] of [['zh', SYSTEM_ZH], ['en', SYSTEM_EN]]) {
 }
 
 // C. Design red lines (shipped game text only; docs are reviewed by hand)
-const delivery = [...hits(ZH, /外送|外卖|送餐|骑手|熊猫外送|Uber ?Eats|foodpanda/i), ...hits(EN, /deliver(y|ies)|DoorDash|Uber ?Eats|Grubhub|courier|rider|delivery ?guy/i)];
+const delivery = [...hits(ZH, /外送|外賣|送餐|騎手|熊貓外送|Uber ?Eats|foodpanda/i), ...hits(EN, /deliver(y|ies)|DoorDash|Uber ?Eats|Grubhub|courier|rider|delivery ?guy/i)];
 check('C1', 'no delivery-rider characters or references', delivery.length === 0, delivery.slice(0, 3).join(' | '));
-const fantasy = [...hits(ZH, /羊驼|草泥马|外星|太空|魔法|巫师|龙族|恶魔/), ...hits(EN, /alpaca|llama|alien|outer space|magic|wizard|dragon|demon/i)];
+const fantasy = [...hits(ZH, /羊駝|草泥馬|外星|太空|魔法|巫師|龍族|惡魔/), ...hits(EN, /alpaca|llama|alien|outer space|magic|wizard|dragon|demon/i)];
 check('C2', 'no fantasy elements (alpaca, aliens, space, magic)', fantasy.length === 0, fantasy.slice(0, 3).join(' | '));
 const curse = CUSTOMERS_ZH.filter((c) => c.style === 'curse').length;
 check('C3', 'explicit-curse style is a heavy hitter, about 10% of customers (8-14)', curse >= 8 && curse <= 14, `curse=${curse}`);
 const has250 = CUSTOMERS_ZH.some((c) => c.cups === 250) && CUSTOMERS_ZH.filter((c) => c.style === '250').length >= 5;
 check('C4', '250 is present as a signature (a 250-cup customer and >=5 "250" style lines)', has250);
 const sig = ZH.join('\n');
-check('C5', 'signature lines present: 黄金比例最好喝, 两个月, 下一位', /黄金比例最好喝/.test(sig) && /两个月/.test(sig) && /下一位/.test(sig));
+check('C5', 'signature lines present: 黃金比例最好喝, 兩個月, 下一位', /黃金比例最好喝/.test(sig) && /兩個月/.test(sig) && /下一位/.test(sig));
 
 // Only failure is being slow: wrong presses must not cost aura in the shipped config.
 const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
@@ -226,6 +227,30 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
   for (const [lang, list] of [['zh', ZH], ['en', EN]]) list.forEach((t) => { if (EMOJI.test(t)) emojiHits.push(`${lang}:${t}`); });
   check('C8', 'no emoji (Extended_Pictographic) in ui.js, art.js, style.css or displayed content (tag excepted)',
     emojiHits.length === 0, emojiHits.slice(0, 4).join(' | '));
+}
+
+// T. Traditional Chinese only (producer: Traditional Chinese with Taiwan wording and English, no Simplified build).
+// Every file the player's browser loads (src/*.js, index.html, style.css; content and comments alike) is scanned for
+// Simplified-only characters and non-Taiwan variants (tools/hans-chars.mjs, generated from OpenCC), plus 后 / 干 / 里,
+// which are valid Traditional but here only ever a missed conversion (allow a word in T1_ALLOW if one is meant).
+{
+  const T1_ALLOW = []; // e.g. '皇后', '公里'
+  const files = [...readdirSync(new URL('../src/', import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
+    '../index.html', '../style.css'];
+  const bad = [];
+  for (const f of files) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8');
+    src.split('\n').forEach((line, i) => {
+      let rest = line;
+      for (const w of T1_ALLOW) rest = rest.split(w).join('');
+      for (const ch of rest) if (HANS_ONLY.has(ch) || SUSPECT.has(ch)) bad.push(`${f.replace('../', '')}:${i + 1} ${ch}`);
+    });
+  }
+  for (const [lang, list] of [['zh', ZH], ['en', EN]]) {
+    for (const t of list) for (const ch of t) if (HANS_ONLY.has(ch) || SUSPECT.has(ch)) bad.push(`${lang}: ${ch} in ${t.slice(0, 20)}`);
+  }
+  check('T1', 'no Simplified characters: src/*.js, index.html, style.css and all content are Traditional (Taiwan)',
+    bad.length === 0, bad.slice(0, 6).join(' | '));
 }
 
 // V. AI voice pack covers every spoken line (rebuild with tools/voice when lines change).

@@ -1,4 +1,4 @@
-// 《来250杯！》/ "250 Cups!" — pure game logic. No DOM, no audio.
+// 《來250杯！》/ "250 Cups!" — pure game logic. No DOM, no audio.
 // Contract: createGame({ customers, rng, config }) ->
 //   { start, tick, press, jab, summon, charge, aim, unaim, release, speechDone, delayNext, pause, resume, bonus, on, off, state, config,
 //     patienceFor, speedMultFor }
@@ -53,7 +53,7 @@
 //   - meter (day 4): cups accepted with 收 (correct or off-key; cups null = 1) add up; exactly meterTarget = +meterHitDelta
 //     and a full fury bar, over = reset +meterOverDelta (event meter). Charge 2 within chargeWindowMs doubles the cups.
 //   - events ([{ type, atMs }], src/events.js): a mini event starts instead of the next customer once due; presses go to
-//     it. shutterMs: the last N ms are the 拉铁门 mash (the customer at the counter leaves, rage ends).
+//     it. shutterMs: the last N ms are the 拉鐵捲門 mash (the customer at the counter leaves, rage ends).
 //
 // Events: start, arrive {customer, quick, silent}, ready {customer, patienceMs, step}, step {customer, step, key, cutIn, reactionMs,
 //   correct, again, queueDelta}, quickStart {}, quickEnd {run}, groupHit {customer, hits, n, key}, flip {customer, key},
@@ -164,7 +164,7 @@ export const DEFAULT_CONFIG = {
   eventLateMs: 15000,
   eventEndMs: 400,        // empty counter after an event
   eventConfig: {},        // per-type overrides for src/events.js
-  shutterMs: 0,           // the last N ms: 拉铁门 (0 = off)
+  shutterMs: 0,           // the last N ms: 拉鐵捲門 (0 = off)
 };
 
 // Old key names (one version): patienceStartMs/EndMs → windowStartMs/EndMs; gapMs → every land*;
@@ -893,7 +893,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
     let mult = 1;
     let base = 0;
     if (correct) {
-      // a silent customer (fast mouth, group) is not talking: a press in the cut-in window is quick (×1.5), not 抢话 ×2
+      // a silent customer (fast mouth, group) is not talking: a press in the cut-in window is quick (×1.5), not 搶話 ×2
       mult = early ? 1 : cur.silent && cutIn ? speedMultFor(false, 0) : speedMultFor(cutIn, reactionMs);
       base = 1 + Math.floor(Math.min(s.combo, cfg.comboCap) / cfg.comboStep);
       queueDelta = group
@@ -923,7 +923,7 @@ export function createGame({ customers, rng = Math.random, config = {} } = {}) {
       if (cur.allFast && t.fast) st.originalsFast += 1;
     }
     if (correct && group) st.groupsCleared += 1;
-    if (correct && cutIn && customer.key === 'gun' && customer.cat === '犹豫磨叽') st.cutInHesitant += 1;
+    if (correct && cutIn && customer.key === 'gun' && customer.cat === '猶豫磨嘰') st.cutInHesitant += 1;
     if (customer.flip) {
       st.flips += 1;
       if (flipped && correct) st.flipsWaited += 1;

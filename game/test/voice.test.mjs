@@ -1,4 +1,4 @@
-// 吼骂模式 (src/voice.js): loudness analysis of the player's voice (docs/gameplay-v2.md 10).
+// 吼罵模式 (src/voice.js): loudness analysis of the player's voice (docs/gameplay-v2.md 10).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -27,7 +27,7 @@ test('levelFrom: RMS in dBFS; silence is the floor', () => {
   assert.ok(Math.abs(levelFrom(new Float32Array(100).fill(0.5)) + 6.02) < 0.01);
 });
 
-test('loudness: 说 / 骂 / 吼 above the floor (+12 / +22 / +30), whisper lowers them', () => {
+test('loudness: 說 / 罵 / 吼 above the floor (+12 / +22 / +30), whisper lowers them', () => {
   assert.equal(loudness(-55, -60), -1);
   assert.equal(loudness(-48, -60), 0);
   assert.equal(loudness(-38, -60), 1);
@@ -64,7 +64,7 @@ test('detector: a short click is not an onset; ≥ 120 ms is', () => {
   assert.ok(types(r.ev).includes('end'));
 });
 
-test('detector: a shout emits onset, rise to 骂 then 吼, one peak, end with duration and peak level', () => {
+test('detector: a shout emits onset, rise to 罵 then 吼, one peak, end with duration and peak level', () => {
   const d = createShoutDetector({ floor: -60 });
   const r = play(d, [[-60, 300], [-36, 240], [-20, 400], [-60, 500]]);
   const t = types(r.ev);
@@ -107,7 +107,7 @@ test('detector: shouting without a soft setup, or a soft setup without a roar, i
   assert.equal(contrastBonus(d.phrase, peak), false);
 });
 
-test('detector: sustained 骂 emits a sustain every 300 ms (rage sweep)', () => {
+test('detector: sustained 罵 emits a sustain every 300 ms (rage sweep)', () => {
   const d = createShoutDetector({ floor: -60 });
   const r = play(d, [[-60, 100], [-34, 1300], [-60, 400]]);
   const n = r.ev.filter((e) => e.type === 'sustain').length;
@@ -131,15 +131,15 @@ test('splText: dBFS + 110 within 40..130', () => {
 });
 
 test('keywordKey: Chinese (both scripts) and English curse words map to the three keys and 250', () => {
-  assert.deepEqual(keywordKey('滚！'), { key: 'gun', jackpot: false });
+  assert.deepEqual(keywordKey('滾！'), { key: 'gun', jackpot: false });
   assert.equal(keywordKey('給我滾').key, 'gun');
-  assert.equal(keywordKey('闭嘴').key, 'shut');
+  assert.equal(keywordKey('閉嘴').key, 'shut');
   assert.equal(keywordKey('閉嘴啦').key, 'shut');
   assert.equal(keywordKey('Shut up!').key, 'shut');
-  assert.equal(keywordKey('两个月后来拿').key, 'take');
+  assert.equal(keywordKey('兩個月後來拿').key, 'take');
   assert.equal(keywordKey('two months later').key, 'take');
   assert.equal(keywordKey('scram').key, 'gun');
-  assert.deepEqual(keywordKey('你这个二百五'), { key: null, jackpot: true });
+  assert.deepEqual(keywordKey('你這個二百五'), { key: null, jackpot: true });
   assert.equal(keywordKey('250 cups').jackpot, true);
   assert.equal(keywordKey('你好').key, null);
 });

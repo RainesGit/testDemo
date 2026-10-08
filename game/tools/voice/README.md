@@ -12,6 +12,11 @@ so the game still works if the pack is missing or out of date.
   `fbae9257e1e05ffc727e951ef9b9c98418e6d79f1c9b6b13bd59f5c9028a1478`).
 - Voices: the `voices/*.bin` style vectors shipped in the npm package `kokoro-js` (Apache-2.0).
 - Mandarin text-to-phoneme: `misaki[zh]`; English: `kokoro-onnx`'s built-in espeak-ng phonemizer.
+- Traditional → Simplified for the G2P: OpenCC (`opencc-python-reimplemented`, Apache-2.0). The game's Chinese is
+  Taiwan Traditional at the source and clip keys are computed from it; `build_voice.py` converts each zh line with
+  OpenCC `t2s` (plus 著 → 着, the aspect particle) right before `misaki`, which is trained on Simplified text. Only
+  the TTS input changes: keys, job hashes, `jobs.json` and the manifest stay Traditional, and the audio is what the
+  old Simplified source rendered (the one spoken word that changed is #88's 投訴 → 客訴).
 - Everything runs offline on CPU. Only npm and PyPI are needed to set up (Hugging Face and
   GitHub downloads are not required).
 
@@ -36,14 +41,14 @@ Opening routine customers (`SYSTEM.opening.c*`): zh `zm_yunxi` / `zm_yunyang` / 
 
 ## Cut points, numbers, what gets exported
 
-- **`|` cut points** (docs/first-minute-spec.md 3.1, R10). A line such as `还在想？|滚！` is exported as two jobs,
+- **`|` cut points** (docs/first-minute-spec.md 3.1, R10). A line such as `還在想？|滾！` is exported as two jobs,
   `part: 'setup'` (speed 1.10) and `part: 'punch'` (speed 0.90), keyed `clipKey(lang, half)`; the whole line is not
   exported. At runtime `audio.playClerk()` plays setup → silence (`punchGapMs`, 200 ms by default) → punch. Setup
   halves keep a 40 ms tail when trimmed. Used by the opening routine and the 21 Day 1 pool customers.
 - **Numbers.** The TTS text goes through `audio.ttsText()`: zh `250杯` → `二百五十杯`, `15` → `十五`, `37%` →
   `百分之三十七`; en `250` → `two-fifty`, `15` → `fifteen`. Keys still come from the displayed text.
 - **Order.** Opening routine first, then customers, then system lines; when two lines share a key the first job's
-  voice and speed win (e.g. the punch `滚！` is shared by many lines and the rage chant).
+  voice and speed win (e.g. the punch `滾！` is shared by many lines and the rage chant).
 - `SYSTEM.opening` is exported except its display-only parts (`dayCard`, `signs`, `cue`, `hz`, `recap`, `plate`,
   `closing`); `SYSTEM.originalCustomer` is exported; `signature250` no longer exists.
 - `node tools/check-content.mjs` V2 compares the manifest against exactly this job list. Kokoro has no emotion control, so this pack is a stand-in until a voice
@@ -54,13 +59,13 @@ actor records `docs/voice/voice-script-*.md`.
 Each job carries its own Kokoro `speed` and, optionally, a `post` step. `export-lines.mjs` picks them from a
 profile (`RENDER_PROFILES`):
 
-| Profile | Lead half | Hit half (and 调你妈 `r4`) | Rage lines |
+| Profile | Lead half | Hit half (and 調你媽 `r4`) | Rage lines |
 |---|---|---|---|
 | `spec` (default, shipped pack, spec 8.6 item 7) | speed 1.10 | speed 0.90 | speed 1.30 |
 | `punchy` (`--punchy` or `--profile=punchy`) | speed 0.95 | speed 1.10, `post: { gainDb: 6, ceiling: 0.95 }` | speed 1.30, `post: { gainDb: 4, ceiling: 0.95 }` |
 
 - The **hit** is the punch half; with `punchy` it is the curse half when the curse comes first
-  (`调你妈！|黄金比例最好喝！`: 调你妈 is the hit, 黄金比例 is rendered as the lead), using `audio.voicePlan()`.
+  (`調你媽！|黃金比例最好喝！`: 調你媽 is the hit, 黃金比例 is rendered as the lead), using `audio.voicePlan()`.
   `spec` stays positional, so its job list is byte-identical to before.
 - `build_voice.py` applies `post` after normalizing: +`gainDb`, then a peak limiter (1 ms look-ahead,
   80 ms release, hard ceiling). On the samples it raised the punch RMS by 2.7–4 dB at the same peak.
@@ -81,7 +86,7 @@ node tools/voice/export-lines.mjs --punchy > /tmp/voice-jobs.json   # then build
 # one-time setup, anywhere outside the repo
 mkdir -p ~/kokoro && cd ~/kokoro
 python3 -m venv venv && . venv/bin/activate
-pip install kokoro-onnx "misaki[zh]" lameenc
+pip install kokoro-onnx "misaki[zh]" lameenc opencc-python-reimplemented
 npm pack kokoro-q8-shards@1.0.0 kokoro-js@1.2.1
 tar xzf kokoro-q8-shards-1.0.0.tgz && cat package/kokoro-q8.part{0..5}.bin > kokoro-q8.onnx && rm -rf package
 tar xzf kokoro-js-1.2.1.tgz

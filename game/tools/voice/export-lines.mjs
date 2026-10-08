@@ -15,7 +15,7 @@
 // Render profiles (per-segment settings, RENDER_PROFILES): 'spec' (default, docs/first-minute-spec.md 8.6 item 7:
 // quick setup 1.10, heavy punch 0.90) or 'punchy' (--punchy / --profile=punchy: relaxed setup 0.95, fast punch
 // 1.10 baked +6 dB into a limiter; rage lines get +4 dB). With 'punchy' the hit is the half audio.voicePlan()
-// picks (the punch, or the curse half when the curse comes first, e.g. "调你妈！|黄金比例最好喝！").
+// picks (the punch, or the curse half when the curse comes first, e.g. "調你媽！|黃金比例最好喝！").
 //
 // Order matters when two lines share a key (same text): the first job wins, so the opening routine is
 // exported first, then customers, then system lines.
@@ -132,7 +132,7 @@ function exportAll() {
     // Day 1 opening routine first (spec 8.7 item 1), so its voices win shared keys.
     for (const [line, role, style, who] of openingLines(system.opening)) {
       const voice = role === 'customer' ? OPENING_CUST[lang][who] || cast.customers[0] : cast.clerk;
-      // "调你妈！" has no setup half but is the routine's biggest punch: punch speed.
+      // "調你媽！" has no setup half but is the routine's biggest punch: punch speed.
       if (line === system.opening.r4) addOne(lang, line, role, style, voice, profile.hit.speed, 'punch', profile.hit.post);
       else add(lang, line, role, style, voice);
     }

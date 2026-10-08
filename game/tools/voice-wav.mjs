@@ -1,7 +1,7 @@
-// voice-wav.mjs — synthesizes the fake microphone input for tools/check-voice.mjs (吼骂模式, docs/gameplay-v2.md 10).
+// voice-wav.mjs — synthesizes the fake microphone input for tools/check-voice.mjs (吼罵模式, docs/gameplay-v2.md 10).
 // A voice-like signal (180 Hz buzz with harmonics, a 5 Hz syllable wobble and breath noise) in a loop Chrome plays as the
 // microphone (--use-file-for-fake-audio-capture loops the file):
-//   1.0 s room noise (-62 dBFS) → 0.5 s soft "setup" (about -44 dBFS: 说) → 0.2 s pause → 0.5 s loud "shout"
+//   1.0 s room noise (-62 dBFS) → 0.5 s soft "setup" (about -44 dBFS: 說) → 0.2 s pause → 0.5 s loud "shout"
 //   (about -12 dBFS: 吼) → 1.0 s room → 1.2 s long shout (about -16 dBFS: rage sweeps) → 0.8 s room
 // Usage: node tools/voice-wav.mjs [out.wav]   (or import { writeVoiceWav } from './voice-wav.mjs')
 import { writeFileSync } from 'node:fs';

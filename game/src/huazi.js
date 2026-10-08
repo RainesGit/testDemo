@@ -13,7 +13,7 @@
 //
 // Item = { text, style: 'S1'|'S2'|'S3'|'S4'|'S5'|'emph', seg: 'setup'|'punch', ratio, key, size?, score }
 //   style 'emph' = an S1/S2 that was rate-limited: the UI only highlights those words in the subtitle.
-//   size  'sm'   = S2 small (9cqw) for "两个月后" during normal play.
+//   size  'sm'   = S2 small (9cqw) for "兩個月後" during normal play.
 //
 // ctx = {
 //   lang: 'zh'|'en',
@@ -66,9 +66,9 @@ function find(segs, re) {
 
 // Each rule returns { score, style, text, seg, ratio, size? } or null.
 const RULES = [
-  // 100: X你妈 (the original "调你妈")
+  // 100: X你媽 (the original "調你媽")
   (segs) => {
-    const f = find(segs, /([一-龥])你妈/);
+    const f = find(segs, /([一-龥])你媽/);
     return f && { score: SCORE.curse, style: 'S1', text: f.m[0] + '！', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
   },
   // 90: signature numbers (zh digits, 二百五; en "two-fifty"/"quarter-wit" shown as 250)
@@ -90,7 +90,7 @@ const RULES = [
     for (const seg of ['punch', 'setup']) {
       const text = segs[seg];
       if (!text) continue;
-      let m = /(滚|闭嘴|收)[！!。]?$/.exec(text);
+      let m = /(滾|閉嘴|收)[！!。]?$/.exec(text);
       if (m) {
         const style = m[1] === '收' ? 'S2' : 'S1';
         return { score: SCORE.end, style, text: m[1] + '！', seg, ratio: ratioOf(text, m.index) };
@@ -104,12 +104,12 @@ const RULES = [
     }
     return null;
   },
-  // 75: 黄金比例(最好喝)
+  // 75: 黃金比例(最好喝)
   (segs, ctx) => {
-    let f = find(segs, /黄金比例/);
+    let f = find(segs, /黃金比例/);
     if (f) {
-      const best = f.text.slice(f.idx).startsWith('黄金比例最好喝');
-      return { score: SCORE.gold, style: 'S2', text: best ? '黄金比例最好喝' : '黄金比例', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
+      const best = f.text.slice(f.idx).startsWith('黃金比例最好喝');
+      return { score: SCORE.gold, style: 'S2', text: best ? '黃金比例最好喝' : '黃金比例', seg: f.seg, ratio: ratioOf(f.text, f.idx) };
     }
     if (ctx.lang === 'en') {
       f = find(segs, /golden ratio/i);
@@ -117,12 +117,12 @@ const RULES = [
     }
     return null;
   },
-  // 70: 两个月 → S2 small in normal play, S5 in the opening / pay day
+  // 70: 兩個月 → S2 small in normal play, S5 in the opening / pay day
   (segs, ctx) => {
-    const zh = find(segs, /两个月/);
+    const zh = find(segs, /兩個月/);
     const f = zh || (ctx.lang === 'en' ? find(segs, /two months/i) : null);
     if (!f) return null;
-    const text = zh ? '两个月后' : 'TWO MONTHS';
+    const text = zh ? '兩個月後' : 'TWO MONTHS';
     const big = ctx.mode === 'opening' || ctx.mode === 'payday';
     return { score: SCORE.months, style: big ? 'S5' : 'S2', size: big ? undefined : 'sm', text, seg: f.seg, ratio: ratioOf(f.text, f.idx) };
   },

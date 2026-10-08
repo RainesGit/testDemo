@@ -1,4 +1,4 @@
-// mic.js — 吼骂模式 (voice mode, docs/gameplay-v2.md 10): the microphone, local only.
+// mic.js — 吼罵模式 (voice mode, docs/gameplay-v2.md 10): the microphone, local only.
 // getUserMedia (echo cancellation on; noise suppression and auto gain off so loud stays loud) → AnalyserNode, polled
 // every frameMs into onFrame(dBFS, performance.now()) (src/voice.js analyses it), plus a rolling ringSec-second buffer
 // of the raw samples (ScriptProcessor; no AudioWorklet module file needed) so the game can replay the player's own

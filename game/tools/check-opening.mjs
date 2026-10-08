@@ -1,10 +1,10 @@
 // Opening routine acceptance (docs/first-minute-spec.md 1.2 A1–A13, section 3) on index.html in real time.
 // Per viewport (390x844 and 360x640):
-//   run "play"  first visit (empty storage): tap 开店 and play the routine. W1: one wrong key (闭嘴) 800 ms
-//               after it opens, then 滚 once the quip is over. W2 and W4: the right key after 800 ms.
-//               W3: two wrong keys (滚 — the brake — then 闭嘴) so the routine answers itself ("算了，我自己来。").
+//   run "play"  first visit (empty storage): tap 開店 and play the routine. W1: one wrong key (閉嘴) 800 ms
+//               after it opens, then 滾 once the quip is over. W2 and W4: the right key after 800 ms.
+//               W3: two wrong keys (滾 — the brake — then 閉嘴) so the routine answers itself ("算了，我自己來。").
 //               Then the first free-play customer of day 1.
-//   run "skip"  a returning player (250cups.openingDone = '1') on day 1: the routine replays with "跳过 ▸";
+//   run "skip"  a returning player (250cups.openingDone = '1') on day 1: the routine replays with "跳過 ▸";
 //               tap it, the three-key recap shows, then day 1 starts with the 12 people the routine built.
 //   run "perf"  (360x640 only) Chromium with 4x CPU throttling plays the routine with the right keys (A13).
 // Checks (ids from 1.2; "opening" ids are section-3 details):
@@ -276,13 +276,13 @@ async function runPlay(vp, w, h) {
         await audit('W3');
         await shot('W3-wait');
         let before = await page.evaluate(() => [performance.now(), document.querySelector('.subs').textContent]);
-        await press(page, 'gun'); // brake: "滚——" cut after 150 ms
+        await press(page, 'gun'); // brake: "滾——" cut after 150 ms
         wrong.push({ at: before[0], sub: before[1], beat });
         await page.waitForTimeout(200);
         await shot('W3-brake');
         await until(page, (q) => q.waiting === 'take', 8000);
         before = await page.evaluate(() => [performance.now(), document.querySelector('.subs').textContent]);
-        await press(page, 'shut'); // second wrong press on the same beat → "算了，我自己来。" and the beat resolves
+        await press(page, 'shut'); // second wrong press on the same beat → "算了，我自己來。" and the beat resolves
         wrong.push({ at: before[0], sub: before[1], beat });
         const moved = await until(page, (q) => q.beat !== 'W3', 4000);
         w3auto = !!moved && ['D7', 'D8', 'D9'].includes(moved.beat);

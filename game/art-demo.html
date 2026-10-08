@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="zh-Hans">
+<html lang="zh-Hant-TW">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1B1311">
-  <title>Art Demo — 来250杯！</title>
+  <title>Art Demo — 來250杯！</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700;900&family=Noto+Sans+SC:wght@700;900&family=LXGW+WenKai+TC:wght@700&family=Bangers&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700;900&family=LXGW+WenKai+TC:wght@700&family=Bangers&display=swap">
   <link rel="stylesheet" href="style.css">
   <style>
     /* demo-only chrome */
@@ -46,9 +46,9 @@ const lang = P.get('lang') === 'en' ? 'en' : 'zh';
 const CUSTOMERS = getContent(lang).customers;
 const byId = (id) => CUSTOMERS.find((c) => c.id === Number(id)) || CUSTOMERS[0];
 const root = document.getElementById('root');
-document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hans';
+document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant-TW';
 
-const LABELS = lang === 'en' ? { gun: 'SCRAM', shut: 'SHUT IT', take: 'DEAL' } : { gun: '滚', shut: '闭嘴', take: '收' };
+const LABELS = lang === 'en' ? { gun: 'SCRAM', shut: 'SHUT IT', take: 'DEAL' } : { gun: '滾', shut: '閉嘴', take: '收' };
 const padHTML = (opts = {}) => `<footer class="pad">${['gun', 'shut', 'take'].map((k, i) =>
   `<button class="btn btn-${k}"${opts.dim && opts.dim !== k ? ' data-dim' : ''}${opts.glow === k ? ' data-glow' : ''}${opts.covered && k === 'shut' ? ' data-covered' : ''}>` +
   `<span class="ring"></span>${KEY_ICONS[k]}<span class="btn-label">${LABELS[k]}</span><span class="btn-hint">${'JKL'[i]}</span></button>`).join('')}</footer>`;
@@ -69,10 +69,10 @@ function stageHTML(o) {
       <div class="cust-wrap${o.custCls ? ' ' + o.custCls : ''}" data-face="${o.face || ''}"><div class="cust-clip">${customerSVG(cust, 0, { fixed: o.fixed, gray: !!o.gray })}</div></div>
       ${sign}
     </div>
-    <header class="hud"><div class="hud-row"><div class="hud-queue"><span class="hud-label">${lang === 'en' ? 'Line' : '排队'}</span><span class="hud-qnum">${q.toLocaleString()}</span></div>
+    <header class="hud"><div class="hud-row"><div class="hud-queue"><span class="hud-label">${lang === 'en' ? 'Line' : '排隊'}</span><span class="hud-qnum">${q.toLocaleString()}</span></div>
       <div class="hud-toggles"><button class="tog">中/<b>EN</b></button><button class="tog">${lang === 'en' ? 'Bleep' : '消音'}</button></div></div>
-      <div class="hud-bars"><div class="bar bar-aura${o.day1 ? ' off' : ''}"><span class="bar-label">${lang === 'en' ? 'Aura' : '气势'}</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div></div>
-      <div class="bar bar-fury${o.day1 ? ' off' : ''}"><span class="bar-label">${lang === 'en' ? 'Fury' : '火气'}</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div></div></div></header>
+      <div class="hud-bars"><div class="bar bar-aura${o.day1 ? ' off' : ''}"><span class="bar-label">${lang === 'en' ? 'Aura' : '氣勢'}</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div></div>
+      <div class="bar bar-fury${o.day1 ? ' off' : ''}"><span class="bar-label">${lang === 'en' ? 'Fury' : '火氣'}</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div></div></div></header>
     <div class="hz-layer">${o.hz || ''}</div>
     <section class="subs">${o.sub || `<div class="sub sub-cust" style="--bar:var(--gun)">${lang === 'en' ? 'Ummm…' : '嗯……'}</div>`}</section>
     ${padHTML(o.pad || {})}
@@ -80,16 +80,16 @@ function stageHTML(o) {
   </div></div>`;
 }
 
-const S1 = (t) => `<svg class="hz s1 placed" viewBox="0 0 100 177.8"><g class="hz-anim" transform="rotate(-7 50 76)" font-family="Noto Sans TC, Noto Sans SC, sans-serif" font-weight="900" text-anchor="middle" paint-order="stroke" stroke-linejoin="round"><text x="50" y="76" font-size="24" stroke="#1B1311" stroke-width="4.6" fill="#1B1311">${t}</text><text x="50" y="76" font-size="24" stroke="#E8402F" stroke-width="2.6" fill="#FFE14D">${t}</text></g></svg>`;
+const S1 = (t) => `<svg class="hz s1 placed" viewBox="0 0 100 177.8"><g class="hz-anim" transform="rotate(-7 50 76)" font-family="Noto Sans TC, sans-serif" font-weight="900" text-anchor="middle" paint-order="stroke" stroke-linejoin="round"><text x="50" y="76" font-size="24" stroke="#1B1311" stroke-width="4.6" fill="#1B1311">${t}</text><text x="50" y="76" font-size="24" stroke="#E8402F" stroke-width="2.6" fill="#FFE14D">${t}</text></g></svg>`;
 
 const PRESETS = {
   idle: { mood: 'idle', flags: 'squint', cust: 1, fixed: 'hesitant', day1: true, pad: { glow: 'gun', dim: 'gun', covered: true } },
-  hit: { mood: 'hit', fixed: 'fifteen', face: '', q: 1, hz: S1('滚！'), sub: '<div class="sub">太少，滚！</div>', extra: '<div class="flash"></div>' },
-  perfect: { mood: 'perfect', fixed: 'c250', q: 2, sub: '<div class="sub">好，250杯什么？</div>' },
-  polite: { mood: 'polite', flags: 'crack', cust: 12, q: 2, stageCls: 'polite', sub: '<div class="sub">好的～少甜少冰～帮您调～</div>', kind: 'shut', signText: '少甜少冰' },
-  rage: { mood: 'rage', cust: 46, q: 480, stageCls: 'rage', sub: '<div class="sub">100杯！两个月后来拿！</div>' },
+  hit: { mood: 'hit', fixed: 'fifteen', face: '', q: 1, hz: S1('滾！'), sub: '<div class="sub">太少，滾！</div>', extra: '<div class="flash"></div>' },
+  perfect: { mood: 'perfect', fixed: 'c250', q: 2, sub: '<div class="sub">好，250杯什麼？</div>' },
+  polite: { mood: 'polite', flags: 'crack', cust: 12, q: 2, stageCls: 'polite', sub: '<div class="sub">好的～少甜少冰～幫您調～</div>', kind: 'shut', signText: '少甜少冰' },
+  rage: { mood: 'rage', cust: 46, q: 480, stageCls: 'rage', sub: '<div class="sub">100杯！兩個月後來拿！</div>' },
   zoom: { mood: 'idle', cust: 43, q: 1281, zoom: true },
-  gold: { mood: 'hit', flags: 'point-sign', fixed: 'c250', gold: true, q: 2, sign: 'none', sub: '<div class="sub">黄金比例最好喝！</div>' },
+  gold: { mood: 'hit', flags: 'point-sign', fixed: 'c250', gold: true, q: 2, sign: 'none', sub: '<div class="sub">黃金比例最好喝！</div>' },
   guide: { mood: 'idle', fixed: 'hesitant', q: 0, day1: true, pad: { glow: 'gun', dim: 'gun', covered: true },
     extra: `<svg class="guide-line" viewBox="0 0 100 177.8" preserveAspectRatio="none" style="--c:var(--gun)"><path d="M30 104 Q24 128 18 150"/></svg><div class="finger" style="left:18cqw;top:150cqw">${FINGER_SVG}</div>` },
 };
@@ -121,7 +121,7 @@ function renderSheet() {
       <div class="row" id="faces-full"></div></section>
     <section class="sec"><h2>Order signs (3 shapes + 250 + 249 trap)</h2><div class="row">${signSamples.map((c) => `<div class="cell"><div class="sign-box">${signSVG(c, lang).replace('data-state="down"', 'data-state="up"')}</div>#${c.id}</div>`).join('')}
       <div class="cell"><div class="sign-box">${signSVG(null, lang, { kind: 'shut', text: '少甜少冰', scribble: '去冰……微糖……' }).replace('data-state="down"', 'data-state="up"')}</div>D11 scribble</div>
-      <div class="cell"><div class="sign-box">${signSVG(null, lang, { kind: 'take', text: '招牌翡翠柠檬' }).replace('data-state="down"', 'data-state="up"')}</div>D9 jade</div>
+      <div class="cell"><div class="sign-box">${signSVG(null, lang, { kind: 'take', text: '招牌翡翠檸檬' }).replace('data-state="down"', 'data-state="up"')}</div>D9 jade</div>
       <div class="cell"><div class="sign-box" id="timer-sign">${signSVG(byId(43), lang).replace('data-state="down"', 'data-state="up"')}</div>timer 60%</div>
       <div class="cell"><div class="sign-box">${signSVG(byId(46), lang).replace('data-state="down"', 'data-state="out-take"')}</div>out-take (stamp)</div>
       <div class="cell"><div class="sign-box">${signSVG(byId(46), lang, { back: true }).replace('data-state="down"', 'data-state="up"')}</div>back face</div>

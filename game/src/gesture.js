@@ -1,5 +1,5 @@
-// gesture.js — gesture input for 《来250杯！》 ("手势" mode, docs/gameplay-v2.md 9). Pure: no DOM, no clock of its own.
-// The player's hand acts on the customer directly: 甩 (swipe / flick) = 滚, 连拍 (rapid taps) = 闭嘴, 按住盖章
+// gesture.js — gesture input for 《來250杯！》 ("手勢" mode, docs/gameplay-v2.md 9). Pure: no DOM, no clock of its own.
+// The player's hand acts on the customer directly: 甩 (swipe / flick) = 滾, 連拍 (rapid taps) = 閉嘴, 按住蓋章
 // (press and hold) = 收. ui.js feeds pointer samples into a recognizer and main.js maps the gestures to engine keys.
 //
 //   GESTURE                          thresholds (CSS px and ms)
@@ -34,7 +34,7 @@ export const GESTURE = {
   flickMinPx: 22,     // a shorter stroke still counts as a swipe on up when it was this long and fast
   flickSpeed: 0.45,   // px/ms
   burstGapMs: 350,    // taps closer than this form a burst (3 taps ≈ 600 ms)
-  tapsToShut: 3,      // the 3rd tap of a burst resolves 闭嘴
+  tapsToShut: 3,      // the 3rd tap of a burst resolves 閉嘴
   swipeMid: 0.8,      // px/ms → charge 1
   swipeFast: 1.5,     // px/ms → charge 2 (big landing, mega)
   holdLevels: [300, 800],

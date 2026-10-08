@@ -1,42 +1,42 @@
-// voice.js — 吼骂模式 (voice mode, docs/gameplay-v2.md 10): pure loudness analysis of the player's own voice.
+// voice.js — 吼罵模式 (voice mode, docs/gameplay-v2.md 10): pure loudness analysis of the player's own voice.
 // No DOM, no WebAudio: src/mic.js feeds it dBFS frames from an AnalyserNode; everything here is unit-tested in
 // test/voice.test.mjs. Nothing is recorded, stored or sent anywhere by this module.
 //
 //   levelFrom(samples) → dBFS (RMS of a Float32Array of -1..1 samples; silence → VOICE.minDb)
-//   tuningFor({ whisper }) → { onsetDb, scoldDb, roarDb, ... } (whisper = 小声模式: lower thresholds)
-//   loudness(db, floor, tuning) → -1 (nothing) | 0 说 (talk) | 1 骂 (scold) | 2 吼 (roar)   == the answer's charge
+//   tuningFor({ whisper }) → { onsetDb, scoldDb, roarDb, ... } (whisper = 小聲模式: lower thresholds)
+//   loudness(db, floor, tuning) → -1 (nothing) | 0 說 (talk) | 1 罵 (scold) | 2 吼 (roar)   == the answer's charge
 //   createCalibrator() → { feed(db), floor(), frames }   the room's noise floor (a low percentile of ~1 s of frames)
 //   createShoutDetector({ floor, whisper, tuning }) → { feed(db, t) → events[], resetPhrase(), setFloor(), ... }
 //     events (t in ms, db in dBFS):
 //       onset   { t, db, level }                   level > floor + onsetDb for ≥ onsetMs (t = where the run began)
-//       rise    { t, db, level }                   the segment reached a louder level (1 骂 answers, 2 吼 charges)
-//       sustain { t, level, n }                    every sustainMs of continuous ≥ 骂 voice (rage sweeps)
-//       peak    { t, db, level, softMs, softDb, contrast, punchT }   once per segment that reached ≥ 骂: the level
+//       rise    { t, db, level }                   the segment reached a louder level (1 罵 answers, 2 吼 charges)
+//       sustain { t, level, n }                    every sustainMs of continuous ≥ 罵 voice (rage sweeps)
+//       peak    { t, db, level, softMs, softDb, contrast, punchT }   once per segment that reached ≥ 罵: the level
 //                                                  fell peakDropDb below its maximum, or the segment ended
 //       end     { t, startT, durationMs, peakDb, peakLevel }
-//     The phrase (resetPhrase() at each new customer) remembers the soft 说-level voice before the shout, across
+//     The phrase (resetPhrase() at each new customer) remembers the soft 說-level voice before the shout, across
 //     pauses: the polite setup → pause → shout of the three beats. contrast = shout peak − setup average.
 //   contrast(quietDb, loudDb) → whole dB (≥ 0)
 //   contrastBonus(phrase, peak, tuning) → true when the setup was soft for ≥ softMinMs and the punch reached 吼
-//   splText(dbfs) → a playful "分贝级" number for the summary card (dBFS + 110, uncalibrated)
+//   splText(dbfs) → a playful "分貝級" number for the summary card (dBFS + 110, uncalibrated)
 //   keywordKey(text) → { key: 'gun'|'shut'|'take'|null, jackpot } from recognized words (optional keyword mode)
 
 export const VOICE = {
   minDb: -100,        // silence floor of levelFrom()
-  onsetDb: 12,        // 说: voice starts this far above the room's noise floor
-  scoldDb: 22,        // 骂: answers the customer
+  onsetDb: 12,        // 說: voice starts this far above the room's noise floor
+  scoldDb: 22,        // 罵: answers the customer
   roarDb: 30,         // 吼: charge 2, the contrast punch
   onsetMs: 120,       // the voice must stay above the onset level this long to count (no clicks, no coughs)
   releaseMs: 200,     // below the onset level (minus hysteresis) this long ends the segment (syllable gaps survive)
   hysteresisDb: 3,
   peakDropDb: 4,      // the peak is called once the level falls this far below the segment's maximum
-  sustainMs: 300,     // rage: every 300 ms of sustained 骂 (or louder) voice sends a head flying
-  softMinMs: 300,     // contrast: at least this much soft 说-level voice before the shout
+  sustainMs: 300,     // rage: every 300 ms of sustained 罵 (or louder) voice sends a head flying
+  softMinMs: 300,     // contrast: at least this much soft 說-level voice before the shout
   attack: 0.6,        // smoothing of the dB track (rising / falling)
   release: 0.3,
   floorMin: -72,      // the noise floor is kept between these (a dead-silent fake device, a loud MRT car)
   floorMax: -32,
-  whisper: { onsetDb: 7, scoldDb: 13, roarDb: 19 }, // 小声模式 (quiet places): softer is enough
+  whisper: { onsetDb: 7, scoldDb: 13, roarDb: 19 }, // 小聲模式 (quiet places): softer is enough
 };
 
 /** Root-mean-square level of a block of samples in dBFS. */
@@ -54,7 +54,7 @@ export function tuningFor({ whisper = false, tuning } = {}) {
   return { ...VOICE, ...(whisper ? VOICE.whisper : {}), ...(tuning || {}) };
 }
 
-/** -1 below the onset level, 0 说, 1 骂, 2 吼. */
+/** -1 below the onset level, 0 說, 1 罵, 2 吼. */
 export function loudness(db, floor, tuning = VOICE) {
   const d = db - floor;
   if (d >= tuning.roarDb) return 2;
@@ -85,16 +85,16 @@ export function contrastBonus(phrase, peak, tuning = VOICE) {
   return !!(phrase && peak && phrase.softMs >= tuning.softMinMs && peak.level >= 2);
 }
 
-/** "今日最大声：98 分贝级": dBFS + 110, a playful scale (the mic is not calibrated). */
+/** "今日最大聲：98 分貝級": dBFS + 110, a playful scale (the mic is not calibrated). */
 export const splText = (dbfs) => Math.round(Math.min(130, Math.max(40, (Number(dbfs) || VOICE.minDb) + 110)));
 
 const KEYWORDS = [
   { key: 'jackpot', re: /二百五|二百五十|250|two\s*fifty|two\s*hundred\s*(and\s*)?fifty/i },
-  { key: 'gun', re: /滚|滾|scram|get\s*out|beat\s*it/i },
-  { key: 'shut', re: /闭嘴|閉嘴|shut\s*up|zip\s*it|shut\s*it/i },
-  { key: 'take', re: /收|两个月|兩個月|二个月|two\s*months|booked|deal/i },
+  { key: 'gun', re: /滾|滾|scram|get\s*out|beat\s*it/i },
+  { key: 'shut', re: /閉嘴|閉嘴|shut\s*up|zip\s*it|shut\s*it/i },
+  { key: 'take', re: /收|兩個月|兩個月|二個月|two\s*months|booked|deal/i },
 ];
-/** Recognized speech → the key it names (闭嘴 before 收 in "闭嘴收" order does not matter: first in the text wins). */
+/** Recognized speech → the key it names (閉嘴 before 收 in "閉嘴收" order does not matter: first in the text wins). */
 export function keywordKey(text) {
   const s = String(text ?? '');
   const jackpot = KEYWORDS[0].re.test(s);

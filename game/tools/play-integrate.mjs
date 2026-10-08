@@ -1,12 +1,12 @@
 // End-to-end smoke (docs/first-minute-spec.md 8.7 item 4): open index.html at 390x844 with empty storage,
-// tap "开店", play the Day 1 opening routine (each wait point answered 800 ms after it opens with the right
+// tap "開店", play the Day 1 opening routine (each wait point answered 800 ms after it opens with the right
 // key), then Day 1 free play (correct key 300 ms after each customer is ready) until the closing card (3.8),
 // tap it into Day 2 (aura bar hidden until its intro, clock shown; round shortened to 25 s through
-// window.__250.durationMs so the smoke stays short), play it to the report card and tap "再骂一天": the next
+// window.__250.durationMs so the smoke stays short), play it to the report card and tap "再罵一天": the next
 // round must start on day 3 when ★1 was reached, otherwise day 2 again (7), and 250cups.day must follow.
 // Fails on any console error / page error / failed request, on an engine that leaves 'idle' (or a sign
 // timer that appears) during the routine, and on horizontal overflow.
-// Screenshots (tools/shots/integrate-*.png): start, A4, W1, B8 (S1 滚), D4 (S2 250), E4 (调你妈),
+// Screenshots (tools/shots/integrate-*.png): start, A4, W1, B8 (S1 滾), D4 (S2 250), E4 (調你媽),
 // E12 (ticket freeze), free play, closing card, day 2, day 2 report.
 // Usage: (serve game/ first, e.g. python3 -m http.server 8765) node tools/play-integrate.mjs [baseUrl] [--lang=en]
 import { mkdirSync } from 'node:fs';

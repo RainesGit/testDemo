@@ -82,7 +82,7 @@ test('pools grow day by day, 48 (249 trap) only from day 6', () => {
   }
   assert.equal(prev.size, 100);
   const d2 = poolForDay(2, customers);
-  assert.ok(d2.every((c) => ['犹豫磨叽', '数量', '甜度冰块'].includes(c.cat)));
+  assert.ok(d2.every((c) => ['猶豫磨嘰', '數量', '甜度冰塊'].includes(c.cat)));
 });
 
 test('configForDay feeds createGame: day 1 opening trio, then weighted draw, no aura loss on timeout, no fury', () => {

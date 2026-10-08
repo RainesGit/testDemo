@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 import {
   CLERK_SVG, SHOP_SVG, COUNTER_SVG, customerSVG, customerLook, signSVG, signText, signKind, miniSign, KEY_ICONS,
   FINGER_SVG, DOOR_GATE_SVG, STAR_SVG, ticketHTML, MONITOR_SCENES, monitorScene, monitorSVG, monitorHTML,
-  queueCapText, fnv1a, mulberry32,
+  queueCapText, fnv1a, mulberry32, queueSilhouetteSVG, LOGO_SVG, logoSVG, cupStackSVG, cupStackCount,
+  MEGAPHONE_SVG, PHONE_SVG, CALCULATOR_SVG, SLIPS_SVG, EVENT_PROP_SVG, PARTICLE_SVG,
 } from '../src/art.js';
 import { getContent } from '../src/content.js';
 
@@ -25,14 +26,16 @@ test('seeded helpers are deterministic', () => {
   for (let i = 0; i < 5; i++) assert.equal(a(), b());
 });
 
-test('clerk: five expression groups, four arm poses, mood attribute, spec hooks', () => {
+test('clerk: five expression groups, eight arm poses, mood attribute, spec hooks (art direction v2 §5.1)', () => {
   for (const m of ['m-idle', 'm-hit', 'm-calm', 'm-polite', 'm-rage']) assert.ok(CLERK_SVG.includes(`class="m ${m}"`), m);
-  for (const a of ['a-rest', 'a-point', 'a-ticket', 'a-up']) assert.ok(CLERK_SVG.includes(`class="a ${a}"`), a);
-  assert.match(CLERK_SVG, /^<svg class="clerk" viewBox="0 0 240 300"[^>]*data-mood="idle"/);
-  for (const hook of ['class="eyes"', 'class="crack"', 'class="c-head"', 'class="c-body"', 'class="c-all"', 'class="c-bangs"', 'class="vein"', 'class="steam"', 'class="brow-r"', 'class="pt-arm"']) {
+  for (const a of ['a-rest-l', 'a-rest-r', 'a-point', 'a-sign', 'a-tidy', 'a-ticket', 'a-bow', 'a-up']) assert.ok(CLERK_SVG.includes(`class="a ${a}"`), a);
+  assert.match(CLERK_SVG, /^<svg class="clerk" viewBox="-36 -52 332 382"[^>]*data-mood="idle"/);
+  for (const hook of ['class="eyes"', 'class="crack"', 'class="c-head"', 'class="c-body"', 'class="c-all"', 'class="c-bangs"', 'class="vein"', 'class="steam"', 'class="brow-r"', 'class="brow-l"', 'class="c-badge"', 'class="c-tk"']) {
     assert.ok(CLERK_SVG.includes(hook), hook);
   }
-  assert.ok(CLERK_SVG.includes('stroke-width="4.5"'));
+  assert.ok(CLERK_SVG.includes('stroke-width="5"'), 'outer line 1.0cqw');
+  // the resting hands live on the counter lip (COUNTER_SVG), so they are never hidden behind it
+  for (const h of ['ch ch-l', 'ch ch-r']) assert.ok(COUNTER_SVG.includes(`class="${h}"`), h);
 });
 
 test('customers: same id + visit -> same look; looks vary', () => {
@@ -60,26 +63,40 @@ test('customers: combination rules and accessory rate', () => {
 });
 
 test('customers: fixed opening looks and gray copy', () => {
-  assert.deepEqual(customerLook(null, 0, 'hesitant'), { hair: 'bowl', acc: ['glasses'], skin: '#EDB98A', hairC: '#1B1311', hatC: '#E8402F', fixed: 'hesitant' });
+  assert.deepEqual(customerLook(null, 0, 'hesitant'), { hair: 'bowl', acc: ['glasses'], skin: '#EDB98A', hairC: '#1B1311', hatC: '#EE4130', head: 'round', eyes: 'round', brows: 'worried', fixed: 'hesitant' });
   assert.equal(customerLook(null, 0, 2).hair, 'buzz');
   assert.deepEqual(customerLook(null, 0, 'fifteen').acc, ['cap']);
-  assert.equal(customerLook(null, 0, 'fifteen').hatC, '#E8402F');
+  assert.equal(customerLook(null, 0, 'fifteen').hatC, '#EE4130');
   assert.deepEqual(customerLook(null, 0, 'c250').acc, ['phones']);
   assert.equal(customerLook(null, 0, 'c250').skin, '#F7D7B5');
   const gray = customerSVG(null, 0, { fixed: 'c250', gray: true });
-  for (const [, hex] of gray.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)) {
+  // the expression layers (mouth, tear, ticket, pupils) keep their colours; everything else is grey
+  const keep = ['#FFFFFF', '#2A1A12', '#5A1414', '#9EE3FF', '#FFD84A', '#EAF4F4', '#DFF4FF'];
+  for (const [, hex] of gray.matchAll(/(?:fill|stroke)="(#[0-9A-Fa-f]{6})"/g)) {
     const [r, g, b] = [1, 3, 5].map((i) => hex.slice(i, i + 2).toLowerCase());
-    if (hex.toUpperCase() !== '#FFFFFF' && hex !== '#2A1A12' && hex !== '#5A1414' && hex !== '#9ED8FF' && hex !== '#FFD23F' && hex !== '#2F2557' && hex !== '#EAF4F4' && hex !== '#FFF4DC') {
-      assert.ok(r === g && g === b, `non-gray ${hex}`);
-    }
+    if (!keep.includes(hex.toUpperCase()) && hex !== '#1B1311') assert.ok(r === g && g === b, `non-gray ${hex}`);
   }
 });
 
-test('customers: expression layers and the shared look-up eyes are present', () => {
+test('customers: expression layers, look-up eyes, backlit rim, line weight and variety (§5.2)', () => {
   const s = customerSVG(byId(ZH, 46), 0);
-  for (const cls of ['f-up', 'f-mouth', 'x x-gun', 'x x-shut', 'x x-take', 'h-all', 'pupils', 'brows']) assert.ok(s.includes(`class="${cls}"`), cls);
+  for (const cls of ['f-up', 'f-mouth', 'f-nose', 'f-rim', 'x x-gun', 'x x-shut', 'x x-take', 'h-all', 'pupils', 'brows']) assert.ok(s.includes(`class="${cls}"`), cls);
   assert.match(s, /viewBox="0 0 200 200"/);
-  assert.match(s, /stroke-width="7"/);
+  assert.match(s, /stroke-width="5.2"/);
+  const heads = new Set();
+  const eyes = new Set();
+  for (const c of ZH) { const l = customerLook(c, 0); heads.add(l.head); eyes.add(l.eyes); }
+  assert.equal(heads.size, 3);
+  assert.equal(eyes.size, 3);
+});
+
+test('customers: the day 7 boss has his own look and is drawn to the collar (§5.3)', () => {
+  const s = customerSVG({ id: 900, key: 'gun', boss: true }, 0);
+  assert.match(s, /^<svg class="cust boss" viewBox="0 0 200 250"/);
+  assert.equal(customerLook({ id: 900, boss: true }).fixed, 'boss');
+  const noId = (x) => x.replace(/ data-id="[^"]*"/, '');
+  assert.equal(noId(s), noId(customerSVG({ id: 901, boss: true }, 3)), 'one boss look whatever the id / visit');
+  for (const cls of ['f-up', 'x x-gun', 'x x-shut', 'x x-take']) assert.ok(s.includes(`class="${cls}"`), cls);
 });
 
 test('signText follows §6.3', () => {
@@ -146,10 +163,15 @@ test('key icons, props and tickets', () => {
 });
 
 test('shop, counter and monitor hooks', () => {
-  for (const s of ['viewBox="0 0 360 640"', 'preserveAspectRatio="xMidYMid slice"', 'id="callnum"', 'id="goldsign"', '<symbol id="cup"', '<symbol id="q-p"']) {
+  for (const s of ['viewBox="0 0 360 640"', 'preserveAspectRatio="xMidYMid slice"', 'id="callnum"', 'id="goldsign"', 'class="lb-text lb-1"', 'class="lb-text lb-2"',
+    'class="wall-hi"', 'radialGradient id="wallGrad"', 'class="lamp lamp-l"', 'class="gs-cell"', '翡翠檸檬', '珍珠奶茶', '黃金比例', '不能調', '取餐號碼']) {
     assert.ok(SHOP_SVG.includes(s), s);
   }
-  for (const s of ['q-p1', 'q-p2', 'q-p3', 'class="q-num"', '現點現做']) assert.ok(COUNTER_SVG.includes(s), s);
+  for (const s of ['q-p1', 'q-p2', 'q-p3', 'q-c1', 'q-c2', 'q-c3', 'class="q-num"', '現點現做', 'id="ctrSteel"', 'id="ctrFront"']) assert.ok(COUNTER_SVG.includes(s), s);
+  // the queue outside is cool silhouettes without outlines (§5.4): no ink strokes in the queue group
+  const q = COUNTER_SVG.slice(COUNTER_SVG.indexOf('<g class="q-crowd">'), COUNTER_SVG.indexOf('<g class="q-cap">'));
+  assert.ok(q.length > 100 && !q.includes('#1B1311'), 'queue silhouettes have no ink outline');
+  for (const i of [0, 1, 2]) assert.match(queueSilhouetteSVG(i), /^<svg class="pin-svg" viewBox="0 0 360 640"/);
   assert.equal(queueCapText(3), '');
   assert.equal(queueCapText(1284), '+1,281');
   assert.deepEqual(MONITOR_SCENES.map((s) => s.id), ['door', 'arcade', 'metro', 'news', 'aerial']);
@@ -161,6 +183,29 @@ test('shop, counter and monitor hooks', () => {
     assert.ok(monitorSVG(q, 'en').length > 0);
   }
   assert.ok(monitorHTML(0).startsWith('<div class="monitor" data-scene="door">'));
+});
+
+test('shared art for packages B / C (§11): logo, cup tower, event props, particles', () => {
+  assert.match(LOGO_SVG, /^<svg class="logo-svg"/);
+  for (const s of ['class="lg-sign"', 'class="lg-250"', 'class="lg-shine"', 'class="lg-halo"']) assert.ok(LOGO_SVG.includes(s), s);
+  assert.ok(!/<text/.test(LOGO_SVG), 'logo letters are outlines (no web font needed)');
+  assert.notEqual(logoSVG('en'), LOGO_SVG);
+  const ids = (s) => [...s.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(ids(LOGO_SVG + logoSVG('en')).length, new Set(ids(LOGO_SVG + logoSVG('en'))).size, 'zh and en logos can share a page');
+  assert.deepEqual([0, 4, 5, 9, 10, 19, 20, 99].map(cupStackCount), [0, 0, 3, 3, 5, 5, 7, 7]);
+  for (const n of [0, 3, 5, 7]) {
+    const s = cupStackSVG(n);
+    assert.match(s, new RegExp(`^<svg class="cup-stack-svg" data-n="${n}"`));
+    assert.ok(s.includes('class="cs-steam"'));
+  }
+  assert.ok(nodes(cupStackSVG(7)) < 20);
+  assert.equal((MEGAPHONE_SVG.match(/class="mg-bar"/g) || []).length, 5);
+  assert.ok(PHONE_SVG.includes('class="ph-name"') && PHONE_SVG.includes('前主管'));
+  assert.ok(CALCULATOR_SVG.includes('class="calc-num"'));
+  assert.equal((SLIPS_SVG.match(/class="slip"/g) || []).length, 6);
+  assert.deepEqual(Object.keys(EVENT_PROP_SVG), ['megaphone', 'phone', 'calculator', 'stamp']);
+  assert.deepEqual(Object.keys(PARTICLE_SVG), ['ice', 'pearl', 'ink', 'paper', 'cup']);
+  for (const [k, v] of Object.entries(PARTICLE_SVG)) assert.match(v, new RegExp(`^<svg class="pt-svg pt-${k}"`));
 });
 
 test('performance budget (§2.10, A13): on-screen SVG nodes ≤ 400', () => {

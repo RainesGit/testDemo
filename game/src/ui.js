@@ -680,9 +680,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   // Scene props follow the language (review: the English build still showed 翡翠檸檬 / 黃金比例 / 現點現做).
+  // art.SHOP_SVG menu box: .lb-1 / .lb-2 (name, price tspans), #goldsign (two lines)
   const PROPS = {
-    zh: { lb1: ['翡翠檸檬', '75'], lb2: ['黃金比例', '不能調'], caller: '取餐號碼', plaque: '現點現做' },
-    en: { lb1: ['JADE', 'LEMON 75'], lb2: ['GOLD MIX', 'NO EDITS'], caller: 'ORDER NO.', plaque: 'MADE FRESH' },
+    zh: { lb1: ['翡翠檸檬', '75'], lb3: ['珍珠奶茶', '55'], lb2: ['黃金比例', '不能調'], caller: '取餐號碼', plaque: '現點現做' },
+    en: { lb1: ['JADE TEA', '75'], lb3: ['BOBA TEA', '55'], lb2: ['GOLD MIX', 'NO EDITS'], caller: 'ORDER NO.', plaque: 'MADE FRESH' },
   };
   function localizeProps() {
     const P = PROPS[lang] || PROPS.zh;
@@ -690,8 +691,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       const sp = t.querySelectorAll('tspan');
       vals.forEach((v, i) => { if (sp[i] && sp[i].textContent !== v) sp[i].textContent = v; });
     });
-    set('.lb-text:not(.goldsign):not(.gs-g1):not(.gs-g2):not(.gs-g3)', P.lb1);
-    set('.goldsign, .gs-g1, .gs-g2, .gs-g3', P.lb2);
+    set('.lb-1', P.lb1);
+    set('.lb-2', P.lb3);
+    set('.goldsign', P.lb2);
     const cl = shop.querySelector('.caller-label');
     if (cl) cl.textContent = P.caller;
     const pl = counter.querySelector('.plaque-text');
@@ -842,8 +844,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   for (let i = 0; i < 3; i++) {
     const pin = el('div', 'g-pin', pinsEl);
     pin.style.setProperty('--i', String(i));
-    html(pin, `<svg viewBox="0 0 40 60" aria-hidden="true"><circle cx="20" cy="15" r="11" fill="#2A1D19" stroke="#1B1311" stroke-width="2"/>
-<path d="M3 60 Q3 30 20 30 Q37 30 37 60 Z" fill="#2A1D19" stroke="#1B1311" stroke-width="2"/></svg>`);
+    html(pin, art.queueSilhouetteSVG(i)); // the queue silhouettes outside are the pins (art direction v2 §5.4)
   }
   const rageRow = el('div', 'rage-row', cam);
   const recog = createRecognizer({ onGesture: recognized });
@@ -1315,6 +1316,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (!current) { custWrap.textContent = ''; return; }
     const markup = art.customerSVG(current.customer, current.visit, { fixed: current.fixed, gray: current.gray });
     custWrap.innerHTML = `<div class="cust-clip">${markup}</div>`;
+    custWrap.classList.toggle('boss', !!(current.customer && current.customer.boss)); // 1.15x, never clipped (§5.3)
   }
 
   function restart(node, cls) {
@@ -1519,6 +1521,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (!sign || !(ms > 0)) return;
     const node = el('i', 'sign-timer', sign.querySelector('.sign-card') || sign);
     node.style.transform = 'scaleX(1)';
+    // the fast window (speed bonus, steps with mult > 1) as a gold glint on the end of the bar that runs out first
+    const hotMs = Array.isArray(steps) ? Math.max(0, ...steps.filter((s) => s[1] > 1).map((s) => s[0])) : 0;
+    if (hotMs > 0) el('i', 'sign-timer-hot', node).style.setProperty('--hot', `${(Math.max(0, 1 - hotMs / ms) * 100).toFixed(1)}%`);
     timer = { el: node, start: performance.now(), ms, raf: 0 };
     const tick = () => {
       if (!timer || timer.el !== node) return;
@@ -2436,7 +2441,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     // the logo: art.js LOGO_SVG when the scene package provides it, else the built-in plate (same layout)
     const h1 = el('h1', 'start-logo', startCard);
     h1.setAttribute('aria-label', title);
-    html(h1, (typeof art.LOGO_SVG === 'function' ? art.LOGO_SVG(lang) : lang === 'zh' ? art.LOGO_SVG : art.LOGO_SVG_EN) || logoMarkup(lang));
+    html(h1, (typeof art.logoSVG === 'function' ? art.logoSVG(lang) : lang === 'zh' ? art.LOGO_SVG : '') || logoMarkup(lang));
     if (t.dayTitle || t.rule) {
       // the day card: a plank hanging under the logo ("第 6 天 · 晚八點人潮" + the rule), the riddle on a
       // blackboard strip, best and stars in one small line
@@ -2986,13 +2991,22 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       restart(b, 'pop');
     }
     if (type === 'megaphone') {
-      const lit = Math.min(EVENT_CELLS, eventCount(big));
+      const n = eventCount(big);
+      const lit = Math.min(EVENT_CELLS, n);
       eventEl.querySelectorAll('.ev-cell').forEach((c, i) => c.classList.toggle('on', i < lit));
+      // art.js MEGAPHONE_SVG: five volume cells, one more every two hits
+      eventEl.querySelectorAll('.mg-bar').forEach((r) => r.classList.toggle('on', Number(r.dataset.i) <= Math.ceil(n / 2)));
     } else if (type === 'stamp') {
       const [v, of] = String(big).split('/').map(Number);
-      eventEl.style.setProperty('--fill', String(of > 0 ? Math.min(1, (v || 0) / of) : 0));
+      const fill = of > 0 ? Math.min(1, (v || 0) / of) : 0;
+      eventEl.style.setProperty('--fill', String(fill));
+      // art.js SLIPS_SVG: the stack grows from one slip to six
+      eventEl.querySelectorAll('.slip').forEach((s) => s.classList.toggle('on', Number(s.dataset.i) <= 1 + Math.round(fill * 5)));
     } else if (type === 'phone') {
       eventEl.classList.toggle('hung', String(big) === '...');
+    } else if (type === 'calculator') {
+      const num = eventEl.querySelector('.calc-num:not(.calc-ghost)');
+      if (num && big != null) num.textContent = String(big).replace(/[^0-9-]/g, '').slice(-3) || '-';
     }
   }
   function showEvent({ type = '', title = '', hint = '', big = '' } = {}) {
@@ -3003,8 +3017,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     eventEl.style.removeProperty('--fill');
     eventEl.textContent = '';
     const prop = el('div', 'ev-prop', eventEl);
-    const propSvg = art.EVENT_PROPS?.[type] || (type === 'megaphone' ? art.MEGAPHONE_SVG : '');
-    if (typeof propSvg === 'string' && propSvg) { prop.classList.add('art'); html(prop, propSvg); } else html(prop, BUILTIN_PROP[type] || '');
+    const propSvg = art.EVENT_PROP_SVG?.[type] || (type === 'megaphone' ? art.MEGAPHONE_SVG : '');
+    const hasArt = typeof propSvg === 'string' && !!propSvg;
+    eventEl.classList.toggle('has-art', hasArt);
+    if (hasArt) { prop.classList.add('art'); html(prop, propSvg); } else html(prop, BUILTIN_PROP[type] || '');
     el('div', 'ev-title', eventEl, title);
     const screen = el('div', 'ev-screen', eventEl);
     el('div', 'ev-big', screen, big);

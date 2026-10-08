@@ -153,12 +153,12 @@ test('hzMaxScale caps the S1 entry scale so the scaled, rotated box stays 4cqw c
 });
 
 // Art direction v2 (package B): the start page's window framing and the logo plate.
-test('startFraming: the scene top half fills the window, top-aligned, never narrower than the window', () => {
+test('startFraming: the scene fills the window width, top-aligned on the lightbox, the face kept in a short window', () => {
   const W = 390, H = 693;
   // a window 328 x 282 px whose top sits at y 269 of the stage
   const f = startFraming({ x: 31, y: 269, w: 328, h: 282 }, W, H);
-  const span = 0.46 * H;
-  assert.ok(f.scale * span >= 282 - 0.5, 'the lightbox-to-counter span covers the window height');
+
+  assert.ok(f.scale * H >= 282, 'the scene covers the window height');
   assert.ok(f.scale * W >= 328 - 0.5, 'the scene covers the window width');
   assert.equal(f.fy, 3);
   // the camera keeps (50%, 3%) fixed; the shaker moves it to the window's top centre
@@ -168,6 +168,8 @@ test('startFraming: the scene top half fills the window, top-aligned, never narr
   assert.ok(Math.abs(py - 269) < 0.5 && Math.abs(px - (31 + 164)) < 0.5);
   // a tiny window still gets a usable scale
   assert.ok(startFraming({ x: 0, y: 0, w: 10, h: 10 }, W, H).scale >= 0.5);
+  const short = startFraming({ x: 30, y: 300, w: 302, h: 130 }, 360, 640);
+  assert.ok(short.fy > 3 && short.fy <= 14, 'a short window slides down to the face');
 });
 
 test('logoMarkup: 來 250 杯 ! plate (zh) and 250 CUPS! (en), gold 250 with an ink outline, no emoji', () => {

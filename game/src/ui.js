@@ -337,17 +337,20 @@ export function hzFontSize(style, text, { size, fontSize, latin } = {}) {
 // ---------------------------------------------------------------- DOM helpers
 
 /**
- * Start page framing (art direction 6.3): the scale and offset that fit the scene's top half (the lightbox at y 3% to
- * the counter top at y 49%) into the shop window rect `win` ({ x, y, w, h } in stage px, stage W x H). The camera
+ * Start page framing (art direction 6.3): the scale and offset that show the scene (the lightbox at y 3% down to
+ * the counter top at y 49% when the window is tall enough) in the shop window rect `win` ({ x, y, w, h } in stage px, stage W x H). The camera
  * keeps (50%, fy%) fixed while scaling; the shaker then moves that point to the window's top centre by (dx, dy).
  * The scene always covers the window's full width.
  */
 export function startFraming(win, W, H, { top = 3, bottom = 49 } = {}) {
-  const span = ((bottom - top) / 100) * H;
-  const scale = Math.min(1.6, Math.max(0.5, win.w / W, win.h / span));
-  return { scale, fy: top, dx: win.x + win.w / 2 - W / 2, dy: win.y - (top / 100) * H };
-}
+  // fit the stage width into the window (the whole lightbox shows); a tall window shows down to the counter, a
+  // short one slides down to keep the clerk's face (y 12–33%) in view
+  const scale = Math.min(1.6, Math.max(0.5, win.w / W, win.h / H));
+  const shown = (win.h / (scale * H)) * 100; // stage % visible in the window
+  const fy = shown >= bottom - top ? top : Math.max(top, Math.min(14, 33 - shown));
+  return { scale, fy, dx: win.x + win.w / 2 - W / 2, dy: win.y - (fy / 100) * H };
 
+}
 /**
  * The logo plate (art direction 7.2; until art.js exports LOGO_SVG): a backlit acrylic sign tilted -4deg with a warm
  * halo, "來" / "杯" in Huninn, "250" in Baloo 2 800 with a gold gradient, an ink outline, a 7-step extrusion and a

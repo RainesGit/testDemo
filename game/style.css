@@ -491,9 +491,9 @@ button { font: inherit; color: inherit; }
 .tog.on .ic-wave { display: none; }
 .tog.on .ic-beep { display: inline; }
 /* cards up: only the corner toggles stay above them */
-.stage:has(> :is(.overlay:not(.hidden), .day-card)) .hud { z-index: 60; }
-.stage:has(> :is(.overlay:not(.hidden), .day-card)) :is(.hud-queue, .hud-bars, .hud-time, .hud-pause, .hud-combo, .hud-quick) { visibility: hidden; }
-.stage:has(> :is(.overlay:not(.hidden), .day-card)) .hud-toggles { display: flex; }
+.stage.carded .hud { z-index: 60; }
+.stage.carded :is(.hud-queue, .hud-bars, .hud-time, .hud-pause, .hud-combo, .hud-quick) { visibility: hidden; }
+.stage.carded .hud-toggles { display: flex; }
 
 /* the pause sheet: a dark panel rising from the bottom (resume, language, swear bleep, controls) */
 .pause-sheet { position: absolute; left: 0; right: 0; z-index: 58; display: flex; flex-direction: column; justify-content: flex-end; background: rgb(14 17 32 / .55); }
@@ -516,11 +516,11 @@ button { font: inherit; color: inherit; }
    No band: a gradient from the bottom of the frame carries the line. It sits in the bottom bleed above the home
    indicator (or at the stage bottom without bleed); in buttons mode the keys sit right above it. */
 .subs { position: absolute; left: 0; right: 0; bottom: var(--sub-b); height: var(--sub-h); z-index: 22; display: flex; flex-direction: column; justify-content: flex-end;
-  align-items: center; padding: 0 5cqw; text-align: center; overflow: hidden; }
-.stage::after { content: ''; position: absolute; left: 0; right: 0; bottom: calc(-1 * var(--bleed)); height: calc(var(--bleed) + var(--sub-h) + 14cqw); z-index: 21;
+  align-items: center; padding: 0 5cqw; text-align: center; }
+.subs::before { content: ''; position: absolute; z-index: -1; left: 0; right: 0; bottom: calc(-1 * (var(--safe-b) + 6px)); height: calc(var(--safe-b) + 6px + var(--sub-h) + 14cqw);
   background: linear-gradient(rgb(14 17 32 / 0), rgb(14 17 32 / .92) 72%); opacity: 0; transition: opacity .2s; pointer-events: none; }
-.stage:has(> .subs > .sub)::after, .stage[data-input=buttons]::after { opacity: 1; }
-.stage[data-input=buttons]::after { height: calc(var(--bleed) + var(--sub-h) + 40cqw); }
+.subs:not(:empty)::before, .stage[data-input=buttons] .subs::before { opacity: 1; }
+.stage[data-input=buttons] .subs::before { height: calc(var(--safe-b) + 6px + var(--sub-h) + 40cqw); }
 .sub { font: 700 5.4cqw/1.2 var(--font-sub); color: var(--text); max-width: 100%; overflow-wrap: anywhere; animation: subIn .14s ease-out; }
 .sub.long { font-size: 4.4cqw; }
 .sub-cust { position: relative; align-self: stretch; text-align: left; padding-left: 3cqw; }
@@ -941,8 +941,8 @@ button { font: inherit; color: inherit; }
 .meter[data-near="1"] { animation: meterNear .16s steps(2) infinite; }
 .meter.hit { animation: meterHit .6s cubic-bezier(.3, 1.6, .5, 1); }
 .meter.over { animation: meterOver .45s ease-in-out; }
-.stage:has(.meter:not([hidden])) .preview { right: 25cqw; }
-.stage:has(.meter:not([hidden])) .preview-slot + .preview-slot { display: none; }
+.stage.metering .preview { right: 25cqw; }
+.stage.metering .preview-slot + .preview-slot { display: none; }
 @keyframes meterNear { 50% { translate: .4cqw 0; } }
 @keyframes meterHit { 0% { scale: 1; } 30% { scale: 1.4; background: #fff; } 100% { scale: 1; } }
 @keyframes meterOver { 0%, 100% { translate: 0; } 25% { translate: -2cqw; } 75% { translate: 2cqw; } }

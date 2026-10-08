@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createFxQueue, chargeLevel, camTransform, FOCUS, rectsOverlap, placeHuazi, hzFontSize, hzMaxScale } from '../src/ui.js';
+import { createFxQueue, chargeLevel, camTransform, FOCUS, rectsOverlap, placeHuazi, hzFontSize, hzMaxScale, startFraming, logoMarkup } from '../src/ui.js';
 
 // Manual clock for the queue's scheduler.
 function fakeClock() {
@@ -150,4 +150,35 @@ test('hzMaxScale caps the S1 entry scale so the scaled, rotated box stays 4cqw c
   assert.equal(rectsOverlap(aabb(k + 0.1), sign, 2), true);
   // a sign right under the anchor: no room to grow at all
   assert.equal(hzMaxScale(box, 50, 67, { x: 40, y: 75, w: 20, h: 10 }, 0), 1);
+});
+
+// Art direction v2 (package B): the start page's window framing and the logo plate.
+test('startFraming: the scene top half fills the window, top-aligned, never narrower than the window', () => {
+  const W = 390, H = 693;
+  // a window 328 x 282 px whose top sits at y 269 of the stage
+  const f = startFraming({ x: 31, y: 269, w: 328, h: 282 }, W, H);
+  const span = 0.46 * H;
+  assert.ok(f.scale * span >= 282 - 0.5, 'the lightbox-to-counter span covers the window height');
+  assert.ok(f.scale * W >= 328 - 0.5, 'the scene covers the window width');
+  assert.equal(f.fy, 3);
+  // the camera keeps (50%, 3%) fixed; the shaker moves it to the window's top centre
+  const t = camTransform(50, f.fy, f.scale, W, H);
+  const py = 0.03 * H * f.scale + t.ty + f.dy;
+  const px = 0.5 * W * f.scale + t.tx + f.dx;
+  assert.ok(Math.abs(py - 269) < 0.5 && Math.abs(px - (31 + 164)) < 0.5);
+  // a tiny window still gets a usable scale
+  assert.ok(startFraming({ x: 0, y: 0, w: 10, h: 10 }, W, H).scale >= 0.5);
+});
+
+test('logoMarkup: 來 250 杯 ! plate (zh) and 250 CUPS! (en), gold 250 with an ink outline, no emoji', () => {
+  const zh = logoMarkup('zh');
+  const en = logoMarkup('en');
+  for (const s of [zh, en]) {
+    assert.match(s, /^<svg class="logo-svg"/);
+    assert.ok(s.includes('fill="url(#ui-logo-gold)"') && s.includes('stroke="#1B1311"'));
+    assert.equal((s.match(/>250</g) || []).length, 8, 'seven extrusion layers + the face');
+    assert.ok(!/\p{Extended_Pictographic}/u.test(s));
+  }
+  assert.ok(zh.includes('>來<') && zh.includes('>杯<') && zh.includes('Huninn'));
+  assert.ok(en.includes('>CUPS<') && !en.includes('來'));
 });

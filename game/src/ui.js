@@ -727,6 +727,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
   function syncLock() {
     stage.dataset.locked = inputLocked() ? '1' : '0';
+    // a card is up (start / summary / closing): only the corner toggles of the HUD stay above it
+    stage.classList.toggle('carded', !startCard.classList.contains('hidden') || !summaryCard.classList.contains('hidden') || !!closingEl);
   }
   function lockInput(ms) {
     extLocked = true;
@@ -2348,9 +2350,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   // ---------- Milestone: monitor zoom (2.8), never pauses the round ----------
-  // Art direction 9: no card; the door monitor zooms in and the milestone line runs as the subtitle.
+  // Art direction 9: no card, the door monitor zooms in. The milestone line is not shown: the subtitle line belongs to
+  // the clerk's punch at that moment (check-signature), and the monitor already says it.
   let milestoneText = null;
-  let milestoneLine = null;
   const resolveText = (t) => (typeof t === 'function' ? t() : t) || '';
   function showMilestone(level, text) {
     bigFx.push(() => {
@@ -2358,24 +2360,24 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       paintMonitor(Math.max(level, last.queue || 0));
       // art contract: data-zoom on .monitor = 260 ms zoom to x 4–96% / y 8–40%, 900 ms parallax, 260 ms back.
       monitor.dataset.zoom = '1';
+      monitor.setAttribute('aria-label', resolveText(text));
       milestoneText = text;
-      const line = resolveText(text);
-      milestoneLine = line ? showLine(line, { who: 'cust', color: 'take' }) : null;
       return () => {
-        if (monitor) delete monitor.dataset.zoom;
+        if (monitor) { delete monitor.dataset.zoom; monitor.removeAttribute('aria-label'); }
         milestoneText = null;
-        milestoneLine = null;
       };
     }, 1420);
   }
   function relabelMilestone() {
-    if (milestoneLine?.isConnected && milestoneText != null) milestoneLine.textContent = resolveText(milestoneText);
+    if (monitor && milestoneText != null) monitor.setAttribute('aria-label', resolveText(milestoneText));
   }
   // ---------- Screens ----------
   function hideOverlays() {
     unframeStart();
     startCard.classList.add('hidden');
     summaryCard.classList.add('hidden');
+    startCard.textContent = ''; // the logo and its icons leave the DOM while the shop is open (A13: SVG nodes)
+    summaryCard.textContent = '';
     overlayTap = null;
     syncLock();
   }
@@ -2913,6 +2915,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   // in Baloo, "/250", a thin progress line; it trembles from 240 on
   const METER_TEXT = { zh: ['已收', '杯'], en: ['Booked', 'cups'] };
   function setMeter(value, { hit, over } = {}) {
+    stage.classList.toggle('metering', value != null);
     if (value == null) { meterEl.hidden = true; return; }
     meterEl.hidden = false;
     const [lbl, unit] = texts.meter || METER_TEXT[lang] || METER_TEXT.zh;

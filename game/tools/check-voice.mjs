@@ -35,6 +35,8 @@ page.on('console', (m) => {
 });
 page.on('requestfailed', (r) => {
   if (/fonts\.(googleapis|gstatic)\.com/.test(r.url())) { fontFails++; return; }
+  // the self-hosted font subsets still loading when the page navigates away are aborted, not broken
+  if (/\/fonts\/[\w-]+\.woff2$/.test(r.url()) && /ABORTED/.test(r.failure()?.errorText || '')) return;
   errors.push('requestfailed: ' + r.url());
 });
 

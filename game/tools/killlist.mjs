@@ -80,8 +80,9 @@ function probe(KILL_C, KILL_B) {
     if (stage.classList.contains('quick')) K.quickSeen = true;
     const cups = document.querySelector('.cup-stack:not([hidden])');
     if (cups) K.cupsSeen = Math.max(K.cupsSeen, Number(cups.dataset.cups) || 0);
-    const edge = document.querySelector('.fx-edge');
-    if (stage.classList.contains('rage') && edge && +getComputedStyle(edge).opacity > 0.5) K.rageEdgeSeen = true;
+    // the rage edge vignette (package A's .tint-rage, or .fx-edge)
+    const edge = [...document.querySelectorAll('.tint-rage, .fx-edge')].some((n) => +getComputedStyle(n).opacity > 0.3);
+    if (stage.classList.contains('rage') && edge) K.rageEdgeSeen = true;
     K.karaokeTags = Math.max(K.karaokeTags, document.querySelectorAll('.karaoke .kk-tag').length);
   };
   setInterval(() => { try { K.sample(); } catch { /* page changing */ } }, 100);

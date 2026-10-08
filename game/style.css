@@ -446,6 +446,7 @@ button { font: inherit; color: inherit; }
 .cs-steam { position: absolute; bottom: 80%; width: 1.4cqw; height: 7cqw; border-radius: 1cqw; opacity: 0; pointer-events: none;
   background: linear-gradient(0deg, rgb(255 247 230 / 0), rgb(255 247 230 / .8) 45%, rgb(255 247 230 / 0)); }
 .cs-steam:nth-of-type(1) { left: 36%; } .cs-steam:nth-of-type(2) { left: 58%; animation-delay: .35s !important; }
+g.cs-steam { transform-box: fill-box; } /* A's cupStackSVG wisps (opacity 0 until fast mouth) */
 .cup-stack.steam .cs-steam { animation: csSteam .9s ease-out infinite; }
 @keyframes cupGrow { from { scale: .7 .5; } to { scale: 1; } }
 .stage.lite :is(.cs-steam, .fx-edge, .g-ripple, .g-pa-ring) { animation: none !important; }
@@ -539,19 +540,14 @@ button { font: inherit; color: inherit; }
 .speedlines { position: absolute; inset: -10%; z-index: 19; pointer-events: none; opacity: 0;
   background: repeating-conic-gradient(from 0deg at 50% 36%, rgb(255 247 230 / .78) 0deg 1.1deg, transparent 1.1deg 7deg);
   -webkit-mask: radial-gradient(closest-side circle at 50% 36%, transparent 0 70%, #000 92%); mask: radial-gradient(closest-side circle at 50% 36%, transparent 0 70%, #000 92%); }
-/* the screen edges: a red vignette in rage (2.3: the centre stays clean, no full-screen tint), faint speed lines in
-   fast mouth */
+/* the screen edges: faint speed lines in fast mouth (no badge, 9) */
 .fx-edge { position: absolute; inset: 0; z-index: 9; pointer-events: none; opacity: 0; transition: opacity .2s; }
-.stage.rage .fx-edge { opacity: 1; background: radial-gradient(closest-side ellipse at 50% 50%, transparent 64%, rgb(238 65 48 / .45) 100%); animation: edgePulse .5s ease-in-out infinite alternate; }
 .stage.quick:not(.rage) .fx-edge { opacity: .55;
   background: repeating-linear-gradient(180deg, transparent 0 3.2cqw, rgb(255 247 230 / .5) 3.2cqw 3.45cqw, transparent 3.45cqw 7cqw) left / 7cqw 100% no-repeat,
     repeating-linear-gradient(180deg, transparent 0 4.4cqw, rgb(255 247 230 / .5) 4.4cqw 4.65cqw, transparent 4.65cqw 9cqw) right / 7cqw 100% no-repeat;
   animation: edgeRun .32s linear infinite; }
-@keyframes edgePulse { from { opacity: .8; } to { opacity: 1; } }
 @keyframes edgeRun { to { background-position: left 0 top 7cqw, right 0 top 9cqw; } }
-/* rage: the pendant lamps swing (package A tags them .lamp in SHOP_SVG) */
-.stage.rage .shop .lamp { transform-box: fill-box; transform-origin: 50% 0; animation: lampSwing .7s ease-in-out infinite alternate; }
-@keyframes lampSwing { from { rotate: -7deg; } to { rotate: 7deg; } }
+/* rage: the red edge vignette (.tint-rage) and the swinging lamps (.lamp) are package A's scene CSS */
 .letterbox { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
 .letterbox::before, .letterbox::after { content: ''; position: absolute; left: 0; right: 0; height: 14%; background: #000; transition: transform 160ms ease-out; }
 .letterbox::before { top: 0; transform: translateY(-100%); }
@@ -632,7 +628,8 @@ button { font: inherit; color: inherit; }
 /* particles (8.2): a pool of ≤ 12 nodes animated by ui.js; shapes here until package A's PARTICLE_SVG lands */
 .particles { position: absolute; inset: 0; z-index: 11; pointer-events: none; overflow: visible; }
 .pt { position: absolute; left: 0; top: 0; display: none; pointer-events: none; will-change: transform, opacity; }
-.pt svg { display: block; width: 100%; height: 100%; }
+.pt svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.pt.has-svg { background: none; border: 0; box-shadow: none; clip-path: none; border-radius: 0; opacity: 1; }
 .pt-ice { width: 4.4cqw; height: 4.4cqw; border-radius: 1.1cqw; background: linear-gradient(135deg, #fff 0 22%, #DFF4FF 30%, #A9DCF5);
   border: .35cqw solid rgb(74 44 28 / .45); }
 .pt-pearl { width: 3.6cqw; height: 3.6cqw; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #fff 0 12%, #5A3524 16%, #2E1A12 75%); }
@@ -1016,7 +1013,7 @@ button { font: inherit; color: inherit; }
   font: 900 3.8cqw var(--font-zh); cursor: pointer; }
 .it-opt[aria-pressed=true] { background: var(--cream); color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
-  .stage[data-input=gesture] .finger, .finger.finger-demo, .g-ripple, .g-pa-ring, .cs-steam, .fx-edge, .stage.rage .shop .lamp { animation: none !important; }
+  .stage[data-input=gesture] .finger, .finger.finger-demo, .g-ripple, .g-pa-ring, .cs-steam, .fx-edge { animation: none !important; }
   .g-stamp[data-level="2"] .g-stamp-face { animation: none; }
 }
 

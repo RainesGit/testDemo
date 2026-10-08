@@ -176,7 +176,7 @@ const FONT_EN = '"Bangers","Impact","Arial Black",sans-serif';
 const KEY_COLOR = { gun: '#E8402F', shut: '#6A4EE8', take: '#FFC21A' };
 
 /** Named focus points in stage percent (2.11). */
-export const FOCUS = { FACE: [50, 20], MOUTH: [50, 24], SIGN: [30, 55], CUST: [29, 67], GOLDSIGN: [72, 11.5], WIDE: [50, 40] };
+export const FOCUS = { FACE: [50, 26], MOUTH: [50, 30], SIGN: [30, 55], CUST: [29, 67], GOLDSIGN: [72, 11.5], WIDE: [50, 40] };
 
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
 const EASE_FAST = 'cubic-bezier(.5,0,.2,1)';
@@ -1642,8 +1642,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     }
     n._busy = true;
     n.className = 'pt pt-' + kind;
-    const svg = art.PARTICLE_SVG && art.PARTICLE_SVG[kind];
+    // A's PARTICLE_SVG (3 nodes each) for the few-at-a-time kinds; the 10 gold cups stay CSS (SVG node budget)
+    const svg = kind !== 'cup' && art.PARTICLE_SVG && art.PARTICLE_SVG[kind];
     n.innerHTML = svg || (kind === 'stamp' ? '<b>250</b>' : '');
+    if (svg) n.classList.add('has-svg');
     n.style.display = 'block';
     return n;
   }
@@ -1935,7 +1937,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const placed = faceFree
       ? placeHuazi({ box, cx, cy, size0: fs, sign: signBox, gap: 4, top: 8 * k, bottom: geo.H, minSize })
       : placeHuazi({ box, cx, cy: Math.max(cy, HZ_FACE_BAND[1] * k - box.y0), size0: fs, sign: signBox, gap: 6, top: HZ_FACE_BAND[1] * k, bottom: geo.H, minSize })
-        || placeHuazi({ box, cx, cy: Math.min(cy, HZ_FACE_BAND[0] * k - box.y1), size0: fs, sign: signBox, gap: 4, top: 8 * k, bottom: HZ_FACE_BAND[0] * k, minSize });
+        || placeHuazi({ box, cx, cy: Math.min(cy, HZ_FACE_BAND[0] * k - box.y1), size0: fs, sign: signBox, gap: 4, top: 8 * k, bottom: HZ_FACE_BAND[0] * k, minSize })
+        // a tall sign still rising (the opening's gold 250) leaves no room off the face: the signature word still shows
+        || placeHuazi({ box, cx, cy, size0: fs, sign: signBox, gap: 6, top: 8 * k, bottom: geo.H, minSize });
     if (!placed) {
       svg.remove();
       emphasize([item.text]);
@@ -3028,7 +3032,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     cupStack.hidden = cups === 0;
     cupStack.classList.toggle('steam', !!quick && cups > 0);
     if (!cups) { cupStack.textContent = ''; return; }
-    cupStack.innerHTML = cupStackMarkup(cups) + '<i class="cs-steam"></i><i class="cs-steam"></i>';
+    // A's cupStackSVG carries its own g.cs-steam wisps; the placeholder gets two CSS ones
+    cupStack.innerHTML = cupStackMarkup(cups) + (typeof art.cupStackSVG === 'function' ? '' : '<i class="cs-steam"></i><i class="cs-steam"></i>');
     cupStack.dataset.cups = String(cups);
     if (grew) restart(cupStack, 'grow');
   }

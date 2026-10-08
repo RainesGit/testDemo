@@ -96,6 +96,7 @@ button { font: inherit; color: inherit; }
   --sh: calc(var(--sw) * 16 / 9);
   --fh: min(100dvh, var(--sw) * 21 / 9);
   --bleed: calc((var(--fh) - var(--sh)) / 2);
+  --bleed-t: var(--bleed); --bleed-b: var(--bleed); /* names the scene sections read */
   --safe-t: max(env(safe-area-inset-top), 8px);
   --safe-b: max(env(safe-area-inset-bottom), 6px);
   position: fixed; inset: 0; display: grid; place-items: center; background: var(--night-900);
@@ -909,6 +910,7 @@ button { font: inherit; color: inherit; }
 .preview { position: absolute; right: 3%; top: 53%; z-index: 7; display: flex; justify-content: flex-end; align-items: flex-start; gap: 2.4cqw; max-width: 52cqw;
   padding: 1.4cqw 2cqw 0; pointer-events: none; opacity: 0; transition: opacity .2s; }
 .preview.show { opacity: 1; }
+.preview:not(.show) { visibility: hidden; }
 .preview-rail { position: absolute; left: 0; right: 0; top: 0; height: 1.2cqw; border-radius: .6cqw; background: linear-gradient(var(--steel-hi), var(--steel) 55%, var(--steel-lo)); }
 .preview-slot { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; rotate: -3deg; transform-origin: 50% 0; }
 .preview-slot + .preview-slot { rotate: 4deg; opacity: .75; }

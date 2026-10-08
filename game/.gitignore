@@ -2,3 +2,4 @@ tools/node_modules/
 tools/shots/
 tools/package-lock.json
 tools/voice/__pycache__/
+tools/fonts/.cache/

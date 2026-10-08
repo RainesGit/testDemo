@@ -170,10 +170,12 @@ const KEYBOARD = { j: 'gun', k: 'shut', l: 'take' };
 const CHARGE_MS = [300, 800];
 const SVGNS = 'http://www.w3.org/2000/svg';
 
-const FONT_ZH = '"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Noto Sans CJK TC",sans-serif';
-const FONT_SIGN = '"LXGW WenKai TC","Kaiti TC","STKaiti","BiauKai","DFKai-SB",' + FONT_ZH;
-const FONT_EN = '"Bangers","Impact","Arial Black",sans-serif';
-const KEY_COLOR = { gun: '#E8402F', shut: '#6A4EE8', take: '#FFC21A' };
+// Self-hosted subsets (fonts/, docs/art-direction-v2.md 3): Traditional-only fallbacks, no Simplified fonts.
+const FONT_ZH = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const FONT_SIGN = '"LXGW WenKai TC",' + FONT_ZH;
+const FONT_EN = '"Baloo 2","Huninn",' + FONT_ZH;
+const FONT_UI = '"Huninn",' + FONT_ZH;
+const KEY_COLOR = { gun: '#EE4130', shut: '#7658F2', take: '#FFC21A' };
 
 /** Named focus points in stage percent (2.11). */
 export const FOCUS = { FACE: [50, 26], MOUTH: [50, 30], SIGN: [30, 55], CUST: [29, 67], GOLDSIGN: [72, 11.5], WIDE: [50, 40] };
@@ -200,6 +202,26 @@ const VOICE_TEXT = {
     replayBtn: '再聽一次 ▸' },
   en: { voice: 'Shout', whisper: 'Whisper mode', replay: 'Replay my shout', keywords: 'Understand my words', kwNote: "The browser's speech recognizer may use a cloud service",
     replayBtn: 'Play again ▸' },
+};
+
+// UI chrome icons (art direction 7: icons instead of labels). currentColor unless the colour is part of the meaning.
+const ICON = {
+  person: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.2" r="5" fill="currentColor"/><path d="M2.5 23 Q2.5 13.6 12 13.6 Q21.5 13.6 21.5 23 Z" fill="currentColor"/></svg>',
+  shades: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 7.5 H22.5 V9.5 H21 L19.6 15 Q19 17 16.6 17 H15 Q12.8 17 12.6 14.6 L12.4 11.4 H11.6 L11.4 14.6 Q11.2 17 9 17 H7.4 Q5 17 4.4 15 L3 9.5 H1.5 Z" fill="currentColor"/></svg>',
+  flame: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 Q14 6.5 17.4 9.6 Q20.5 12.6 19.6 16.6 Q18.4 22.5 12 22.5 Q5.6 22.5 4.4 16.6 Q3.7 13 6.6 10.4 Q7 13.6 9.2 14.4 Q8.2 9.4 12 1.5 Z" fill="currentColor"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5 L20 12 L7 19.5 Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.6" fill="currentColor"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.6" fill="currentColor"/></svg>',
+  speaker: '<svg viewBox="0 0 18 16" aria-hidden="true"><path d="M1 5.5 H5 L10 1.5 V14.5 L5 10.5 H1Z" fill="currentColor"/><path class="ic-wave" d="M13 5 Q15 8 13 11 M15 3 Q18.5 8 15 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="ic-beep" d="M12.4 5 L17 11 M17 5 L12.4 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  hand: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 15 V7 Q5 5.5 6.3 5.5 Q7.6 5.5 7.6 7 V2.4 Q7.6 1 8.9 1 Q10.2 1 10.2 2.4 V8 L13 9 Q14.4 9.6 14 11 L12.6 15Z" fill="currentColor"/></svg>',
+  keys: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="4" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 7h1M7 7h2M11 7h1M5 10h6" stroke="currentColor" stroke-width="1.6"/></svg>',
+  mic: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1" width="5" height="9" rx="2.5" fill="currentColor"/><path d="M3 7.5 Q3 12 8 12 Q13 12 13 7.5 M8 12 V15" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  star: (on) => `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 L25 14 L37 15 L28 23 L31 35 L20 29 L9 35 L12 23 L3 15 L15 14Z" ${on ? 'fill="#FFC21A" stroke="#1B1311" stroke-width="3"' : 'fill="none" stroke="#B9A684" stroke-width="2.5" stroke-dasharray="4 3"'} stroke-linejoin="round"/></svg>`,
+};
+const INPUT_ICON = { gesture: ICON.hand, buttons: ICON.keys, voice: ICON.mic };
+// pause sheet / receipt labels (not spoken)
+const SHEET_TEXT = {
+  zh: { paused: '暫停', resume: '繼續', lang: '語言', bleep: '髒話', input: '操作', pause: '暫停', noPrefix: 'NO.', open: '開店' },
+  en: { paused: 'Paused', resume: 'Resume', lang: 'Language', bleep: 'Swears', input: 'Controls', pause: 'Pause', noPrefix: 'NO.', open: 'Open' },
 };
 
 const DEFAULT_UI = {
@@ -373,6 +395,51 @@ export function hzFontSize(style, text, { size, fontSize, latin } = {}) {
 
 // ---------------------------------------------------------------- DOM helpers
 
+/**
+ * Start page framing (art direction 6.3): the scale and offset that show the scene (the lightbox at y 3% down to
+ * the counter top at y 49% when the window is tall enough) in the shop window rect `win` ({ x, y, w, h } in stage px, stage W x H). The camera
+ * keeps (50%, fy%) fixed while scaling; the shaker then moves that point to the window's top centre by (dx, dy).
+ * The scene always covers the window's full width.
+ */
+export function startFraming(win, W, H, { top = 3, bottom = 49 } = {}) {
+  // fit the stage width into the window (the whole lightbox shows); a tall window shows down to the counter, a
+  // short one slides down to keep the clerk's face (y 12–33%) in view
+  const scale = Math.min(1.6, Math.max(0.5, win.w / W, win.h / H));
+  const shown = (win.h / (scale * H)) * 100; // stage % visible in the window
+  const fy = shown >= bottom - top ? top : Math.max(top, Math.min(14, 33 - shown));
+  return { scale, fy, dx: win.x + win.w / 2 - W / 2, dy: win.y - (fy / 100) * H };
+
+}
+/**
+ * The logo plate (art direction 7.2; until art.js exports LOGO_SVG): a backlit acrylic sign tilted -4deg with a warm
+ * halo, "來" / "杯" in Huninn, "250" in Baloo 2 800 with a gold gradient, an ink outline, a 7-step extrusion and a
+ * sheen, and a red "!" sticking out past the right edge. English: "250 CUPS!" in the same build.
+ */
+export function logoMarkup(lang = 'zh') {
+  const g = (id) => `ui-logo-${id}`;
+  const extrude = (x, y, size) => Array.from({ length: 7 }, (_, i) => 6 - i)
+    .map((i) => `<text x="${x + i}" y="${y + i}" text-anchor="middle" fill="#A85F00" stroke="#1B1311" stroke-width="8" stroke-linejoin="round" paint-order="stroke" style="font:800 ${size}px 'Baloo 2'">250</text>`).join('');
+  const num = (x, y, size) => `${extrude(x, y, size)}<text class="lg-250" x="${x}" y="${y}" text-anchor="middle" fill="url(#${g('gold')})" stroke="#1B1311" stroke-width="8" stroke-linejoin="round" paint-order="stroke" style="font:800 ${size}px 'Baloo 2'">250</text>`;
+  const bang = (x) => `<text x="${x}" y="108" text-anchor="middle" fill="#EE4130" stroke="#1B1311" stroke-width="5" stroke-linejoin="round" paint-order="stroke" style="font:800 64px 'Baloo 2'">!</text>`;
+  const words = lang === 'en'
+    ? `${num(118, 118, 96)}<text x="272" y="110" text-anchor="middle" fill="#1B1311" style="font:800 50px 'Baloo 2'">CUPS</text>${bang(343)}`
+    : `<text x="52" y="114" text-anchor="middle" fill="#1B1311" style="font:400 60px Huninn">來</text>${num(174, 120, 102)}<text x="298" y="114" text-anchor="middle" fill="#1B1311" style="font:400 60px Huninn">杯</text>${bang(340)}`;
+  return `<svg class="logo-svg" viewBox="0 0 360 170" overflow="visible" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+<defs><radialGradient id="${g('halo')}"><stop offset="0" stop-color="#FFE7A8" stop-opacity=".55"/><stop offset="1" stop-color="#FFE7A8" stop-opacity="0"/></radialGradient>
+<linearGradient id="${g('gold')}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3B0"/><stop offset=".42" stop-color="#FFD23A"/><stop offset="1" stop-color="#F29A00"/></linearGradient>
+<clipPath id="${g('clip')}"><rect x="16" y="16" width="326" height="138" rx="18"/></clipPath></defs>
+<ellipse cx="180" cy="86" rx="205" ry="118" fill="url(#${g('halo')})"/>
+<g transform="rotate(-4 180 85)">
+<rect x="10" y="10" width="338" height="150" rx="22" fill="#1B1311"/>
+<rect x="16" y="16" width="326" height="138" rx="18" fill="#FFF7E6"/>
+<rect x="16" y="132" width="326" height="22" fill="#F3E3C2" clip-path="url(#${g('clip')})"/>
+<rect x="16" y="16" width="326" height="138" rx="18" fill="none" stroke="#EE4130" stroke-width="4"/>
+${words}
+<path d="M112 48 Q134 40 156 44" fill="none" stroke="#FFFBE6" stroke-width="6" stroke-linecap="round" opacity=".9"/>
+<g clip-path="url(#${g('clip')})"><path class="lg-sheen" d="M60 20 L84 20 L54 150 L30 150 Z" fill="#FFFFFF" opacity="0"/></g>
+</g></svg>`;
+}
+
 function el(tag, cls, parent, text) {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -415,7 +482,7 @@ const normStyle = (s) => (typeof s === 'number' ? 'S' + s : /^[1-5]$/.test(Strin
 
 // ---------------------------------------------------------------- createUI
 
-export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onGesture = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {}, onToggleInput = () => {}, onVoiceOption = () => {} } = {}) {
+export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRelease = () => {}, onGesture = () => {}, onStart = () => {}, onToggleLang = () => {}, onToggleBleep = () => {}, onToggleInput = () => {}, onVoiceOption = () => {}, onPause = () => {} } = {}) {
   let lang = 'zh';
   let extLocked = false; // lockInput()
   let extTimer = 0;
@@ -436,7 +503,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   // ---------- DOM skeleton (2.11): .stage > .shaker > .cam > (.shop, .clerk, .counter, .cust-wrap, .sign)
   root.textContent = '';
   root.classList.add('app');
-  const stage = el('div', 'stage', root);
+  // .frame: full-height box around the 9:16 stage; its bleed holds the HUD, subtitles and keys (art direction 4.1)
+  const frame = el('div', 'frame', root);
+  const stage = el('div', 'stage', frame);
   stage.dataset.phase = 'idle';
   const shaker = el('div', 'shaker', stage);
   const cam = el('div', 'cam', shaker);
@@ -481,29 +550,39 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   const letterboxEl = el('div', 'letterbox', stage);
 
   // HUD (outside the camera)
+  // (art direction 7.3, in the top bleed, no panel): person icon + queue number and two thin bars on the left, the
+  // round's timer ring and the pause button on the right. The text labels stay in the DOM (tools) but are hidden.
+  // 中/EN and 消音 (.tog) sit in .hud-toggles: in the corner on the start / summary / closing cards and before a
+  // round, inside the pause sheet while a round runs.
   const hud = el('header', 'hud', stage);
   const hudTop = el('div', 'hud-row', hud);
   const qBox = el('div', 'hud-queue', hudTop);
+  html(el('span', 'hud-icon', qBox), ICON.person);
   const qLabel = el('span', 'hud-label', qBox);
   const qNum = el('span', 'hud-qnum', qBox, '0');
-  const timeBox = el('div', 'hud-time', hudTop);
-  const timeNum = el('span', 'hud-tnum', timeBox, '45');
-  const timeUnit = el('span', 'hud-tunit', timeBox); // review: a bare "90" read as nothing
-  const toggles = el('div', 'hud-toggles', hudTop);
-  const langBtn = el('button', 'tog tog-lang', toggles);
-  langBtn.type = 'button';
-  const bleepBtn = el('button', 'tog tog-bleep', toggles);
-  bleepBtn.type = 'button';
-  const bars = el('div', 'hud-bars', hud);
-  function makeBar(cls) {
+  const bars = el('div', 'hud-bars', hudTop);
+  function makeBar(cls, icon) {
     const wrap = el('div', 'bar ' + cls, bars);
+    html(el('span', 'bar-icon', wrap), icon);
     const label = el('span', 'bar-label', wrap);
     const track = el('div', 'bar-track', wrap);
     const fill = el('div', 'bar-fill', track);
     return { wrap, label, fill };
   }
-  const auraBar = makeBar('bar-aura');
-  const furyBar = makeBar('bar-fury');
+  const auraBar = makeBar('bar-aura', ICON.shades);
+  const furyBar = makeBar('bar-fury', ICON.flame);
+  const timeBox = el('div', 'hud-time', hudTop);
+  const timeNum = el('span', 'hud-tnum', timeBox, '45');
+  const timeUnit = el('span', 'hud-tunit', timeBox);
+  const pauseBtn = el('button', 'hud-pause', hudTop);
+  pauseBtn.type = 'button';
+  html(pauseBtn, ICON.pause);
+  hud.dataset.round = '0';
+  const toggles = el('div', 'hud-toggles', hudTop);
+  const langBtn = el('button', 'tog tog-lang', toggles);
+  langBtn.type = 'button';
+  const bleepBtn = el('button', 'tog tog-bleep', toggles);
+  bleepBtn.type = 'button';
   const comboBox = el('div', 'hud-combo', hud);
   const comboNum = el('span', 'combo-num', comboBox);
   const comboLabel = el('span', 'combo-label', comboBox);
@@ -556,7 +635,6 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   const tipLayer = el('div', 'tip-layer', stage);
   const gateEl = el('div', 'gate', stage);
   gateEl.hidden = true;
-  const milestoneCard = el('div', 'milestone hidden', stage);
   const recapEl = el('div', 'recap', stage);
   recapEl.hidden = true;
   const startCard = el('div', 'overlay start-screen hidden', stage);
@@ -570,6 +648,72 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   const skipBtn = el('button', 'skip', stage);
   skipBtn.type = 'button';
   skipBtn.hidden = true;
+  // Pause sheet (art direction 7.3): resume, 中文·EN, 消音, controls. The two .tog buttons move in while it is open.
+  const pauseEl = el('div', 'pause-sheet', stage);
+  pauseEl.hidden = true;
+  const psPanel = el('div', 'ps-panel', pauseEl);
+  const psTitle = el('h2', 'ps-title', psPanel);
+  const psRows = {};
+  for (const k of ['lang', 'bleep', 'input']) {
+    const row = el('div', 'ps-row ps-' + k, psPanel);
+    psRows[k] = { label: el('span', 'ps-label', row), slot: el('div', 'ps-slot', row) };
+  }
+  const psModes = {};
+  for (const m of ['gesture', 'buttons', 'voice']) {
+    const b = el('button', 'ps-opt', psRows.input.slot);
+    b.type = 'button';
+    b.dataset.mode = m;
+    html(el('span', 'ps-opt-icon', b), INPUT_ICON[m]);
+    psModes[m] = el('span', 'ps-opt-label', b);
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (selMode === m) return;
+      setInputMode(m);
+      onToggleInput(m);
+    });
+  }
+  const psResume = el('button', 'ps-resume ui-gold', psPanel);
+  psResume.type = 'button';
+  let paused = false;
+  function syncPauseTexts() {
+    const st = SHEET_TEXT[lang] || SHEET_TEXT.zh;
+    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
+    const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
+    psTitle.textContent = st.paused;
+    psResume.textContent = st.resume;
+    psRows.lang.label.textContent = st.lang;
+    psRows.bleep.label.textContent = st.bleep;
+    psRows.input.label.textContent = gt.input;
+    psModes.gesture.textContent = gt.gesture;
+    psModes.buttons.textContent = gt.buttons;
+    psModes.voice.textContent = vt.voice;
+    pauseBtn.setAttribute('aria-label', st.pause);
+    for (const [m, l] of Object.entries(psModes)) l.parentElement.setAttribute('aria-pressed', String(selMode === m));
+  }
+  function openPause() {
+    if (paused) return;
+    paused = true;
+    KEYS.forEach((k) => endHold(k));
+    resetGestures();
+    psRows.lang.slot.append(langBtn);
+    psRows.bleep.slot.append(bleepBtn);
+    syncPauseTexts();
+    pauseEl.hidden = false;
+    syncLock();
+    onPause(true);
+  }
+  function closePause() {
+    if (!paused) return;
+    paused = false;
+    toggles.append(langBtn, bleepBtn);
+    pauseEl.hidden = true;
+    syncLock();
+    onPause(false);
+  }
+  pauseBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPause(); });
+  psResume.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); closePause(); });
+  pauseEl.addEventListener('pointerdown', (e) => { if (e.target === pauseEl) { e.preventDefault(); closePause(); } });
 
   // Stage geometry helpers
   const stageRect = () => stage.getBoundingClientRect();
@@ -594,14 +738,17 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       lab.classList.toggle('long', w > 6 && w <= 9);
       lab.classList.toggle('xlong', w > 9);
     }
-    const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
-    for (const k of KEYS) chips[k].label.textContent = `${gt.verb[k]} ${String(texts[k] ?? '')}`;
-    langBtn.innerHTML = lang === 'zh' ? '<b>中</b>/EN' : '中/<b>EN</b>';
-    bleepBtn.textContent = texts.bleep;
+    // gesture chips: the key's word only (art direction 7.6: the finger shows the move, no verbs)
+    for (const k of KEYS) chips[k].label.textContent = String(texts[k] ?? '').replace(/[！!]+$/, '');
+    langBtn.innerHTML = lang === 'zh' ? '<b>中</b><i>/</i>EN' : '中<i>/</i><b>EN</b>';
+    langBtn.setAttribute('aria-label', lang === 'zh' ? 'English' : '中文');
+    bleepBtn.innerHTML = `<span class="tog-icon">${ICON.speaker}</span><span class="tog-text"></span>`;
+    bleepBtn.lastElementChild.textContent = texts.bleep;
     bleepBtn.classList.toggle('on', bleepOn);
     bleepBtn.setAttribute('aria-pressed', String(bleepOn));
     root.lang = lang === 'zh' ? 'zh-Hant-TW' : 'en'; // Chinese is Traditional (Taiwan) at the source
     stage.dataset.lang = lang;
+    syncPauseTexts();
     localizeProps();
   }
 
@@ -649,12 +796,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
 
   // ---------- Input: press resolves at once, holding on upgrades the charge ----------
   const overlayUp = () => !startCard.classList.contains('hidden') || !summaryCard.classList.contains('hidden')
-    || !!closingEl || !recapEl.hidden;
+    || !!closingEl || !recapEl.hidden || paused;
   function inputLocked() {
     return extLocked || phase === 'over' || overlayUp();
   }
   function syncLock() {
     stage.dataset.locked = inputLocked() ? '1' : '0';
+    // a card is up (start / summary / closing): only the corner toggles of the HUD stay above it
+    stage.classList.toggle('carded', !startCard.classList.contains('hidden') || !summaryCard.classList.contains('hidden') || !!closingEl);
   }
   function lockInput(ms) {
     extLocked = true;
@@ -729,6 +878,16 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (key) {
       e.preventDefault();
       if (!e.repeat) beginHold(key, 'kbd');
+      return;
+    }
+    if (e.key === 'Escape' && !e.repeat && (paused || hud.dataset.round === '1')) {
+      e.preventDefault();
+      if (paused) closePause(); else openPause();
+      return;
+    }
+    if ((e.key === 'Enter' || e.key === ' ') && !e.repeat && paused) {
+      e.preventDefault();
+      closePause();
       return;
     }
     if ((e.key === 'Enter' || e.key === ' ') && !e.repeat && overlayTap) {
@@ -871,6 +1030,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     stage.dataset.input = inputMode;
     stage.dataset.voice = selMode === 'voice' ? '1' : '0';
     syncInputTog();
+    if (paused) syncPauseTexts();
     KEYS.forEach((k) => endHold(k));
     resetGestures();
     cancelAnimationFrame(gLoop);
@@ -2370,6 +2530,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (state.phase !== phase) {
       phase = state.phase;
       stage.dataset.phase = phase;
+      const inRound = phase === 'playing' || phase === 'rage';
+      hud.dataset.round = inRound ? '1' : '0';
+      if (!inRound) closePause();
+      if (phase === 'idle') last.total = 0;
       if (phase === 'over') { setClerk('over'); stopSignTimer(); clearGuide(); }
       else if (phase !== 'rage' && clerk.dataset.mood === 'rage') setClerk('idle');
     }
@@ -2379,11 +2543,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     setBar(furyBar, state.fury, 'fury');
     const full = state.furyFull ? 'full' : '';
     if (stage.dataset.fury !== full) stage.dataset.fury = full;
-    const secs = Math.max(0, Math.ceil((state.timeLeftMs ?? 0) / 1000));
+    const leftMs = state.timeLeftMs ?? 0;
+    if (!(leftMs <= (last.total || 0))) last.total = leftMs; // the round's length = the largest time left seen
+    const secs = Math.max(0, Math.ceil(leftMs / 1000));
     if (last.secs !== secs) {
       last.secs = secs;
       timeNum.textContent = String(secs);
       timeBox.classList.toggle('urgent', secs <= 10 && phase !== 'idle');
+      timeBox.style.setProperty('--p', last.total > 0 ? (leftMs / last.total).toFixed(3) : '1');
     }
     const combo = state.combo || 0;
     if (last.combo !== combo) {
@@ -2511,8 +2678,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   // ---------- Milestone: monitor zoom (2.8), never pauses the round ----------
+  // Art direction 9: no card, the door monitor zooms in. The milestone line is not shown: the subtitle line belongs to
+  // the clerk's punch at that moment (check-signature), and the monitor already says it.
   let milestoneText = null;
-  let milestoneTextEl = null;
   const resolveText = (t) => (typeof t === 'function' ? t() : t) || '';
   function showMilestone(level, text) {
     bigFx.push(() => {
@@ -2520,29 +2688,24 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       paintMonitor(Math.max(level, last.queue || 0));
       // art contract: data-zoom on .monitor = 260 ms zoom to x 4–96% / y 8–40%, 900 ms parallax, 260 ms back.
       monitor.dataset.zoom = '1';
-      milestoneCard.textContent = '';
-      const card = el('div', 'ms-card', milestoneCard);
-      card.dataset.scene = monitor.dataset.scene || '';
-      el('div', 'ms-level', card, fmt(level) + '+');
+      monitor.setAttribute('aria-label', resolveText(text));
       milestoneText = text;
-      milestoneTextEl = el('div', 'ms-text', card, resolveText(text));
-      milestoneCard.classList.remove('hidden');
       return () => {
-        milestoneCard.classList.add('hidden');
-        if (monitor) delete monitor.dataset.zoom;
+        if (monitor) { delete monitor.dataset.zoom; monitor.removeAttribute('aria-label'); }
         milestoneText = null;
-        milestoneTextEl = null;
       };
     }, 1420);
   }
   function relabelMilestone() {
-    if (milestoneTextEl && milestoneText != null) milestoneTextEl.textContent = resolveText(milestoneText);
+    if (monitor && milestoneText != null) monitor.setAttribute('aria-label', resolveText(milestoneText));
   }
-
   // ---------- Screens ----------
   function hideOverlays() {
+    unframeStart();
     startCard.classList.add('hidden');
     summaryCard.classList.add('hidden');
+    startCard.textContent = ''; // the logo and its icons leave the DOM while the shop is open (A13: SVG nodes)
+    summaryCard.textContent = '';
     overlayTap = null;
     syncLock();
   }
@@ -2552,9 +2715,11 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     try {
       if (!document.fonts?.load) return;
       fontsPromise = Promise.all([
-        document.fonts.load('900 1em "Noto Sans TC"', '滾閉嘴收調你媽250'),
+        document.fonts.load('400 1em "Huninn"', '來杯開店滾閉嘴收'),
+        document.fonts.load('800 1em "Baloo 2"', '0123456789'),
+        document.fonts.load('700 1em "Noto Sans TC"', '滾閉嘴收調你媽'),
+        document.fonts.load('900 1em "Noto Sans TC"', '滾閉嘴收調你媽'),
         document.fonts.load('700 1em "LXGW WenKai TC"', '嗯杯少甜冰'),
-        document.fonts.load('1em "Bangers"', 'SCRAM250'),
       ]).catch(() => {});
     } catch { /* no font loading API */ }
   }
@@ -2562,8 +2727,29 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     return Promise.race([fontsPromise, new Promise((r) => setTimeout(r, maxMs))]);
   }
 
-  // Start page (3.2): 0–600 ms title slams down, 600–1200 ms tagline fades in, from 1200 ms the whole
-  // screen is tappable and the big button breathes. Background: the clerk's disdain face, camera 1.15 on FACE.
+  // Start page (art direction 6.3 / 7.2, mock-start): the night street, the logo plate on top (drops in, its light
+  // flickers on), the shop window showing the live scene (the clerk), the tagline, the gold 開店 button and the
+  // controls toggle. From 1200 ms the whole screen is tappable. Days 2+: a wooden plank under the logo with the day's
+  // name and rule, the riddle on a blackboard strip, best and stars in one small line.
+  let framed = false;
+  function frameStart() {
+    // fit the scene's top half (lightbox y 4% to the counter top y 50%) into the shop window
+    const win = startCard.querySelector('.start-window');
+    if (!win || startCard.classList.contains('hidden')) return;
+    const s = stageRect();
+    const w = win.getBoundingClientRect();
+    const f = startFraming({ x: w.left - s.left, y: w.top - s.top, w: w.width, h: w.height }, s.width, s.height);
+    camera([50, f.fy], f.scale, 0);
+    shaker.style.translate = `${f.dx.toFixed(1)}px ${f.dy.toFixed(1)}px`;
+    framed = true;
+  }
+  function unframeStart() {
+    if (!framed) return;
+    framed = false;
+    shaker.style.translate = '';
+  }
+  addEventListener('resize', () => { if (framed) frameStart(); });
+
   function showStart(t = {}, { firstRun = true, day = 1 } = {}) {
     bigFx.clear();
     clearGuide();
@@ -2575,18 +2761,22 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     startCard.dataset.first = firstRun ? '1' : '0';
     startCard.classList.remove('ready');
     const title = String(t.title || (lang === 'zh' ? '來250杯！' : '250 Cups!'));
-    const h1 = el('h1', 'start-title', startCard);
-    for (const part of title.split(/(\d+)/).filter(Boolean)) {
-      if (/^\d+$/.test(part)) el('span', 'num', h1, part);
-      else h1.appendChild(document.createTextNode(part));
-    }
-    el('p', 'start-tag', startCard, t.subtitle || d.sub);
+    // the logo: art.js LOGO_SVG when the scene package provides it, else the built-in plate (same layout)
+    const h1 = el('h1', 'start-logo', startCard);
+    h1.setAttribute('aria-label', title);
+    html(h1, (typeof art.logoSVG === 'function' ? art.logoSVG(lang) : lang === 'zh' ? art.LOGO_SVG : '') || logoMarkup(lang));
     if (t.dayTitle || t.rule) {
-      // stage 2 day card: "第 N 天 · 午休潮", the rule in one line, the ★3 riddle, the best so far
+      // the day card: a plank hanging under the logo ("第 6 天 · 晚八點人潮" + the rule), the riddle on a
+      // blackboard strip, best and stars in one small line
       const dc = el('div', 'start-day', startCard);
-      if (t.dayTitle) el('div', 'sd-title', dc, t.dayTitle);
-      if (t.rule) el('div', 'sd-rule', dc, t.rule);
-      if (t.riddle) el('div', 'sd-riddle', dc, t.riddle);
+      const plank = el('div', 'sd-plank', dc);
+      if (t.dayTitle) el('div', 'sd-title', plank, t.dayTitle);
+      if (t.rule) el('div', 'sd-rule', plank, t.rule);
+      if (t.riddle) {
+        const rd = el('div', 'sd-riddle', dc);
+        html(el('span', 'sd-riddle-icon', rd), ICON.star(false));
+        el('span', 'sd-riddle-text', rd, String(t.riddle).replace(/^[^：:]*[：:]\s*/, ''));
+      }
       if (t.best || t.starMask) {
         const row = el('div', 'sd-best', dc);
         const st = el('span', 'sd-stars', row);
@@ -2594,16 +2784,20 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
         if (t.best) el('span', '', row, t.best);
       }
     }
+    el('div', 'start-window', startCard).setAttribute('aria-hidden', 'true');
+    el('p', 'start-tag', startCard, t.subtitle || d.sub);
     const label = firstRun ? t.start || d.firstStart : typeof t.startDay === 'function' ? t.startDay(day) : t.startDay ? String(t.startDay).replace('{n}', day) : d.day(day);
-    const btn = el('button', 'start-btn', startCard, label);
+    const btn = el('button', 'start-btn ui-gold', startCard, label);
     btn.type = 'button';
-    // controls toggle (docs/gameplay-v2.md 9): 手勢 / 按鍵; does not start the shop
+    // controls toggle (docs/gameplay-v2.md 9): 手勢 / 按鍵 / 吼, a segmented control; does not start the shop
     const gt = GESTURE_TEXT[lang] || GESTURE_TEXT.zh;
     const tog = el('div', 'input-tog', startCard);
     el('span', 'it-label', tog, gt.input);
     const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
     for (const m of ['gesture', 'buttons', 'voice']) {
-      const b = el('button', 'it-opt', tog, m === 'voice' ? vt.voice : gt[m]);
+      const b = el('button', 'it-opt', tog);
+      html(el('span', 'it-icon', b), INPUT_ICON[m]);
+      el('span', 'it-text', b, m === 'voice' ? vt.voice : gt[m]);
       b.type = 'button';
       b.dataset.mode = m;
       b.setAttribute('aria-pressed', String(selMode === m));
@@ -2639,15 +2833,23 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     syncInputTog = () => {
       tog.querySelectorAll('.it-opt').forEach((o) => o.setAttribute('aria-pressed', String(o.dataset.mode === selMode)));
       vopts.hidden = selMode !== 'voice';
+      if (framed) requestAnimationFrame(frameStart); // the switches change the window's height
     };
     syncInputTog();
-    if (!reduced) h1.animate([{ translate: '0 -30cqw', scale: '1.3', opacity: 0 }, { translate: '0 1cqw', scale: '.96', opacity: 1, offset: 0.75 }, { translate: '0 0', scale: '1', opacity: 1 }], { duration: 600, easing: 'cubic-bezier(.3,1.5,.5,1)', fill: 'backwards' });
+    if (!reduced) {
+      // the plate drops in (260 ms, bounce), its tube light flickers on, then a sheen runs over "250"
+      h1.animate([{ translate: '0 -40cqw', rotate: '-8deg' }, { translate: '0 2cqw', rotate: '1deg', offset: 0.7 }, { translate: '0 0', rotate: '0deg' }],
+        { duration: 260, easing: 'cubic-bezier(.3,1.4,.5,1)', fill: 'backwards' });
+      h1.animate([{ opacity: 0.3 }, { opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], { duration: 240, delay: 260, fill: 'backwards' });
+      h1.querySelector('.lg-sheen')?.animate([{ translate: '-60px 0', opacity: 0 }, { opacity: 0.9, offset: 0.3 }, { translate: '220px 0', opacity: 0 }],
+        { duration: 700, delay: 600, easing: 'ease-in-out', fill: 'both' });
+    }
     btn.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: 1200, fill: 'backwards' });
     const since = performance.now();
     const go = () => {
       if (startCard.classList.contains('hidden')) return;
-      // a tap before the button is in (1200 ms) used to be swallowed without feedback: it now starts too,
-      // only a re-entry tap from the previous screen (< 150 ms) is ignored
+      // a tap before the button is in (1200 ms) starts too; only a re-entry tap from the previous screen
+      // (< 150 ms) is ignored
       if (performance.now() - since < 150) return;
       hideOverlays();
       onStart();
@@ -2659,10 +2861,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     clearCustomer();
     subs.textContent = '';
     setClerk('idle');
-    // face close-up at 1.15, framed from y 11% so the lightbox stays below the 中/EN · 消音 buttons (review)
-    camera([50, 11], 1.15, 0);
     summaryCard.classList.add('hidden');
     startCard.classList.remove('hidden');
+    frameStart();
+    fontsReady(400).then(() => { if (!startCard.classList.contains('hidden')) frameStart(); });
     syncLock();
   }
 
@@ -2697,27 +2899,29 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     clearHuazi();
     stopSignTimer();
     closeClosing();
+    unframeStart();
     const d = DECOR[lang];
+    // art direction 6.3 / 7.4: a dark panel (no border); the number ticket is the hero, big and centred; one line
+    // "門口排了 88 人" under it; the three signs as mini signs with their key word in the key colour, no boxes
     closingEl = el('div', 'day-card', stage);
     const inner = el('div', 'dc-inner', closingEl);
     const title = t.title || (lang === 'zh' ? '第一天 打烊' : 'Day 1 — Closed');
     const n = fmt(summary.queue);
+    const head = el('h2', 'dc-title', inner);
+    el('span', 'dc-title-day', head, title);
     if (Array.isArray(summary.plate) && summary.plate.length) {
       const top = el('div', 'dc-top', inner);
       top.innerHTML = art.ticketHTML(summary.plate);
       const tk = top.firstElementChild;
       if (tk) tk.classList.add('dc-ticket');
-      if (summary.bestLine) {
-        const b = el('div', 'dc-best', top);
-        el('div', 'dc-best-label', b, summary.bestLabel || (lang === 'zh' ? '今天最狠一句' : "Today's savagest line"));
-        el('div', 'dc-best-line', b, summary.bestLine);
-      }
     }
-    const head = el('h2', 'dc-title', inner);
-    el('span', 'dc-title-day', head, title);
-    const q = el('span', 'dc-title-q', head);
+    const q = el('div', 'dc-title-q', inner);
     if (typeof t.queueFmt === 'function' || t.queueFmt) {
       q.textContent = typeof t.queueFmt === 'function' ? t.queueFmt('', n).replace(/^\s*[｜|]\s*/, '') : String(t.queueFmt).replace('{title}', '').replace('{n}', n).replace(/^\s*[｜|]\s*/, '');
+      // the number in Baloo, lemon
+      const txt = q.textContent;
+      const at = txt.indexOf(n);
+      if (at >= 0) { q.textContent = ''; q.append(txt.slice(0, at)); el('b', '', q, n); q.append(txt.slice(at + n.length)); }
     } else {
       // "門口排了 78 人" with the number in <b>
       const [pre, post] = d.queueFmt('', '\u0000').replace(/^\s*[｜|]\s*/, '').split('\u0000');
@@ -2725,16 +2929,22 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       el('b', '', q, n);
       q.append(post);
     }
+    if (summary.bestLine) {
+      const b = el('div', 'dc-best', inner);
+      el('div', 'dc-best-label', b, summary.bestLabel || (lang === 'zh' ? '今天最狠一句' : "Today's savagest line"));
+      el('div', 'dc-best-line', b, summary.bestLine);
+    }
     const lines = t.lines || [];
+    const keys = el('div', 'dc-keys', inner);
     ['gun', 'shut', 'take'].forEach((k, i) => {
-      const row = el('div', 'dc-row', inner);
+      const row = el('div', 'dc-row', keys);
       row.dataset.key = k;
       row.style.setProperty('--kc', keyColor(k));
       miniSign(row, k, MINI_TEXT[lang][k]);
-      // "嗯……／杯數太少 → 滾": description left, key word right.
+      // "嗯……／杯數太少 → 滾": the key word in its colour, the description small under it
       const [desc, keyWord] = String(lines[i] || '').split(/\s*(?:→|->)\s*/);
-      el('span', 'dc-text', row, desc || '');
       el('span', 'dc-key', row, keyWord || String(texts[k] || '').replace(/[！!]$/, ''));
+      el('span', 'dc-text', row, desc || '');
     });
     loudestRow(inner, summary.loudest);
     const stars = el('div', 'dc-stars', inner);
@@ -2743,9 +2953,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       const st = el('span', 'dc-star', stars);
       st.classList.toggle('on', i < got);
       st.style.animationDelay = i * 150 + 'ms';
-      st.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7L12 17.4 5.8 21.1l1.6-7L2 9.3l7.1-.7z" fill="#FFD23F" stroke="#1B1311" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+      st.innerHTML = ICON.star(i < got);
     }
-    const btn = el('button', 'dc-btn', inner, t.next || (lang === 'zh' ? '開第二天 ▸' : 'Open day 2 ▸'));
+    const btn = el('button', 'dc-btn ui-gold', inner, t.next || (lang === 'zh' ? '開第二天 ▸' : 'Open day 2 ▸'));
     btn.type = 'button';
     btn.disabled = true;
     const since = performance.now();
@@ -2761,7 +2971,6 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     overlayTap = go;
     syncLock();
   }
-
   // F3 recap: three mini signs float above their keys for ms (tap anywhere to skip). Resolves when gone.
   // t = SYSTEM.opening ({ recap }) or the recap array: ['嗯…… / 15杯 → 滾', '250杯 → 收', '少甜少冰 → 閉嘴'].
   function showRecap(t = {}, { ms = 1800 } = {}) {
@@ -2812,69 +3021,103 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   }
 
   function startButton(parent, label) {
-    const b = el('button', 'big-btn', parent, label);
+    const b = el('button', 'big-btn ui-gold', parent, label);
     b.type = 'button';
     b.addEventListener('click', () => { hideOverlays(); onStart(); });
     return b;
   }
 
+  // Summary (days 2+) = a thermal receipt in front of the rolled-down shutter (art direction 7.4, mock-summary):
+  // small logo, "第 4 天 · 250湊單日", order number and round length, the queue as the big number (+ a 新紀錄 stamp),
+  // three stars with their goals (★3 unsolved = ？？？), the stat rows, today's savagest line, the riddle on a
+  // blackboard strip, tomorrow, and the round stamp "打烊" + rating in the corner (gold for S ending in 250).
+  // The receipt scrolls inside when it is taller than the screen; the button stays pinned below it.
+  const starText = (s) => String(s || '').replace(/^\s*★\s*\d\s*/, '');
   function showSummary(s = {}, t = {}) {
     bigFx.clear();
     clearGuide();
+    unframeStart();
     const zh = lang === 'zh';
     summaryCard.textContent = '';
-    const card = el('div', 'card report', summaryCard);
-    el('div', 'report-stamp', card, zh ? '打烊' : 'CLOSED');
-    el('h2', 'card-title', card, t.title || (zh ? '今日戰報' : "Today's Report"));
-    const grid = el('div', 'report-grid', card);
-    const stat = (label, val, cls = '') => {
-      const c = el('div', 'stat ' + cls, grid);
-      el('div', 'stat-val', c, val);
-      el('div', 'stat-label', c, label);
-    };
-    stat(t.cursedLabel || (zh ? '開罵' : 'Rants'), fmt(s.cursed) + (zh ? ' 次' : ''), 'hot');
-    stat(t.queueLabel || (zh ? '排隊' : 'In line'), fmt(s.queue) + (zh ? ' 人' : ''), 'gold');
-    stat(t.comboLabel || (zh ? '最高連擊' : 'Best combo'), '×' + fmt(s.maxCombo));
-    // stage 2: the stars and the rating take the score's place
-    if (!Array.isArray(t.stars)) stat(t.scoreLabel || (zh ? '分數' : 'Score'), fmt(s.score));
-    else card.classList.add('has-stars');
-    if (s.polite) stat(zh ? '被迫客氣' : 'Forced polite', fmt(s.polite) + (zh ? ' 次' : ''), 'pink');
-    stat(zh ? '接待' : 'Served', fmt(s.served));
-    // stage 2: stars (★1 / ★2 / ★3 with their goals), the rating (C/B/A/S, gold 250), record, ★3 riddle, tomorrow
+    const card = el('div', 'card report receipt', summaryCard);
+    const paper = el('div', 'rc-paper', card);
+    // header
+    const logo = el('div', 'rc-logo', paper);
+    for (const part of (zh ? '來250杯！' : '250 Cups!').split(/(250)/).filter(Boolean)) {
+      if (part === '250') el('b', '', logo, part);
+      else logo.append(part);
+    }
+    el('h2', 'card-title rc-title', paper, t.title || (zh ? '今日戰報' : "Today's Report"));
+    if (t.day) el('div', 'rc-meta', paper, `NO.${String(t.day).padStart(4, '0')}${t.seconds ? ` · ${t.seconds}s` : ''}`);
+    el('hr', 'rc-cut', paper);
+    // the queue
+    const hero = el('div', 'rc-hero', paper);
+    el('small', '', hero, zh ? '門口排了' : 'In line at the door');
+    const n = el('div', 'rc-num', hero);
+    el('span', 'rc-n', n, fmt(s.queue));
+    if (zh) el('span', 'rc-unit', n, '人');
+    if (t.record) el('em', 'rc-record report-record', n, String(t.record).replace(/[！!]$/, ''));
+    // stars and their goals
     if (Array.isArray(t.stars)) {
-      const head = el('div', 'report-rate', card);
-      const r = el('div', 'rate-badge' + (t.gold ? ' gold' : ''), head, t.gold ? '250' : t.rating || 'C');
-      r.dataset.rating = t.gold ? '250' : t.rating || 'C';
-      if (t.ratingLabel) el('div', 'rate-label', head, t.ratingLabel);
-      if (t.record) el('div', 'report-record', head, t.record);
-      const list = el('ul', 'report-stars', card);
+      card.classList.add('has-stars');
+      const list = el('ul', 'report-stars rc-stars', paper);
       t.stars.forEach((on, i) => {
         const li = el('li', on ? 'on' : '', list);
         li.style.animationDelay = i * 150 + 'ms';
-        el('span', 'rs-text', li, (t.starLines || [])[i] || '');
+        html(el('span', 'rs-star', li), ICON.star(on));
+        el('span', 'rs-text', li, starText((t.starLines || [])[i]) || (on ? '' : '？？？'));
       });
-      if (t.hint) el('p', 'report-hint', card, t.hint);
-      if (t.bestText) el('p', 'report-best', card, t.bestText);
     } else if (t.star1 != null) {
-      // ★1 verdict (days 2+): reached → the button opens the next day; missed → this day again
       const got = (s.queue ?? 0) >= t.star1;
-      el('p', 'report-star' + (got ? ' on' : ''), card, zh ? `★1 目標 ${fmt(t.star1)} 人：${got ? '達成！' : '沒達到，再來一次'}` : `★1 goal ${fmt(t.star1)}: ${got ? 'reached!' : 'missed — try again'}`);
+      el('p', 'report-star' + (got ? ' on' : ''), paper, zh ? `★1 目標 ${fmt(t.star1)} 人：${got ? '達成！' : '沒達到，再來一次'}` : `★1 goal ${fmt(t.star1)}: ${got ? 'reached!' : 'missed — try again'}`);
     }
-    const best = el('div', 'best', card);
-    el('div', 'best-label', best, t.bestLabel || (zh ? '最狠一句' : 'Savagest line'));
+    el('hr', 'rc-cut', paper);
+    // stat rows with dotted leaders
+    const rows = el('div', 'report-grid rc-rows', paper);
+    const row = (label, val, unit = '', cls = '') => {
+      const r = el('div', 'stat rc-row ' + cls, rows);
+      el('span', 'stat-label', r, label);
+      el('i', 'rc-dots', r);
+      const v = el('span', 'stat-val', r);
+      el('b', '', v, val);
+      if (unit) v.append(' ' + unit);
+    };
+    row(t.cursedLabel || (zh ? '開罵' : 'Rants'), fmt(s.cursed), zh ? '次' : '', 'hot');
+    row(zh ? '接待' : 'Served', fmt(s.served), zh ? '位' : '');
+    row(t.comboLabel || (zh ? '最高連擊' : 'Best combo'), fmt(s.maxCombo));
+    if (s.polite) row(zh ? '被迫客氣' : 'Forced polite', fmt(s.polite), zh ? '次' : '', 'pink');
+    if (!Array.isArray(t.stars)) row(t.scoreLabel || (zh ? '分數' : 'Score'), fmt(s.score));
+    loudestRow(rows, t.loudest);
+    el('hr', 'rc-cut', paper);
+    // today's savagest line, the riddle, tomorrow
+    const best = el('div', 'best rc-quote', paper);
+    el('div', 'best-label', best, t.bestLabel || (zh ? '今日最狠' : 'Savagest line'));
     const bl = el('div', 'best-line', best);
     fillLine(bl, t.bestLine || '……');
-    loudestRow(card, t.loudest);
-    if (t.verdict) el('p', 'card-sub', card, t.verdict);
-    if (t.tomorrow) el('p', 'report-tomorrow', card, t.tomorrow);
-    startButton(card, t.again || texts.again);
+    const riddle = t.riddle != null ? t.riddle : '';
+    if (riddle) {
+      const ch = el('div', 'report-hint rc-chalk', paper);
+      html(el('span', 'rc-chalk-icon', ch), ICON.star(false));
+      el('span', '', ch, riddle);
+    }
+    if (t.tomorrow) el('p', 'report-tomorrow rc-tomorrow', paper, String(t.tomorrow).split(' · ')[0]);
+    // the round stamp (top right): 打烊 + C/B/A/S; S ending in 250 = gold
+    if (Array.isArray(t.stars)) {
+      const rate = t.gold ? 'S' : t.rating || 'C';
+      const stamp = el('div', 'rate-badge rc-stamp' + (t.gold ? ' gold' : ''), paper);
+      stamp.dataset.rating = t.gold ? '250' : rate;
+      el('small', '', stamp, zh ? '打烊' : 'CLOSED');
+      el('b', '', stamp, rate);
+    } else {
+      el('div', 'report-stamp rc-stamp', paper, zh ? '打烊' : 'CLOSED');
+    }
+    startButton(summaryCard, t.again || texts.again);
     overlayTap = () => { hideOverlays(); onStart(); };
     startCard.classList.add('hidden');
     closeClosing();
     summaryCard.classList.remove('hidden');
     syncLock();
   }
-
   // ---------- 吼罵模式 / voice mode (docs/gameplay-v2.md 10) ----------
   const voiceOpts = { whisper: false, replay: true, keywords: false, keywordsAvailable: false };
   function setVoiceOptions(o = {}) {
@@ -2885,10 +3128,14 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   function loudestRow(parent, l) {
     if (!l || !l.text) return;
     const vt = VOICE_TEXT[lang] || VOICE_TEXT.zh;
-    const row = el('div', 'loudest', parent);
+    // a receipt row: the loudest shout, a dotted leader and a round play (triangle) replay button
+    const row = el('div', 'loudest rc-row', parent);
     el('span', 'loudest-text', row, l.text);
+    el('i', 'rc-dots', row);
     if (typeof l.onReplay === 'function') {
-      const b = el('button', 'loudest-btn', row, l.replay || vt.replayBtn);
+      const b = el('button', 'loudest-btn', row);
+      html(b, ICON.play);
+      b.setAttribute('aria-label', l.replay || vt.replayBtn);
       b.type = 'button';
       b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); l.onReplay(); });
     }
@@ -2899,11 +3146,16 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     promptEl?.remove();
     return new Promise((resolve) => {
       promptEl = el('div', 'overlay voice-prompt', stage);
+      // art direction 7.4: dark panel, a microphone, the ask in one big line, the privacy note small
       const card = el('div', 'card vp-card', promptEl);
-      html(el('div', 'vp-icon', card), art.KEY_ICONS.gun);
+      html(el('div', 'vp-icon', card), ICON.mic);
       el('h2', 'card-title vp-title', card, t.title || '');
-      el('p', 'vp-body', card, t.body || '');
-      const yes = el('button', 'start-btn vp-yes', card, t.yes || 'OK');
+      const body = String(t.body || '');
+      const cut = body.search(/[。！]|\.\s/);
+      const lead = cut >= 0 ? body.slice(0, cut + 1).trim() : body;
+      el('p', 'vp-lead', card, lead);
+      if (cut >= 0 && body.slice(cut + 1).trim()) el('p', 'vp-body', card, body.slice(cut + 1).trim());
+      const yes = el('button', 'ui-gold vp-yes', card, t.yes || 'OK');
       yes.type = 'button';
       const no = el('button', 'vp-no', card, t.no || 'No');
       no.type = 'button';
@@ -2993,26 +3245,34 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
 
   // ---------- Gameplay v2 stage 2 ----------
   function setPreview(list = []) {
+    // art direction 7.8: a steel rail on the counter front with the next customers' mini signs in clips (the second
+    // smaller and paler); no "後面" label, no box
     previewEl.textContent = '';
     previewEl.classList.toggle('show', list.length > 0);
     if (!list.length) return;
-    el('span', 'preview-label', previewEl, lang === 'zh' ? '後面' : 'Next');
-    list.slice(0, 3).forEach((p, i) => {
-      const m = miniSign(previewEl, p.kind || 'gun', p.text || '');
+    el('i', 'preview-rail', previewEl);
+    list.slice(0, 2).forEach((p, i) => {
+      const slot = el('div', 'preview-slot', previewEl);
+      slot.style.setProperty('--i', String(i));
+      el('i', 'preview-clip', slot);
+      const m = miniSign(slot, p.kind || 'gun', p.text || '');
       m.classList.add('preview-sign');
       m.style.setProperty('--i', String(i));
     });
   }
 
+  // Day 4: a lemon receipt strip clipped to the left end of the preview rail (art direction 7.9): "已收", the count
+  // in Baloo, "/250", a thin progress line; it trembles from 240 on
   const METER_TEXT = { zh: ['已收', '杯'], en: ['Booked', 'cups'] };
   function setMeter(value, { hit, over } = {}) {
+    stage.classList.toggle('metering', value != null);
     if (value == null) { meterEl.hidden = true; return; }
     meterEl.hidden = false;
     const [lbl, unit] = texts.meter || METER_TEXT[lang] || METER_TEXT.zh;
     const v = Math.max(0, Math.floor(value));
-    meterEl.innerHTML = `<span class="meter-label">${lbl}</span><b class="meter-num">${v}</b><span class="meter-of">/250${lang === 'zh' ? unit : ' ' + unit}</span>` +
+    meterEl.innerHTML = `<i class="meter-clip"></i><span class="meter-label">${lbl}</span><span class="meter-row"><b class="meter-num">${v}</b><span class="meter-of">/250${lang === 'zh' ? unit : ' ' + unit}</span></span>` +
       `<i class="meter-bar"><i style="width:${Math.min(100, (v / 250) * 100).toFixed(1)}%"></i></i>`;
-    meterEl.dataset.near = v >= 200 ? '1' : '0';
+    meterEl.dataset.near = v >= 240 ? '1' : '0';
     if (hit || over) restart(meterEl, hit ? 'hit' : 'over');
   }
 
@@ -3066,23 +3326,73 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     });
   }
 
-  function showEvent({ type = '', title = '', hint = '', big = '' } = {}) {
-    eventEl.hidden = false;
-    stage.classList.add('eventing'); // the preview steps aside while an event owns the counter
-    eventEl.dataset.type = type;
-    eventEl.textContent = '';
-    el('div', 'ev-title', eventEl, title);
-    el('div', 'ev-big', eventEl, big);
-    el('div', 'ev-hint', eventEl, hint);
-    restart(eventEl, 'in');
-  }
-  function updateEvent({ big } = {}) {
-    if (eventEl.hidden) return;
+  // Mini events (art direction 6.3 / 9): the prop itself is the panel, and the count is written on it. Megaphone: a
+  // megaphone pokes in from the left, its volume cells light up; phone: a phone slides up with the ex-boss calling;
+  // calculator: a real calculator with a seven-segment screen; stamp: a stack of slips that grows; shutter: no panel
+  // (the shutter itself comes down). The prop art comes from art.js EVENT_PROPS[type] (or MEGAPHONE_SVG) when the
+  // scene package provides it; until then a CSS-drawn stand-in. .event-panel stays the container (tools).
+  const EVENT_CELLS = 10;
+  const BUILTIN_PROP = {
+    megaphone: '<i class="evp-cone"></i><i class="evp-bell"></i><i class="evp-grip"></i>',
+    phone: '<i class="evp-body"></i><i class="evp-cam"></i>',
+    calculator: '<i class="evp-body"></i><i class="evp-keys"></i>',
+    stamp: '<i class="evp-slips"></i><i class="evp-stamp"></i>',
+    shutter: '',
+  };
+  const eventCount = (big) => { const m = /(\d+)/.exec(String(big)); return m ? Number(m[1]) : 0; };
+  function paintEvent(big) {
+    const type = eventEl.dataset.type;
     const b = eventEl.querySelector('.ev-big');
     if (b && big != null && b.textContent !== String(big)) {
       b.textContent = String(big);
       restart(b, 'pop');
     }
+    if (type === 'megaphone') {
+      const n = eventCount(big);
+      const lit = Math.min(EVENT_CELLS, n);
+      eventEl.querySelectorAll('.ev-cell').forEach((c, i) => c.classList.toggle('on', i < lit));
+      // art.js MEGAPHONE_SVG: five volume cells, one more every two hits
+      eventEl.querySelectorAll('.mg-bar').forEach((r) => r.classList.toggle('on', Number(r.dataset.i) <= Math.ceil(n / 2)));
+    } else if (type === 'stamp') {
+      const [v, of] = String(big).split('/').map(Number);
+      const fill = of > 0 ? Math.min(1, (v || 0) / of) : 0;
+      eventEl.style.setProperty('--fill', String(fill));
+      // art.js SLIPS_SVG: the stack grows from one slip to six
+      eventEl.querySelectorAll('.slip').forEach((s) => s.classList.toggle('on', Number(s.dataset.i) <= 1 + Math.round(fill * 5)));
+    } else if (type === 'phone') {
+      eventEl.classList.toggle('hung', String(big) === '...');
+    } else if (type === 'calculator') {
+      const num = eventEl.querySelector('.calc-num:not(.calc-ghost)');
+      if (num && big != null) num.textContent = String(big).replace(/[^0-9-]/g, '').slice(-3) || '-';
+    }
+  }
+  function showEvent({ type = '', title = '', hint = '', big = '' } = {}) {
+    eventEl.hidden = false;
+    stage.classList.add('eventing'); // the preview steps aside while an event owns the counter
+    eventEl.dataset.type = type;
+    eventEl.classList.remove('hung');
+    eventEl.style.removeProperty('--fill');
+    eventEl.textContent = '';
+    const prop = el('div', 'ev-prop', eventEl);
+    const propSvg = art.EVENT_PROP_SVG?.[type] || (type === 'megaphone' ? art.MEGAPHONE_SVG : '');
+    const hasArt = typeof propSvg === 'string' && !!propSvg;
+    eventEl.classList.toggle('has-art', hasArt);
+    if (hasArt) { prop.classList.add('art'); html(prop, propSvg); } else html(prop, BUILTIN_PROP[type] || '');
+    el('div', 'ev-title', eventEl, title);
+    const screen = el('div', 'ev-screen', eventEl);
+    el('div', 'ev-big', screen, big);
+    if (type === 'megaphone') {
+      const vol = el('div', 'ev-vol', eventEl);
+      for (let i = 0; i < EVENT_CELLS; i++) el('i', 'ev-cell', vol);
+    }
+    // the phone and the calculator need their one instruction; mash events show none (the prop says it)
+    if (hint && (type === 'phone' || type === 'calculator')) el('div', 'ev-hint', eventEl, hint);
+    paintEvent(big);
+    restart(eventEl, 'in');
+  }
+  function updateEvent({ big } = {}) {
+    if (eventEl.hidden) return;
+    if (big != null) paintEvent(big);
   }
   function hideEvent() {
     eventEl.hidden = true;
@@ -3097,18 +3407,23 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     restart(shutterEl, 'down');
   }
 
+  // Round start: a wooden sign drops down on two strings for 1.6 s (art direction 7.10 / 9): Huninn title + the rule
   let bannerTimer = 0;
-  function dayBanner(title, rule, ms = 2200) {
+  function dayBanner(title, rule, ms = 1600) {
     clearTimeout(bannerTimer);
     bannerEl.textContent = '';
     if (!title && !rule) { bannerEl.hidden = true; return; }
-    el('div', 'db-title', bannerEl, title || '');
-    if (rule) el('div', 'db-rule', bannerEl, rule);
+    el('i', 'db-strings', bannerEl);
+    const board = el('div', 'db-board', bannerEl);
+    el('div', 'db-title', board, title || '');
+    if (rule) el('div', 'db-rule', board, rule);
     bannerEl.hidden = false;
     restart(bannerEl, 'in');
-    bannerTimer = setTimeout(() => { bannerEl.hidden = true; }, ms);
+    bannerTimer = setTimeout(() => {
+      bannerEl.classList.add('out');
+      bannerTimer = setTimeout(() => { bannerEl.hidden = true; bannerEl.classList.remove('out'); }, 220);
+    }, Math.max(600, Math.min(ms, 1600)));
   }
-
   applyTexts();
   setClerk('idle');
   setHud({});

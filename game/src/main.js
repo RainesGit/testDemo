@@ -1120,6 +1120,12 @@ const ui = createUI(root, {
     store(BLEEP_KEY, bleep ? '1' : '0');
     if (bleep && audio.unlocked) audio.sfx('bleep', { duration: 0.15 });
   },
+  // the HUD pause sheet (art direction 7.3): the round clock stops while it is open
+  onPause(on) {
+    userPaused = !!on;
+    lastT = now();
+    if (on) audio.stopSpeech();
+  },
 });
 
 function applyTexts() {
@@ -1230,6 +1236,8 @@ function reportTexts(n, summary) {
   const next = lastPassed && day !== n ? dayText(day) : null;
   return {
     title: d.name ? `${fmtN(r.day, n)} · ${d.name}` : undefined,
+    // the receipt (art direction 7.4): order number, round length, the riddle alone (no "for ★3" prefix)
+    day: n, seconds: Math.round((debugDurationMs || info1.durationMs || 0) / 1000), riddle: ev.stars[2] ? '' : d.riddle || '',
     stars: ev.stars, starLines: lines, rating: ev.rating, gold: ev.gold, ratingLabel: r.rating,
     record: lastRecord && lastRecord.newRecord ? r.newRecord : '', bestText: lastRecord ? `${r.best || ''} ${lastRecord.best.toLocaleString('en-US')}` : '',
     hint: ev.stars[2] ? (ev.count === 3 ? r.allStars : '') : `${r.toStar3 || ''}${d.riddle || ''}`,
@@ -2108,9 +2116,11 @@ function crowdLevel(queue) {
 }
 
 // Advance the engine to `t` (dt capped so a backgrounded tab doesn't skip the round).
+let userPaused = false; // the pause sheet is open
 function syncClock(t = now()) {
   const dt = Math.min(100, Math.max(0, t - lastT));
   lastT = t;
+  if (userPaused) return;
   const ph = game ? game.state.phase : 'idle';
   if (dt > 0 && (ph === 'playing' || ph === 'rage')) game.tick(dt);
 }

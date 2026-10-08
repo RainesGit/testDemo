@@ -770,7 +770,7 @@ function silhouette(cls, x, y, s, fill, phone) {
   return `<g class="${cls}" transform="translate(${x} ${y}) scale(${s})">` +
     `<path fill="${fill}" d="M-46 300 V124 Q-46 54 0 48 Q46 54 46 124 V300 Z ${ring(0, 18, 24)} Z"/>` +
     `<path fill="none" stroke="${RIM}" stroke-width="${r1(1.8 / s)}" stroke-linecap="round" opacity=".6" d="M-18 0 Q0 -10 18 0 M-40 70 Q-31 54 -14 51"/>` +
-    (phone ? `<path fill="${SCREEN}" d="M13 28 h10 v15 h-10 Z"/><path fill="${SCREEN}" opacity=".12" d="${ring(18, 35, 26)}"/>` : '') +
+    (phone ? `<path fill="${SCREEN}" d="M13 28 h10 v15 h-10 Z"/><path fill="${SCREEN}" opacity=".16" d="${ring(18, 35, 11)}"/>` : '') +
     '</g>';
 }
 const QUEUE_PEOPLE = [

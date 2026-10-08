@@ -1350,9 +1350,13 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   function freeze(ms = 60) {
     clearTimeout(freezeTimer);
     const anims = typeof stage.getAnimations === 'function' ? stage.getAnimations({ subtree: true }) : [];
-    // hit-stop: the world stops; the 花字 caption and the subtitle keep playing (a paused fade-in would hide the line)
-    frozen = anims.filter((a) => a.playState === 'running' && !a.effect?.target?.closest?.('.hz-layer, .subs, .karaoke'));
-    frozen.forEach((a) => a.pause());
+    // hit-stop: the world stops; the 花字 caption, the subtitle and the flying +N keep playing (a paused fade-in would
+    // hide the line; a +N paused at its first frame hung as a faint ghost over the counter)
+    // A freeze that starts while another is still on keeps the animations the first one paused (they are no longer
+    // 'running'): dropping them left particles and flying +N numbers stuck mid-air for the rest of the round.
+    const now = anims.filter((a) => a.playState === 'running' && !a.effect?.target?.closest?.('.hz-layer, .subs, .karaoke, .gain-fly'));
+    now.forEach((a) => a.pause());
+    frozen = frozen.concat(now);
     stage.classList.add('freeze');
     freezeTimer = setTimeout(() => {
       stage.classList.remove('freeze');
@@ -1998,12 +2002,12 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   // stroke (was 2.6 / 4.6); S2 = gold gradient + ink stroke + one sheen; S4 = a symbol in a cream bubble; S5 = typed.
   // Default spot: the clerk's chest to the counter top (y 34–46%), never across his eyes to mouth (y 17–31%).
   const HZ = {
-    S1: { fill: '#FFD84A', inner: ['#B42A1E', 1.6], outer: ['#1B1311', 2.8], pos: [50, 40], weight: 900 },
-    S2: { fill: 'url(#hzGold)', inner: null, outer: ['#1B1311', 2.6], pos: [50, 38], weight: 900 },
+    S1: { fill: '#FFD84A', inner: ['#B42A1E', 1.6], outer: ['#1B1311', 2.8], pos: [50, 41], weight: 900 },
+    S2: { fill: 'url(#hzGold)', inner: null, outer: ['#1B1311', 2.6], pos: [50, 41], weight: 900 },
     S4: { fill: '#1B1311', inner: null, outer: null, pos: [75, 52], weight: 700, font: FONT_SIGN },
     S5: { fill: '#FFF7E6', inner: null, outer: ['#1B1311', 2.2], pos: [50, 42], weight: 900 },
   };
-  const HZ_FACE_BAND = [17, 31]; // stage %: the clerk's eyes to mouth
+  const HZ_FACE_BAND = [24, 35]; // stage %: the clerk's eyes to mouth (scene art v2: eyes at 26–29 %, chin at 35 %)
 
   function layerGeom() {
     const lw = hzLayer.clientWidth || stage.clientWidth || 1;
@@ -2785,6 +2789,10 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       }
     }
     el('div', 'start-window', startCard).setAttribute('aria-hidden', 'true');
+    // the counter front under the window (steel lip, purple acrylic, 現點現做 letters): the street starts below it
+    const ctr = el('div', 'start-counter', startCard);
+    ctr.setAttribute('aria-hidden', 'true');
+    el('span', 'sc-plaque', ctr, (PROPS[lang] || PROPS.zh).plaque);
     el('p', 'start-tag', startCard, t.subtitle || d.sub);
     const label = firstRun ? t.start || d.firstStart : typeof t.startDay === 'function' ? t.startDay(day) : t.startDay ? String(t.startDay).replace('{n}', day) : d.day(day);
     const btn = el('button', 'start-btn ui-gold', startCard, label);
@@ -3093,7 +3101,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     const best = el('div', 'best rc-quote', paper);
     el('div', 'best-label', best, t.bestLabel || (zh ? '今日最狠' : 'Savagest line'));
     const bl = el('div', 'best-line', best);
-    fillLine(bl, t.bestLine || '……');
+    fillLine(bl, t.bestLine || '……', { dirs: false }); // no stage directions on screen (7.7)
     const riddle = t.riddle != null ? t.riddle : '';
     if (riddle) {
       const ch = el('div', 'report-hint rc-chalk', paper);
@@ -3347,6 +3355,8 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
       b.textContent = String(big);
       restart(b, 'pop');
     }
+    // a count of nothing yet ("+0") is not shown: the prop is empty until the first hit
+    if (b) b.hidden = /^\+?0$/.test(String(big ?? '').trim());
     if (type === 'megaphone') {
       const n = eventCount(big);
       const lit = Math.min(EVENT_CELLS, n);
@@ -3380,7 +3390,7 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     if (hasArt) { prop.classList.add('art'); html(prop, propSvg); } else html(prop, BUILTIN_PROP[type] || '');
     el('div', 'ev-title', eventEl, title);
     const screen = el('div', 'ev-screen', eventEl);
-    el('div', 'ev-big', screen, big);
+    el('div', 'ev-big', screen, big).hidden = /^\+?0$/.test(String(big ?? '').trim());
     if (type === 'megaphone') {
       const vol = el('div', 'ev-vol', eventEl);
       for (let i = 0; i < EVENT_CELLS; i++) el('i', 'ev-cell', vol);

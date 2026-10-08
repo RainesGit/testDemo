@@ -197,9 +197,9 @@ test('hard rules: no emoji, no filters/blur in art.js and style.css (A11, §2.1)
   assert.ok(!EMOJI.test(rendered), 'rendered art has an emoji');
 });
 
-test('style.css: palette and fonts from §2.2/§2.4; old classes removed', () => {
+test('style.css: palette and fonts from art-direction-v2 2.1/3; old classes removed', () => {
   const css = readFileSync(new URL('style.css', ROOT), 'utf8');
-  for (const v of ['--ink:#1B1311', '--take:#FFC21A', '--gun:#E8402F', '--shut:#6A4EE8', '--jade:#1FB57A', '--lemon:#FFD23F']) {
+  for (const v of ['--ink:#1B1311', '--take:#FFC21A', '--gun:#EE4130', '--shut:#7658F2', '--mint:#3CC98E', '--lemon:#FFD84A', '--paper:#FFF7E6', '--night-900:#0E1120']) {
     assert.ok(css.replace(/\s/g, '').includes(v), v);
   }
   for (const v of ['--font-zh:', '--font-sign:', '--font-en:']) assert.ok(css.includes(v), v);
@@ -217,11 +217,14 @@ test('style.css: palette and fonts from §2.2/§2.4; old classes removed', () =>
   }
 });
 
-test('index.html loads the three font families and sets the theme color', () => {
+test('index.html self-hosts the fonts (no Google Fonts, no Simplified fonts) and sets the theme color', () => {
   const html = readFileSync(new URL('index.html', ROOT), 'utf8');
-  assert.ok(html.includes('family=Noto+Sans+TC:wght@700;900'));
-  assert.ok(html.includes('LXGW+WenKai+TC'));
-  assert.ok(html.includes('family=Bangers'));
-  assert.ok(html.includes('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'));
-  assert.ok(html.includes('<meta name="theme-color" content="#1B1311">'));
+  const css = readFileSync(new URL('style.css', ROOT), 'utf8');
+  assert.ok(!/googleapis|gstatic/.test(html + css), 'Google Fonts still referenced');
+  assert.ok(!/Sans SC|Serif SC|PingFang SC|Microsoft YaHei/.test(html + css), 'a Simplified font in a fallback chain');
+  assert.ok(html.includes('<link rel="preload" as="font" type="font/woff2" crossorigin href="fonts/huninn.woff2">'));
+  for (const f of ['huninn', 'baloo2-800', 'noto-sans-tc-500', 'noto-sans-tc-700', 'noto-sans-tc-900', 'wenkai-tc-700', 'dseg7-bold']) {
+    assert.ok(css.includes(`url("fonts/${f}.woff2")`), `@font-face for ${f}`);
+  }
+  assert.ok(html.includes('<meta name="theme-color" content="#0E1120">'));
 });

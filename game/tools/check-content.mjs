@@ -276,6 +276,35 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
     !sample || splitPunch(sample.reply).every((h) => keys.has(clipKey('zh', h))));
 }
 
+// F. Self-hosted font subsets (docs/art-direction-v2.md 3.2): every character in src/*.js, index.html and style.css
+// must be in each full-text subset in game/fonts/ (or be one its source font lacks, recorded by tools/fonts/subset.py),
+// and every Han character must be in Noto Sans TC. A new character in the text means: run python3 tools/fonts/subset.py.
+{
+  let manifest = null;
+  try { manifest = JSON.parse(readFileSync(new URL('../fonts/subset.json', import.meta.url), 'utf8')); } catch { /* missing */ }
+  const files = [...readdirSync(new URL('../src/', import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
+    '../index.html', '../style.css'];
+  const used = new Set();
+  const ZW = /[\u200b-\u200f\u2028-\u202f\ufe00-\ufe0f\ufeff]/;
+  for (const f of files) for (const ch of readFileSync(new URL(f, import.meta.url), 'utf8')) if (ch.codePointAt(0) >= 0xa0 && !ZW.test(ch)) used.add(ch);
+  const bad = [];
+  const fonts = Object.entries(manifest?.fonts || {});
+  for (const [file, v] of fonts) {
+    if (v.set !== 'all') continue;
+    const known = new Set([...v.chars, ...v.unavailable]);
+    const miss = [...used].filter((ch) => !known.has(ch));
+    if (miss.length) bad.push(`${file} lacks ${miss.slice(0, 12).join('')}${miss.length > 12 ? '…' : ''} (${miss.length})`);
+  }
+  const noto = manifest?.fonts?.['noto-sans-tc-700.woff2'];
+  const REGEX_BOUNDS = new Set(['\u3400', '\u9fff', '\u9fa5']); // range ends in regular expressions, never shown
+  const hanGap = noto ? [...noto.unavailable].filter((ch) => /\p{Script=Han}/u.test(ch) && !REGEX_BOUNDS.has(ch)) : [];
+  if (hanGap.length) bad.push(`Noto Sans TC has no glyph for ${hanGap.join('')}`);
+  const woff = fonts.filter(([file]) => { try { return readFileSync(new URL(`../fonts/${file}`, import.meta.url)).length > 0; } catch { return false; } }).length;
+  check('F1', 'font subsets in game/fonts cover every character the game shows (else run python3 tools/fonts/subset.py)',
+    manifest && fonts.length >= 7 && woff === fonts.length && bad.length === 0,
+    manifest ? `${fonts.length} fonts, ${used.size} non-ASCII characters used${bad.length ? '; ' + bad.join(' | ') : ''}` : 'fonts/subset.json missing');
+}
+
 // Report
 let failed = 0;
 for (const r of results) {

@@ -156,10 +156,12 @@ const KEYBOARD = { j: 'gun', k: 'shut', l: 'take' };
 const CHARGE_MS = [300, 800];
 const SVGNS = 'http://www.w3.org/2000/svg';
 
-const FONT_ZH = '"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Noto Sans CJK TC",sans-serif';
-const FONT_SIGN = '"LXGW WenKai TC","Kaiti TC","STKaiti","BiauKai","DFKai-SB",' + FONT_ZH;
-const FONT_EN = '"Bangers","Impact","Arial Black",sans-serif';
-const KEY_COLOR = { gun: '#E8402F', shut: '#6A4EE8', take: '#FFC21A' };
+// Self-hosted subsets (fonts/, docs/art-direction-v2.md 3): Traditional-only fallbacks, no Simplified fonts.
+const FONT_ZH = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const FONT_SIGN = '"LXGW WenKai TC",' + FONT_ZH;
+const FONT_EN = '"Baloo 2","Huninn",' + FONT_ZH;
+const FONT_UI = '"Huninn",' + FONT_ZH;
+const KEY_COLOR = { gun: '#EE4130', shut: '#7658F2', take: '#FFC21A' };
 
 /** Named focus points in stage percent (2.11). */
 export const FOCUS = { FACE: [50, 20], MOUTH: [50, 24], SIGN: [30, 55], CUST: [29, 67], GOLDSIGN: [72, 11.5], WIDE: [50, 40] };
@@ -377,7 +379,9 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
   // ---------- DOM skeleton (2.11): .stage > .shaker > .cam > (.shop, .clerk, .counter, .cust-wrap, .sign)
   root.textContent = '';
   root.classList.add('app');
-  const stage = el('div', 'stage', root);
+  // .frame: full-height box around the 9:16 stage; its bleed holds the HUD, subtitles and keys (art direction 4.1)
+  const frame = el('div', 'frame', root);
+  const stage = el('div', 'stage', frame);
   stage.dataset.phase = 'idle';
   const shaker = el('div', 'shaker', stage);
   const cam = el('div', 'cam', shaker);
@@ -2227,9 +2231,11 @@ export function createUI(root, { onPress = () => {}, onCharge = () => {}, onRele
     try {
       if (!document.fonts?.load) return;
       fontsPromise = Promise.all([
-        document.fonts.load('900 1em "Noto Sans TC"', '滾閉嘴收調你媽250'),
+        document.fonts.load('400 1em "Huninn"', '來杯開店滾閉嘴收'),
+        document.fonts.load('800 1em "Baloo 2"', '0123456789'),
+        document.fonts.load('700 1em "Noto Sans TC"', '滾閉嘴收調你媽'),
+        document.fonts.load('900 1em "Noto Sans TC"', '滾閉嘴收調你媽'),
         document.fonts.load('700 1em "LXGW WenKai TC"', '嗯杯少甜冰'),
-        document.fonts.load('1em "Bangers"', 'SCRAM250'),
       ]).catch(() => {});
     } catch { /* no font loading API */ }
   }

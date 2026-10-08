@@ -1,72 +1,127 @@
-/* 《來250杯！》 — strict 9:16 portrait stage. Sizes are in cqw (1cqw = 1% stage width) or stage %.
-   Art direction and coordinates: docs/first-minute-spec.md §2. No filters, no blur, no emoji:
-   every shadow is an offset block of color-mix(in srgb, c 78%, #1B1311). */
+/* 《來250杯！》 — a 9:16 game stage (.stage) inside a full-height frame (.frame) whose bleed continues the ceiling
+   above and the counter below. Sizes are in cqw (1cqw = 1% stage width) or stage %.
+   Art direction, palette, fonts, layout and the UI system: docs/art-direction-v2.md (B owns :root, the frame, HUD,
+   subtitles' layout, keys and every card; A the scene art; C the effects). No filters, no blur, no emoji. */
 :root {
-  /* base */
-  --ink: #1B1311;
-  --cream: #FFF4DC;
-  --wall: #F4C77E;
-  --wall-line: #DDAE66;
-  --wood: #6B3A1E;
-  --wood-lip: #8A4B24;
-  --wood-sh: #4A2814;
-  --wood-line: #5A3018;
-  /* the three keys (R1): sign color = key color */
-  --gun: #E8402F;
-  --shut: #6A4EE8;
-  --take: #FFC21A;
-  --take-deep: #E0A100;
+  /* night (outside, the queue, empty space) */
+  --night-900: #0E1120; --night-700: #1B2040; --night-500: #2D3466; --rim-cool: #7FD4FF;
+  /* shop wall (warm light pool: bright centre, dark edges) */
+  --wall-hi: #FBE6BE; --wall: #EBC08A; --wall-lo: #A9734A; --slat-line: #C7925E;
+  /* ceiling, dark wood */
+  --wood-dk: #3A2418; --wood-dk-hi: #55361F;
+  /* stainless counter top */
+  --steel-hi: #F2F4F7; --steel: #BCC3CE; --steel-lo: #737C8C;
+  /* counter front (deep purple acrylic, so the paper signs jump out) */
+  --counter-hi: #3B2F5E; --counter: #2A2142; --counter-lo: #151026;
+  /* ink: characters use --ink; background props use --ink-bg (warm brown, never black) */
+  --ink: #1B1311; --ink-bg: #4A2C1C;
+  /* paper (order signs, receipts, number tickets) */
+  --paper: #FFF7E6; --paper-sh: #EAD8B4; --paper-line: #CDBB98;
+  /* the three keys (R1: sign colour = key colour) and their deep shades */
+  --gun: #EE4130;  --gun-deep: #B42A1E;
+  --shut: #7658F2; --shut-deep: #4C34B4;
+  --take: #FFC21A; --take-deep: #DE9800;
   /* accents */
-  --lemon: #FFD23F;
-  --jade: #1FB57A;
-  --uniform: #2F2557;
-  --uniform-sh: #221A40;
-  --hz-yellow: #FFE14D;
-  --sky: #9ED8FF;
+  --lemon: #FFD84A; --gold-hi: #FFF3B0; --mint: #3CC98E; --fury: #FF8A2A;
+  /* UI text */
+  --text: #FFF7E6; --text-dim: rgb(255 247 230 / .62);
+  /* characters */
+  --skin: #F2C7A0; --skin-sh: #D99B78; --skin-hi: #FFE2C6;
+  --hair: #241815; --hair-hi: #5B4038;
+  --uniform: #3A2F63; --uniform-sh: #2A2149; --uniform-hi: #4D4183;
   --mouth: #5A1414;
-  /* UI text on dark */
-  --text: #FFF4DC;
-  --text-dim: #CDBCA5;
+
+  /* UI system (art direction 7.1): two radii, one dark panel, one gold primary button */
+  --r-s: 2cqw; --r-l: 4cqw;
+  --panel-dark: rgb(14 17 32 / .88);
+  --btn-gold: linear-gradient(#FFD54A, #FFB800); --btn-gold-sh: #B57A00;
+  --line-ui: .7cqw;
+
+  /* fonts (3.1): all SIL OFL, self-hosted subsets in fonts/ (tools/fonts/subset.py); Traditional-only fallbacks */
+  --font-tc: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-ui: "Huninn", var(--font-tc);
+  --font-sub: var(--font-tc);
+  --font-hand: "LXGW WenKai TC", var(--font-tc);
+  --font-num: "Baloo 2", "Huninn", var(--font-tc);
+  --font-seg: "DSEG7 Classic", "Baloo 2", monospace;
+  /* older names, still used by the scene and effect sections */
+  --font-zh: var(--font-sub);
+  --font-sign: var(--font-hand);
+  --font-en: var(--font-num);
+  --font: var(--font-sub);
+
+  /* Deprecated names (art direction 2.1 deletes them): mapped onto the new palette until every section has moved
+     to the new tokens; do not use them in new rules. */
+  --cream: var(--paper);
+  --wall-line: var(--slat-line);
+  --wood: var(--wood-dk-hi);
+  --wood-lip: var(--wood-dk-hi);
+  --wood-sh: var(--wood-dk);
+  --wood-line: var(--wood-dk);
+  --jade: var(--mint);
+  --sky: var(--rim-cool);
+  --aura: var(--rim-cool);
+  --rage: var(--gun);
   --pink: #FF8FC1;
-  --rage: #FF1F1F;
-  --aura: #4FD1FF;
-  --fury: #FF7A1A;
-  --panel: rgb(27 19 17 / .9);
-  /* fonts (§2.4) */
-  --font-zh: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", "Noto Sans CJK TC", sans-serif;
-  --font-sign: "LXGW WenKai TC", "Kaiti TC", "STKaiti", "BiauKai", "DFKai-SB", var(--font-zh);
-  --font-en: "Bangers", "Impact", "Arial Black", sans-serif;
-  --font: var(--font-zh);
+  --hz-yellow: var(--lemon);
+  --panel: var(--panel-dark);
   color-scheme: dark;
 }
 
+/* Self-hosted font subsets (fonts/*.woff2, regenerate with python3 tools/fonts/subset.py; licenses fonts/OFL-*.txt).
+   block: the logo and the start button (Huninn, Baloo 2) never flash a fallback; everything else swaps. */
+@font-face { font-family: "Huninn"; src: url("fonts/huninn.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "Baloo 2"; src: url("fonts/baloo2-800.woff2") format("woff2"); font-weight: 400 900; font-display: block; }
+@font-face { font-family: "Noto Sans TC"; src: url("fonts/noto-sans-tc-500.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+@font-face { font-family: "Noto Sans TC"; src: url("fonts/noto-sans-tc-700.woff2") format("woff2"); font-weight: 700 800; font-display: swap; }
+@font-face { font-family: "Noto Sans TC"; src: url("fonts/noto-sans-tc-900.woff2") format("woff2"); font-weight: 900; font-display: swap; }
+@font-face { font-family: "LXGW WenKai TC"; src: url("fonts/wenkai-tc-700.woff2") format("woff2"); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: "DSEG7 Classic"; src: url("fonts/dseg7-bold.woff2") format("woff2"); font-weight: 400 900; font-display: swap; }
+
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text); font-family: var(--font-zh); overflow: hidden; overscroll-behavior: none; }
+html, body { margin: 0; height: 100%; background: var(--night-900); color: var(--text); font-family: var(--font-sub); overflow: hidden; overscroll-behavior: none; }
 body { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 button { font: inherit; color: inherit; }
 * { paint-order: stroke fill; }
 [hidden] { display: none !important; }
-:lang(en) { --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif; }
 
-/* ---------- Stage frame: always 9:16, letterboxed in --ink ---------- */
-.app { position: fixed; inset: 0; display: grid; place-items: center; background: var(--ink); }
+/* ---------- Stage frame (art direction 4.1): .app > .frame > .stage ----------
+   .stage stays the 9:16 game box (every % and cqw coordinate, and every tool, measures it). .frame is as wide as the
+   stage and up to 21:9 tall (the whole screen on a modern phone): its bleed above the stage continues the dark
+   ceiling, below it the counter front, so a 390x844 phone has no black bars. The HUD, the subtitles and the key pad
+   live in the bleed; full-screen layers reach the whole frame. Without bleed (desktop, 360x640) all of it sits on the
+   stage itself. */
+.app {
+  --sw: min(100vw, 100dvh * 9 / 16, 540px);
+  --sh: calc(var(--sw) * 16 / 9);
+  --fh: min(100dvh, var(--sw) * 21 / 9);
+  --bleed: calc((var(--fh) - var(--sh)) / 2);
+  --safe-t: max(env(safe-area-inset-top), 8px);
+  --safe-b: max(env(safe-area-inset-bottom), 6px);
+  position: fixed; inset: 0; display: grid; place-items: center; background: var(--night-900);
+}
+.frame {
+  position: relative; width: var(--sw); height: var(--fh); overflow: hidden;
+  background: linear-gradient(var(--wood-dk) 0 50%, var(--counter-lo) 50%, var(--night-900));
+}
 .stage {
-  position: relative;
-  width: min(100vw, 100dvh * 9 / 16, 540px);
-  height: min(100dvh, 100vw * 16 / 9, 960px);
-  overflow: hidden;
+  position: absolute; left: 0; top: var(--bleed);
+  width: var(--sw); height: var(--sh);
+  overflow: visible;
   container-type: size;
-  background: var(--ink);
+  /* the subtitle line and the key pad, measured from the stage bottom (negative = in the bleed) */
+  --sub-b: calc(var(--safe-b) + 6px - var(--bleed));
+  --sub-h: 15cqw;
 }
 .shaker { position: absolute; inset: 0; }
+/* full-screen layers cover the frame, bleed included */
+.stage > :is(.gsurf, .overlay, .day-card, .letterbox, .gate, .flash, .pause-sheet) { top: calc(-1 * var(--bleed)); bottom: calc(-1 * var(--bleed)); height: auto; }
 
-/* ---------- Off-stage backdrop (screens wider than 5:8 only; phones in portrait keep plain ink bars) ----------
-   The shop front around the 9:16 stage: striped awning, string lights, 二丁掛 facade tiles and the queue
-   continuing out of frame, under a vignette. All static backgrounds (data-URI SVG tiles + gradients), painted
-   once: no filters, no animation, nothing on the stage itself except its wooden door frame. */
+/* ---------- Off-stage backdrop (screens wider than 5:8 only; phones in portrait get the frame bleed) ----------
+   The shop front around the frame: striped awning, string lights, 二丁掛 facade tiles and the queue continuing out
+   of frame, under a vignette. All static backgrounds (data-URI SVG tiles + gradients), painted once. */
 @media (min-aspect-ratio: 5/8) {
   .app {
-    --sw: min(100vw, 100dvh * 9 / 16, 540px);
     --bd-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='32'%3E%3Crect width='48' height='32' fill='%233A2820'/%3E %3Cpath fill='%23433026' d='M1 1 H23 V7 H1 Z M25 1 H47 V7 H25 Z M-11 17 H11 V23 H-11 Z M13 17 H35 V23 H13 Z M37 17 H59 V23 H37 Z'/%3E %3Cpath fill='none' stroke='%2324180F' stroke-width='2' d='M0 0 H48 M0 16 H48 M0 32 H48 M24 0 V16 M0 0 V16 M12 16 V32 M36 16 V32'/%3E%3C/svg%3E");
     --bd-queue: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='330' height='150'%3E%3Cg transform='translate(-3.5 32) scale(1.475)' stroke-linejoin='round'%3E%3Cpath fill='%231d6446' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%237f614b' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%231b1311' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Cpath fill='%2343317d' stroke='%23120C0A' stroke-width='1.4' d='M9 44 Q9 39 14 39 H26 Q31 39 31 44 V82 H9 Z'/%3E%3C/g%3E%3Cg transform='translate(45 18) scale(1.650)' stroke-linejoin='round'%3E%3Cpath fill='%238d5169' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%23886e59' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%23382217' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Cpath fill='%23382217' d='M9 15 A11 11 0 1 1 31 15 L32.5 37 Q20 40.5 7.5 37 Z'/%3E%3C/g%3E%3Cg transform='translate(100.5 40) scale(1.375)' stroke-linejoin='round'%3E%3Cpath fill='%23354975' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%23724f3a' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%231b1311' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Cpath fill='%23822a20' stroke='%23120C0A' stroke-width='1.4' d='M8.8 14 A11.2 11.2 0 0 1 31.2 14 Q20 17 8.8 14 Z'/%3E%3C/g%3E%3Cg transform='translate(144.5 24) scale(1.575)' stroke-linejoin='round'%3E%3Cpath fill='%238d4716' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%235c3d2b' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%23543620' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Ccircle cx='20' cy='4' r='4.5' fill='%23543620'/%3E%3C/g%3E%3Cg transform='translate(197 34) scale(1.450)' stroke-linejoin='round'%3E%3Cpath fill='%238d8477' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%237f614b' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%231b1311' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3Crect x='31' y='19' width='6' height='10' fill='%239ED8FF' stroke='%23120C0A' stroke-width='1.4'/%3E%3C/g%3E%3Cg transform='translate(244 22) scale(1.600)' stroke-linejoin='round'%3E%3Cpath fill='%23255b65' stroke='%23120C0A' stroke-width='1.4' d='M-3 84 Q-3 40 8 35.5 Q20 31 32 35.5 Q43 40 43 84 Z'/%3E%3Cpath fill='%23886e59' stroke='%23120C0A' stroke-width='1.4' d='M16 24 H24 V34 H16 Z M9.5 15 a10.5 10.5 0 1 0 21 0 a10.5 10.5 0 1 0 -21 0 Z'/%3E%3Cpath fill='%23382217' d='M9.3 16 A10.7 10.7 0 1 1 30.7 16 Q30.7 23 27 25.5 Q20 27.5 13 25.5 Q9.3 23 9.3 16 Z'/%3E%3C/g%3E%3C/svg%3E");
     background:
@@ -80,12 +135,12 @@ button { font: inherit; color: inherit; }
       var(--bd-tile) 0 0 / 6vh 4vh,
       #3A2820;
   }
-  .stage { box-shadow: 0 0 0 .6vh var(--ink), 0 0 0 1.6vh var(--wood), 0 0 0 2.1vh var(--ink), 1.6vh 1.8vh 0 2.1vh rgb(0 0 0 / .5); }
+  .frame { box-shadow: 0 0 0 .6vh var(--ink), 0 0 0 1.6vh var(--wood), 0 0 0 2.1vh var(--ink), 1.6vh 1.8vh 0 2.1vh rgb(0 0 0 / .5); }
 }
 /* vertical shop signs in the side gutters (landscape only, where they fit) */
 @media (min-aspect-ratio: 1/1) {
   .app::before, .app::after { position: absolute; top: 19vh; width: 9vh; padding: 1.4vh 0; box-sizing: border-box; text-align: center; white-space: pre;
-    font: 900 5.4vh/1.1 var(--font-zh); color: var(--gun); background: var(--cream); border: .6vh solid var(--ink); border-radius: 1.2vh;
+    font: 400 5.4vh/1.1 var(--font-ui); color: var(--gun); background: var(--paper); border: .6vh solid var(--ink); border-radius: 1.2vh;
     box-shadow: inset 0 -1vh 0 #E9D7B4, 1vh 1.2vh 0 rgb(0 0 0 / .5); pointer-events: none; }
   .app::before { content: '2\A 5\A 0\A 杯'; left: calc((100vw - var(--sw)) / 4 - 4.5vh); }
   .app::after { content: '珍\A 珠\A 奶\A 茶'; right: calc((100vw - var(--sw)) / 4 - 4.5vh); color: var(--ink); background: var(--lemon); box-shadow: inset 0 -1vh 0 var(--take-deep), 1vh 1.2vh 0 rgb(0 0 0 / .5); }

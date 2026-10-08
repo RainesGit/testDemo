@@ -556,7 +556,7 @@ export const SYSTEM_EN = {
   // Day name, one-line rule (day card), ★2 goal and ★3 blackboard riddle. Display only.
   days: {
     1: { name: 'Opening Night', rule: 'Read the sign: Scram, Zip it, Booked', star2: 'Combo 8', riddle: "He hasn't finished his Ummm." },
-    2: { name: 'Lunch Rush', rule: 'Watch the next two. 5 right in a row = Fast Mouth', star2: '15 in a row in Fast Mouth', riddle: 'The one behind is in a hurry.' },
+    2: { name: 'Lunch Rush', rule: 'Eye the line. Five in a row and you speed up', star2: '15 in a row without a breath', riddle: 'The second in line is in a hurry.' },
     3: { name: 'Original Day', rule: '250-cup guy: Book him, then zip it', star2: 'Both steps right on 4 originals', riddle: 'A tribute to the original.' },
     4: { name: '250 Day', rule: 'Book cups until the ticket hits exactly 250', star2: 'Hit exactly 250', riddle: 'One short is one short.' },
     5: { name: 'Talk-Back Day', rule: 'The ex-boss calls: two taps to hang up', star2: 'Hang up on the ex-boss, no timeouts', riddle: "He's not done talking." },

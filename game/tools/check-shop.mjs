@@ -323,6 +323,35 @@ for (const day of [3, 4, 5]) {
 }
 
 await browser.close();
+
+// ---------- voice mode (?input=voice): a fake microphone shouting clears the guide's 奧客 ----------
+{
+  const { writeVoiceWav } = await import('./voice-wav.mjs');
+  const wav = `${out}shop-voice.wav`;
+  writeVoiceWav(wav);
+  const vb = await pw.chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${wav}`] });
+  const context = await vb.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-TW', permissions: ['microphone'] });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(`voice pageerror: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`voice console: ${m.text()}`); });
+  await page.goto(`${base}/shop.html?reset=1&seed=7&lang=zh&input=voice`);
+  await clickSel(page, '.start-card .go');
+  await clickSel(page, '.voice-card .allow');
+  await clickSel(page, '.day-card .go');
+  await waitFor(page, () => window.__shop.state.slots.some(Boolean));
+  await tap(page, 'rack'); await tap(page, 'tea-black'); await tap(page, 'top-pearl');
+  await sleep(650);
+  await drag(page, 'cup-0', 'sealer');
+  await waitFor(page, () => window.__shop.state.work[0] && window.__shop.state.work[0].sealed);
+  const s = await st(page);
+  await drag(page, 'cup-0', `seat-${s.slots.findIndex(Boolean)}`, 20);
+  let ok = false;
+  try { await waitFor(page, () => window.__shop.state.phase === 'open' && window.__shop.state.stats.oke.gun >= 1, null, 15000); ok = true; } catch { /* no shout */ }
+  await shot(page, 'voice-open');
+  check('voice mode: a shout sends the 奧客 flying (滾) and the shop opens', ok);
+  await vb.close();
+}
+
 check('no console errors / page errors', errors.length === 0, errors.slice(0, 6).join(' | '));
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} passed; screenshots in ${out}`);

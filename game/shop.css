@@ -104,7 +104,7 @@ button { font: inherit; color: inherit; border: 0; }
 
 /* ---------- street outside + the queue (cold, backlit) ---------- */
 .street {
-  position: absolute; left: 0; right: 0; top: calc(-1 * var(--bleed)); height: calc(var(--bleed) + 32%);
+  position: absolute; left: 0; right: 0; top: calc(-1 * var(--bleed)); height: calc(var(--bleed) + 32%); z-index: 0;
   background:
     radial-gradient(ellipse 60% 40% at 50% 100%, rgb(255 210 130 / .22), transparent 70%),
     linear-gradient(var(--night-900), var(--night-700) 70%, var(--night-500));

@@ -55,6 +55,15 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/shop/art-shop.js  Gameplay v3 work-area art (docs/gameplay-v3-shop.md 2–3): cupSVG (tea / toppings / ice / sugar /
                         sealed), tea tanks, topping trays, ice bin, syrup, sealer, pearl pot, cup rack, trash, work slot,
                         order bubble (icons only), coin, patience ring, counter backdrop; pure strings, tokens from art.js
+  src/shop/engine.js    Gameplay v3 pure shop engine (no DOM): cups (take / tea / toppings / ice / sugar / seal / serve /
+                        trash), pearl pot, 3–4 seats, arrivals + queue, patience, 奧客 answers (gun / shut / take), fame ★1–5,
+                        money, the day 1 guide steps, day close + summary; tick(dt) + drain() events
+  src/shop/days.js      v3 days 1–5 (goal, menu, pace, new 奧客, scripted 250-cup customer); upgrades.js: the 8 upgrades;
+                        oke.js: the 8 奧客 (content ids, best answer, voiced lines); save.js: localStorage 250cups.shop.v1;
+                        text.js: zh / en UI strings; oke-art.js: 奧客 request bubbles, stamp, star row
+  src/shop/ui.js        v3 DOM: stations, seats, cup drags, gestures on customers (src/gesture.js), juice, finger guide,
+                        cards (day card, receipt, upgrade shop, pause, voice prompt); main.js wires engine + ui + audio +
+                        save + voice mode (window.__shop for tools)
   src/huazi.js          花字 (caption) picking and rate limits (pure)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, runtime voice
@@ -62,15 +71,17 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening); zh is
                         Taiwan Traditional at the source
   src/main.js           Wires everything together (start → opening → days)
+  shop.html, shop.css   Gameplay v3 page (tokens / fonts copied from style.css + the shop layout); URL params ?lang ?day=N
+                        ?reset=1 ?seed ?len=ms ?speed ?input=voice ?mute=1
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
-                        voice, art-shop)
+                        voice, art-shop, shop-engine, shop-data)
   tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs);
                         hans-chars.mjs = Simplified-only characters (generated from OpenCC by gen-hans-chars.py)
                         (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   art-shop-demo.html    Art sheet of the v3 work area (phone-width composition, cup combinations, every station)
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
-  tools/fonts/          subset.py: regenerates fonts/ from the characters in src/*.js, index.html and style.css
+  tools/fonts/          subset.py: regenerates fonts/ from the characters in src/**/*.js, index.html, style.css, shop.html, shop.css
                         (pip install fonttools brotli; source fonts are downloaded into the gitignored tools/fonts/.cache/)
   voice/                Generated voice pack: manifest.json + mp3 sprites per language
   README.md             Prototype details, module contracts, known limits
@@ -102,7 +113,11 @@ Run from `game/`:
   browser through the opening and day 1, then days 3–7; fails on any character of `tools/hans-chars.mjs`;
   `tools/shots/hant-*.png` or `--out=dir`): `node tools/check-hant.mjs`; the `docs/art-direction-v2.md` 9 kill list (no
   mechanic words such as 反差 / 快嘴 / ×2 / STRIKE on the play screen, one allowed 花字 at a time, no stage directions in
-  subtitles; UI-chrome words are WARN, fatal with `--strict`): `node tools/check-killlist.mjs`. All take the base URL as an argument. These use the globally installed Playwright
+  subtitles; UI-chrome words are WARN, fatal with `--strict`): `node tools/check-killlist.mjs`. Gameplay v3 shop (`shop.html`): real pointer taps / drags / gestures at 390x844 and 360x640 — day 1 guide, ≥ 5 drinks
+  served, 奧客 swiped away, the 250-cup customer stamped, receipt, an upgrade bought, day 2, days 3–5, voice mode with a fake
+  microphone, frame bounds, no Simplified, no console errors (`tools/shots/shop-*.png` or `--out=dir`):
+  `node tools/check-shop.mjs`; v3 balance sim (no browser; rookie / new / normal / expert players through days 1–5 with
+  upgrades; numbers in `docs/gameplay-v3-shop.md` 9): `node tools/shop-sim.mjs [--seeds=20]`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 

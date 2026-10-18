@@ -52,6 +52,9 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, boss, signs, monitor; shared:
                         logo, cup tower, event props, particles; docs/art-direction-v2.md)
+  src/shop/art-shop.js  Gameplay v3 work-area art (docs/gameplay-v3-shop.md 2–3): cupSVG (tea / toppings / ice / sugar /
+                        sealed), tea tanks, topping trays, ice bin, syrup, sealer, pearl pot, cup rack, trash, work slot,
+                        order bubble (icons only), coin, patience ring, counter backdrop; pure strings, tokens from art.js
   src/huazi.js          花字 (caption) picking and rate limits (pure)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, runtime voice
@@ -60,11 +63,12 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         Taiwan Traditional at the source
   src/main.js           Wires everything together (start → opening → days)
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
-                        voice)
+                        voice, art-shop)
   tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs);
                         hans-chars.mjs = Simplified-only characters (generated from OpenCC by gen-hans-chars.py)
                         (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
+  art-shop-demo.html    Art sheet of the v3 work area (phone-width composition, cup combinations, every station)
   tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
   tools/fonts/          subset.py: regenerates fonts/ from the characters in src/*.js, index.html and style.css
                         (pip install fonttools brotli; source fonts are downloaded into the gitignored tools/fonts/.cache/)

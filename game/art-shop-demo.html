@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1B1311">
+  <title>Shop Art Demo — 來250杯！</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* demo-only chrome */
+    html, body { overflow: auto; height: auto; }
+    body { padding: 16px; }
+    .wrap { display: grid; gap: 24px; max-width: 1100px; }
+    h2 { margin: 0 0 8px; font: 900 18px var(--font-zh); color: var(--lemon); }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .cell { text-align: center; font: 700 11px var(--font-zh); color: var(--text-dim); }
+    .box { display: grid; place-items: end center; background: var(--counter, #2A2142); border-radius: 8px; padding: 8px; }
+    .box svg { display: block; overflow: visible; }
+    .cup svg { width: 70px; height: 112px; }
+    .st svg { width: 110px; height: 120px; }
+    .bub svg { width: 132px; height: 110px; }
+    .sm svg { width: 48px; height: 48px; }
+    /* phone-size composition: 390 px wide, the work area of docs/gameplay-v3-shop.md §2 */
+    .phone { position: relative; width: 390px; height: 420px; overflow: hidden; border-radius: 12px; background: #2A2142; }
+    .phone > * { position: absolute; }
+    .phone .bd { inset: 0; }
+    .phone .bd svg { width: 100%; height: 100%; display: block; }
+    .phone svg { display: block; overflow: visible; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import {
+  cupSVG, teaTankSVG, toppingTraySVG, iceBinSVG, syrupSVG, sealerSVG, potSVG, cupRackSVG, trashSVG, workSlotSVG,
+  orderBubbleSVG, coinSVG, patienceRingSVG, counterBackdropSVG, TEA_KINDS, TOPPING_KINDS, ART_SHOP_VERSION,
+} from './src/shop/art-shop.js';
+
+const cell = (cls, html, label) => `<div class="cell"><div class="box ${cls}">${html}</div>${label}</div>`;
+const at = (x, y, w, h, html) => `<div style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">${html}</div>`;
+
+const cups = [
+  [{}, 'empty'],
+  [{ tea: 'black' }, 'black'],
+  [{ tea: 'green' }, 'green'],
+  [{ tea: 'jade' }, 'jade'],
+  [{ toppings: ['pearl'] }, 'empty + pearl'],
+  [{ tea: 'black', toppings: ['pearl'] }, '珍奶'],
+  [{ tea: 'black', toppings: ['pearl'], ice: 2, sugar: 1, sealed: true }, '珍奶 sealed'],
+  [{ tea: 'green', toppings: ['coconut'], ice: 1 }, 'green coconut ice1'],
+  [{ tea: 'jade', toppings: ['coconut'], ice: 2, sugar: 2 }, 'jade coconut'],
+  [{ tea: 'black', toppings: ['pudding'], sugar: 2 }, 'pudding'],
+  [{ tea: 'black', toppings: ['grass'], ice: 1 }, 'grass'],
+  [{ tea: 'green', toppings: ['pearl', 'coconut'], ice: 2 }, 'pearl+coconut'],
+  [{ tea: 'black', toppings: ['pearl', 'pudding', 'grass'], ice: 2, sugar: 2 }, '3 scoops'],
+  [{ tea: 'jade', toppings: ['grass', 'coconut', 'pearl'], sealed: true }, 'jade 3 sealed'],
+  [{ tea: 'green', sealed: true, sugar: 1 }, 'green sealed'],
+  [{ ice: 2 }, 'empty + ice'],
+];
+
+const orders = [
+  { tea: 'black', toppings: ['pearl'], ice: 0, sugar: 0, count: 1 },
+  { tea: 'green', toppings: ['coconut'], ice: 1, sugar: 2, count: 1 },
+  { tea: 'jade', toppings: [], ice: 2, sugar: 1, count: 2 },
+  { tea: 'black', toppings: ['pearl', 'pudding'], ice: 2, sugar: 2, count: 1 },
+  { tea: 'black', toppings: ['grass', 'pearl', 'coconut'], ice: 1, sugar: 1, count: 3 },
+];
+
+function phone() {
+  return `<div class="phone">
+    <div class="bd">${counterBackdropSVG()}</div>
+    ${TEA_KINDS.map((k, i) => at(14 + i * 66, 8, 58, 81, teaTankSVG(k))).join('')}
+    ${at(214, 26, 60, 54, toppingTraySVG('pearl', 10))}
+    ${at(276, 26, 60, 54, toppingTraySVG('coconut', 6))}
+    ${at(336, 26, 54, 49, iceBinSVG())}
+    ${at(8, 150, 120, 60, workSlotSVG())}${at(36, 92, 64, 102, cupSVG({ tea: 'black', toppings: ['pearl'], ice: 2, sugar: 1 }))}
+    ${at(132, 150, 120, 60, workSlotSVG())}${at(160, 92, 64, 102, cupSVG({ tea: 'jade', toppings: ['coconut'], ice: 1 }))}
+    ${at(266, 96, 110, 150, sealerSVG('idle'))}
+    ${at(8, 244, 60, 54, toppingTraySVG('pudding', 3))}
+    ${at(70, 244, 60, 54, toppingTraySVG('grass', 10))}
+    ${at(136, 222, 42, 78, syrupSVG())}
+    ${at(184, 230, 72, 72, potSVG({ scoops: 6, cookingPct: 0.45 }))}
+    ${at(10, 318, 72, 79, cupRackSVG())}
+    ${at(300, 300, 56, 77, trashSVG())}
+    ${at(110, 330, 30, 30, coinSVG())}${at(146, 334, 30, 30, coinSVG())}
+    ${at(196, 318, 88, 73, orderBubbleSVG(orders[3]))}
+  </div>`;
+}
+
+document.getElementById('root').innerHTML = `<div class="wrap">
+  <section><h2>Work area at phone width (390 px) — ART_SHOP_VERSION ${ART_SHOP_VERSION}</h2>${phone()}</section>
+  <section><h2>Cups</h2><div class="row">${cups.map(([o, l]) => cell('cup', cupSVG(o), l)).join('')}</div></section>
+  <section><h2>Tea tanks · topping trays · ice · syrup</h2><div class="row">
+    ${TEA_KINDS.map((k) => cell('st', teaTankSVG(k), `teaTankSVG('${k}')`)).join('')}
+    ${TOPPING_KINDS.map((k) => cell('st', toppingTraySVG(k), `tray ${k}`)).join('')}
+    ${[7, 3, 0].map((n) => cell('st', toppingTraySVG('pearl', n), `pearl left ${n}`)).join('')}
+    ${cell('st', iceBinSVG(), 'iceBinSVG')}${cell('st', syrupSVG(), 'syrupSVG')}
+  </div></section>
+  <section><h2>Sealer · pot · rack · trash · slot</h2><div class="row">
+    ${cell('st', sealerSVG('idle'), 'sealer idle')}${cell('st', sealerSVG('busy'), 'sealer busy')}
+    ${cell('st', potSVG({ scoops: 0, cookingPct: 1 }), 'pot empty')}${cell('st', potSVG({ scoops: 10, cookingPct: 0.2 }), 'pot cooking 20%')}
+    ${cell('st', potSVG({ scoops: 10, cookingPct: 0.75 }), 'pot cooking 75%')}${cell('st', potSVG({ scoops: 10, cookingPct: 1 }), 'pot 10')}${cell('st', potSVG({ scoops: 3, cookingPct: 1 }), 'pot 3')}
+    ${cell('st', cupRackSVG(), 'cupRackSVG')}${cell('st', trashSVG(), 'trashSVG')}${cell('st', workSlotSVG(), 'workSlotSVG')}
+  </div></section>
+  <section><h2>Order bubbles</h2><div class="row">${orders.map((o) => cell('bub', orderBubbleSVG(o), `${o.tea} ${o.toppings.join('+') || '-'} i${o.ice} s${o.sugar} ×${o.count}`)).join('')}</div></section>
+  <section><h2>Coin · patience</h2><div class="row">${cell('sm', coinSVG(), 'coin')}${[1, 0.75, 0.5, 0.3, 0.1].map((p) => cell('sm', patienceRingSVG(p), `patience ${p}`)).join('')}</div></section>
+  <section><h2>Backdrop</h2><div style="width:390px;height:325px;overflow:hidden">${counterBackdropSVG().replace('<svg ', '<svg style="width:100%;height:100%;display:block" ')}</div></section>
+</div>`;
+window.__artReady = document.fonts ? document.fonts.ready : Promise.resolve();
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@ playable **web prototype** plus design and voice documents.
 AGENTS.md               Entry point for Codex and other agents; points here and to the acceptance checklist
 docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
+  gameplay-v3-shop.md   Gameplay v3 (current direction): Shawarma Legend-style drink-making shop + 奧客 to curse away
   gameplay-v2.md        Gameplay v2 (2026-10-05 expert panel): feel, rage rework, 7 daily rules, meta; wins over
                         first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays);
                         stage 1 (jab/next, speed multiplier, rage rework, forced politeness) and stage 2 (preview + fast
@@ -106,9 +107,10 @@ Run from `game/`:
 - The day 1 opening script, the key colours (滚 red, 闭嘴 purple, 收 gold; sign colour = key
   colour) and the pace of days 1–7 follow `docs/first-minute-spec.md`.
 
-- Gameplay direction: `docs/gameplay-v2.md` (every press gets a response, every key is a full curse, the player
-  performs the three beats, fast vs. fierce is the player's choice, one new rule per day; borrow Shawarma Legend's
-  shell, never its "complete the order correctly" core).
+- Gameplay direction (producer, 2026-10-18): **`docs/gameplay-v3-shop.md`** — a Shawarma Legend-style bubble-tea shop
+  (make drinks to order at stations, earn money, upgrade) plus funny 奧客 who can be cursed away; the more you curse, the
+  more famous the shop and the better business (越罵生意越好). It is built as `game/shop.html` + `game/src/shop/` and
+  replaces the v2 reaction loop once the producer approves; until then `index.html` keeps the v2 game (`docs/gameplay-v2.md`).
 - Input: gestures on the customer are the default (`docs/gameplay-v2.md` 9: 甩 = 滚, 连拍 three taps = 闭嘴, 按住盖章
   = 收); every gesture works on every customer, a stray single tap answers nothing, and J/K/L (and `?input=buttons`)
   must keep working because every key-driven tool depends on them. Voice mode (`?input=voice`, start card 吼;

@@ -235,7 +235,7 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
 // which are valid Traditional but here only ever a missed conversion (allow a word in T1_ALLOW if one is meant).
 {
   const T1_ALLOW = []; // e.g. '皇后', '公里'
-  const files = [...readdirSync(new URL('../src/', import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
+  const files = [...readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
     '../index.html', '../style.css'];
   const bad = [];
   for (const f of files) {
@@ -282,7 +282,7 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
 {
   let manifest = null;
   try { manifest = JSON.parse(readFileSync(new URL('../fonts/subset.json', import.meta.url), 'utf8')); } catch { /* missing */ }
-  const files = [...readdirSync(new URL('../src/', import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
+  const files = [...readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
     '../index.html', '../style.css'];
   const used = new Set();
   const ZW = /[\u200b-\u200f\u2028-\u202f\ufe00-\ufe0f\ufeff]/;

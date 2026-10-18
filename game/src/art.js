@@ -60,6 +60,8 @@
 //   EVENT_PROP_SVG = { megaphone, phone, calculator, stamp }   the four mini-event props by event type
 //   PARTICLE_SVG = { ice, pearl, ink, paper, cup }             small particle sprites (class pt-svg)
 //   fnv1a(str), mulberry32(seed)              seeded helpers (exported for tests)
+//   PALETTE, mixColor, celShade, celHilite, ringPath   §2.1 tokens and the shading / circle-path helpers, shared
+//                                             with src/shop/art-shop.js (gameplay v3 work area)
 
 // ─── Palette (docs/art-direction-v2.md §2.1; SVG attributes cannot read CSS variables) ───────────
 const INK = '#1B1311';
@@ -1123,3 +1125,11 @@ export function logoSVG(lang = 'zh') {
     `</g></svg>`;
 }
 export const LOGO_SVG = logoSVG('zh');
+
+// ─── Tokens and helpers shared with other art modules (src/shop/art-shop.js) ───────────────────
+export const PALETTE = Object.freeze({
+  INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, SHUT, SHUT_DEEP, TAKE, TAKE_DEEP, LEMON, GOLD_HI, MINT, RIM, SCREEN,
+  NIGHT_900, NIGHT_700, NIGHT_500, WOOD_DK, WOOD_DK_HI, STEEL_HI, STEEL, STEEL_LO, COUNTER_HI, COUNTER, COUNTER_LO,
+  SLAT, WARM_RIM, DRINK: Object.freeze({ ...DRINK }),
+});
+export { mix as mixColor, shade as celShade, hilite as celHilite, ring as ringPath };

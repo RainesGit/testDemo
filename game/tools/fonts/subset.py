@@ -61,8 +61,8 @@ EXTRA = '…—～「」『』、。，．・·：；！？（）《》〈〉【
 
 
 def used_chars():
-    """Every non-control character in src/**/*.js, index.html and style.css, plus ASCII and EXTRA (sorted string)."""
-    files = sorted((GAME / 'src').rglob('*.js')) + [GAME / 'index.html', GAME / 'style.css']
+    """Every non-control character in src/**/*.js, index.html, style.css, shop.html and shop.css, plus ASCII and EXTRA (sorted string)."""
+    files = sorted((GAME / 'src').rglob('*.js')) + [GAME / 'index.html', GAME / 'style.css', GAME / 'shop.html', GAME / 'shop.css']
     chars = set(chr(c) for c in range(0x20, 0x7F)) | set(EXTRA)
     for f in files:
         for ch in f.read_text(encoding='utf-8'):

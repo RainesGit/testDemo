@@ -230,13 +230,13 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
 }
 
 // T. Traditional Chinese only (producer: Traditional Chinese with Taiwan wording and English, no Simplified build).
-// Every file the player's browser loads (src/*.js, index.html, style.css; content and comments alike) is scanned for
+// Every file the player's browser loads (src/**/*.js, index.html, style.css, shop.html, shop.css; content and comments alike) is scanned for
 // Simplified-only characters and non-Taiwan variants (tools/hans-chars.mjs, generated from OpenCC), plus 后 / 干 / 里,
 // which are valid Traditional but here only ever a missed conversion (allow a word in T1_ALLOW if one is meant).
 {
   const T1_ALLOW = []; // e.g. '皇后', '公里'
   const files = [...readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
-    '../index.html', '../style.css'];
+    '../index.html', '../style.css', '../shop.html', '../shop.css'];
   const bad = [];
   for (const f of files) {
     const src = readFileSync(new URL(f, import.meta.url), 'utf8');
@@ -283,7 +283,7 @@ check('C6', 'engine default auraWrong is 0 and main.js does not override it with
   let manifest = null;
   try { manifest = JSON.parse(readFileSync(new URL('../fonts/subset.json', import.meta.url), 'utf8')); } catch { /* missing */ }
   const files = [...readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => `../src/${f}`),
-    '../index.html', '../style.css'];
+    '../index.html', '../style.css', '../shop.html', '../shop.css'];
   const used = new Set();
   const ZW = /[\u200b-\u200f\u2028-\u202f\ufe00-\ufe0f\ufeff]/;
   for (const f of files) for (const ch of readFileSync(new URL(f, import.meta.url), 'utf8')) if (ch.codePointAt(0) >= 0xa0 && !ZW.test(ch)) used.add(ch);

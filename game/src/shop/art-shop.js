@@ -34,7 +34,7 @@ import { PALETTE, mixColor, celShade, celHilite, ringPath, mulberry32, fnv1a } f
 export const ART_SHOP_VERSION = 1;
 
 const { INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, TAKE, TAKE_DEEP, LEMON, GOLD_HI, MINT, STEEL_HI, STEEL, STEEL_LO,
-  NIGHT_700, COUNTER, COUNTER_LO, WARM_RIM } = PALETTE;
+  NIGHT_700, NIGHT_900, COUNTER, COUNTER_LO, WARM_RIM, SHUT } = PALETTE;
 
 export const TEA_KINDS = ['black', 'green', 'jade'];
 export const TOPPING_KINDS = ['pearl', 'coconut', 'pudding', 'grass'];
@@ -509,27 +509,19 @@ export function trashSVG() {
 }
 
 export function workSlotSVG() {
-  const holes = [];
-  for (let r = 0; r < 3; r++) {
-    const y = 16 + r * 8;
-    const xa = 22 - r * 3;
-    holes.push(`M${xa} ${y} H${100 - xa}`);
-  }
-  const ribs = [];
-  for (let x = 24; x <= 76; x += 8) ribs.push(`M${x} 13 L${r1(50 + (x - 50) * 1.18)} 38`);
+  // a stainless cup holder set into the rubber prep mat (the mat itself is drawn by tableSVG): ring, lip, hole
   const body = [
-    `<path fill="#1B1311" fill-opacity=".3" d="M6 42 H94 L96 46 H4 Z"/>`,
-    steelBody('M14 8 H86 L96 42 H4 Z'),
-    `<path fill="${celShade(STEEL)}" d="M84 9.4 L94 40.6 H84 Z"/>`,
-    `<path fill="${COUNTER_LO}" d="M19 12 H81 L88 38 H12 Z"/>`,
-    `<path fill="none" stroke="#3E3560" stroke-width="2" d="${holes.join(' ')} ${ribs.join(' ')}"/>`,
-    `<path fill="none" stroke="${STEEL_HI}" stroke-width="1.8" stroke-linecap="round" d="M16 10 H84"/>`,
-    steelBody('M4 42 H96 V47 H4 Z'),
+    `<path fill="#1B1311" fill-opacity=".32" d="${ell(50, 33, 44, 11)}"/>`,
+    `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" d="${ell(50, 28, 42, 14)}"/>`,
+    `<path fill="${celShade(STEEL)}" d="M86 31 A42 14 0 0 1 14 31 A42 11 0 0 0 86 31 Z"/>`,
+    `<path fill="${STEEL_LO}" stroke="${INK_BG}" stroke-width="1.4" d="${ell(50, 27, 33, 9.5)}"/>`,
+    `<path fill="#33262A" d="${ell(50, 28.4, 27, 7)}"/>`,
+    `<path fill="none" stroke="${STEEL_HI}" stroke-width="2.4" stroke-linecap="round" d="M16 23 Q30 15.6 50 15"/>`,
   ];
   return svg('as-station as-slot', '0 0 100 50', body.join(''));
 }
 
-// ─── Order bubble (icons only) ──────────────────────────────────────────────────────────────────
+// ─── Order bubble (icons only): one card per cup ───────────────────────────────────────────────
 function toppingIcon(kind, x, y) {
   if (kind === 'pearl') return { a: `${ringPath(x, y, 5.4)} `, fill: PEARL, glint: ringPath(r1(x - 1.8), r1(y - 1.8), 1.5) };
   if (kind === 'coconut') return { a: sq(x, y, 9.6, -10), fill: COCO, glint: sq(r1(x - 1.8), r1(y - 1.8), 3, -10) };
@@ -537,65 +529,98 @@ function toppingIcon(kind, x, y) {
   return { a: sq(x, y, 9.6, 8), fill: GRASS, glint: `M${r1(x - 3.4)} ${r1(y - 1.4)} l2.8 -2.2` };
 }
 
-export function orderBubbleSVG(order = {}) {
-  const c = normCup(order);
-  const count = int(order.count, 1, 99, 1);
+// Card geometry (bubble units): a mini cup 36 wide on the left (tea colour, toppings as big layers at the bottom),
+// the spec column on the right (one ice cube per ice level, then one syrup drop per sugar level).
+export const CARD = { w: 58, h: 68 };
+const CUP_T = 6;   // rim
+const CUP_B = 64;  // base
+function cupCard(it, x, y, done) {
+  const c = normCup(it);
+  const golden = !!(it && it.golden);
   const tea = c.tea ? TEA_COLORS[c.tea] : null;
-  const parts = [];
-  // bubble + tail (paper, ink outline, hard shadow below)
-  const shape = 'M20 4 H100 Q116 4 116 20 V64 Q116 80 100 80 H36 L22 98 L24 80 H20 Q4 80 4 64 V20 Q4 4 20 4 Z';
-  parts.push(`<path fill="${PAPER_SH}" d="${shape}" transform="translate(0 3)"/>`);
-  parts.push(`<path fill="${PAPER}" stroke="${INK}" stroke-width="2.6" stroke-linejoin="round" d="${shape}"/>`);
-  // mini cup
-  const cupD = 'M12 20 H40 L36 72 H16 Z';
-  parts.push(`<path fill="#DDEFF7" d="${cupD}"/>`);
-  if (tea) {
-    parts.push(`<path fill="${tea.body}" d="M13.3 30 H38.7 L36 72 H16 Z"/><path fill="${celShade(tea.body)}" d="M32 30 H38.7 L36 72 H31 Z"/>`);
-    if (c.tea === 'jade') parts.push(`<path fill="${LEMON}" stroke="#E2A800" stroke-width="1.2" d="${ringPath(21, 40, 4.6)}"/>`);
+  const L = (yy) => r1(x + 2 + ((yy - y - CUP_T) * 5) / (CUP_B - CUP_T));
+  const R = (yy) => r1(x + 38 - ((yy - y - CUP_T) * 5) / (CUP_B - CUP_T));
+  const cupD = `M${x + 2} ${y + CUP_T} H${x + 38} L${x + 33} ${y + CUP_B} H${x + 7} Z`;
+  const p = [`<path fill="#E4F3FA" d="${cupD}"/>`];
+  const surf = y + 17;
+  if (golden) {
+    p.push(`<path fill="${TAKE}" d="M${L(surf)} ${surf} H${R(surf)} L${x + 33} ${y + CUP_B} H${x + 7} Z"/><path fill="${GOLD_HI}" d="M${L(surf) + 4} ${surf + 3} h4 l-2 ${CUP_B - 22} h-3 Z"/>`);
+    p.push(`<path fill="${GOLD_HI}" stroke="${TAKE_DEEP}" stroke-width="1.2" d="M${x + 48} ${y + 10} l2.6 6.4 6.4 2.6 -6.4 2.6 -2.6 6.4 -2.6 -6.4 -6.4 -2.6 6.4 -2.6 Z M${x + 49} ${y + 38} l1.8 4.4 4.4 1.8 -4.4 1.8 -1.8 4.4 -1.8 -4.4 -4.4 -1.8 4.4 -1.8 Z"/>`);
+  } else if (tea) {
+    p.push(`<path fill="${tea.body}" d="M${L(surf)} ${surf} H${R(surf)} L${x + 33} ${y + CUP_B} H${x + 7} Z"/>`);
+    p.push(`<path fill="${celShade(tea.body)}" d="M${r1(R(surf) - 8)} ${surf} H${R(surf)} L${x + 33} ${y + CUP_B} H${x + 27} Z"/>`);
+    p.push(`<path fill="${celHilite(tea.body)}" d="M${L(surf)} ${surf} H${R(surf)} V${surf + 3} H${L(surf + 3)} Z"/>`);
+    if (c.tea === 'jade') p.push(`<path fill="${LEMON}" stroke="#C99400" stroke-width="1.4" d="${ringPath(x + 13, y + 27, 5.2)}"/>`);
   }
-  const tops = c.toppings;
-  if (tops.length) {
-    const d = tops.map((k, i) => {
-      const y = 68 - i * 5.4;
-      return [ringPath(19.5, y, 2.4), ringPath(26, y - 0.6, 2.4), ringPath(32.5, y, 2.4)].join(' ');
+  if (!golden) {
+    // toppings: up to three layers from the bottom, 13 units each, drawn big
+    c.toppings.forEach((k, i) => {
+      const yB = y + CUP_B - 1.5 - i * 13;
+      const cy = yB - 6;
+      if (k === 'pearl') {
+        const d = [x + 12, x + 20, x + 28].map((cx) => ringPath(cx, cy, 4.4)).join(' ');
+        p.push(`<path fill="${PEARL}" stroke="${INK}" stroke-width="1" d="${d}"/><path fill="#FFFFFF" fill-opacity=".8" d="${[x + 12, x + 20, x + 28].map((cx) => ringPath(r1(cx - 1.4), r1(cy - 1.5), 1.2)).join(' ')}"/>`);
+      } else if (k === 'pudding') {
+        const yT = yB - 12;
+        p.push(`<path fill="${PUDDING}" stroke="#A8701A" stroke-width="1.1" stroke-linejoin="round" d="M${L(yB) + 2} ${yB} L${L(yT) + 3} ${yT} H${R(yT) - 3} L${R(yB) - 2} ${yB} Z"/><path fill="${CARAMEL}" d="M${L(yT) + 3} ${yT} H${R(yT) - 3} L${R(yT) - 2.6} ${yT + 3.6} H${L(yT) + 2.6} Z"/>`);
+      } else {
+        const fill = k === 'grass' ? GRASS : COCO;
+        const st = k === 'grass' ? INK : '#9C8A55';
+        p.push(`<path fill="${fill}" stroke="${st}" stroke-width="1" stroke-linejoin="round" d="${[x + 12, x + 20, x + 28].map((cx, j) => sq(cx, cy, 8, (j - 1) * 14)).join(' ')}"/>`);
+      }
     });
-    tops.forEach((k, i) => parts.push(`<path fill="${toppingIcon(k, 0, 0).fill}" stroke="${INK}" stroke-width=".6" d="${d[i]}"/>`));
   }
-  parts.push(`<path fill="none" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round" d="${cupD} M10 20 H42"/><path fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round" d="M30 20 L35 9"/>`);
-  // rows on the right: toppings, ice ×n, sugar ×n
-  const rows = [];
-  if (tops.length) rows.push('t');
-  if (c.ice) rows.push('i');
-  if (c.sugar) rows.push('s');
-  const gap = rows.length ? 66 / rows.length : 0;
-  rows.forEach((row, ri) => {
-    const y = r1(9 + gap * (ri + 0.5));
-    if (row === 't') {
-      const icons = tops.map((k, i) => toppingIcon(k, 58 + i * 17, y));
-      icons.forEach((ic) => parts.push(`<path fill="${ic.fill}" stroke="${INK}" stroke-width="1.4" stroke-linejoin="round" d="${ic.a}"/>`));
-      const gl = icons.map((ic, i) => ({ d: ic.glint, k: tops[i] }));
-      const caramel = gl.filter((g) => g.k === 'pudding').map((g) => g.d).join(' ');
-      const white = gl.filter((g) => g.k === 'pearl' || g.k === 'coconut').map((g) => g.d).join(' ');
-      const grass = gl.filter((g) => g.k === 'grass').map((g) => g.d).join(' ');
-      if (white) parts.push(`<path fill="#FFFFFF" fill-opacity=".85" d="${white}"/>`);
-      if (caramel) parts.push(`<path fill="${CARAMEL}" d="${caramel}"/>`);
-      if (grass) parts.push(`<path fill="none" stroke="${GRASS_HI}" stroke-width="1.4" stroke-linecap="round" d="${grass}"/>`);
-    } else if (row === 'i') {
-      const d = Array.from({ length: c.ice }, (_, i) => sq(58 + i * 17, y, 11, i ? 10 : -8)).join(' ');
-      const g = Array.from({ length: c.ice }, (_, i) => sq(r1(56 + i * 17), r1(y - 2), 3.4, i ? 10 : -8)).join(' ');
-      parts.push(`<path fill="${ICE}" stroke="${ICE_EDGE}" stroke-width="1.6" stroke-linejoin="round" d="${d}"/><path fill="#FFFFFF" d="${g}"/>`);
-    } else {
-      // a syrup drop per sugar level
-      const d = Array.from({ length: c.sugar }, (_, i) => { const x = 58 + i * 17; return `M${x} ${r1(y - 7)} Q${x + 6} ${r1(y + 0.4)} ${x + 5} ${r1(y + 2.6)} A5.2 5.2 0 0 1 ${x - 5} ${r1(y + 2.6)} Q${x - 6} ${r1(y + 0.4)} ${x} ${r1(y - 7)} Z`; }).join(' ');
-      parts.push(`<path fill="${SYRUP}" stroke="${INK}" stroke-width="1.4" stroke-linejoin="round" d="${d}"/>` +
-        `<path fill="#FFFFFF" fill-opacity=".7" d="${Array.from({ length: c.sugar }, (_, i) => ringPath(r1(56 + i * 17), r1(y + 1.6), 1.4)).join(' ')}"/>`);
-    }
-  });
+  p.push(`<path fill="none" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round" d="${cupD} M${x} ${y + CUP_T} H${x + 40}"/>` +
+    `<path fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round" d="M${x + 27} ${y + CUP_T} L${x + 32} ${y - 4}"/>` +
+    `<path fill="#FFFFFF" fill-opacity=".55" d="M${x + 5} ${y + CUP_T + 4} h3 l3 ${CUP_B - CUP_T - 10} h-2.4 Z"/>`);
+  if (!golden) {
+    // the spec column: ice cubes then syrup drops, 14 units apart
+    const pips = [...Array(c.ice).fill('i'), ...Array(c.sugar).fill('s')];
+    const y0 = y + CUP_T + 8 + (4 - pips.length) * 3.5;
+    let ice = '';
+    let iceG = '';
+    let drop = '';
+    let dropG = '';
+    pips.forEach((k, i) => {
+      const cx = x + 49;
+      const cy = r1(y0 + i * 14.5);
+      if (k === 'i') { ice += sq(cx, cy, 11.6, i % 2 ? 10 : -8) + ' '; iceG += sq(r1(cx - 2.2), r1(cy - 2.2), 3.6, -8) + ' '; }
+      else { drop += `M${cx} ${r1(cy - 7.4)} Q${cx + 6.4} ${cy} ${cx + 5.4} ${r1(cy + 2.4)} A5.6 5.6 0 0 1 ${cx - 5.4} ${r1(cy + 2.4)} Q${cx - 6.4} ${cy} ${cx} ${r1(cy - 7.4)} Z `; dropG += ringPath(r1(cx - 2), r1(cy + 1.6), 1.4) + ' '; }
+    });
+    if (ice) p.push(`<path fill="${ICE}" stroke="#3E7FA8" stroke-width="1.5" stroke-linejoin="round" d="${ice}"/><path fill="#FFFFFF" d="${iceG}"/>`);
+    if (drop) p.push(`<path fill="${SYRUP}" stroke="${INK}" stroke-width="1.4" stroke-linejoin="round" d="${drop}"/><path fill="#FFFFFF" fill-opacity=".75" d="${dropG}"/>`);
+  }
+  if (done) {
+    p.push(`<path fill="${PAPER}" fill-opacity=".66" d="M${x - 2} ${y - 4} H${x + CARD.w} V${y + CARD.h} H${x - 2} Z"/>`);
+    p.push(`<path fill="${MINT}" stroke="${INK}" stroke-width="2.2" d="${ringPath(x + 36, y + 44, 11)}"/><path fill="none" stroke="${PAPER}" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" d="M${x + 30.6} ${y + 44} L${x + 34.6} ${y + 48} L${x + 41.6} ${y + 39}"/>`);
+  }
+  return p.join('');
+}
+
+// The bubble shell: paper panel W × Hp with a centred tail (tip at Hp + 14), a hard paper shadow, and the patience bar
+// track + fill at the bottom of the panel (rect.pb-fill, data-w = full width; ui.js sets its width and colour).
+const TAIL = 14;
+function bubbleShell(W, Hp, fill = PAPER, bar = true) {
+  const cx = r1(W / 2);
+  const shape = `M14 2 H${W - 14} Q${W - 2} 2 ${W - 2} 14 V${Hp - 14} Q${W - 2} ${Hp} ${W - 14} ${Hp} H${cx + 11} L${cx} ${Hp + TAIL} L${cx - 11} ${Hp} H14 Q2 ${Hp} 2 ${Hp - 14} V14 Q2 2 14 2 Z`;
+  const bw = W - 24;
+  return `<path fill="${PAPER_SH}" d="${shape}" transform="translate(0 4)"/>` +
+    `<path fill="${fill}" stroke="${INK}" stroke-width="3" stroke-linejoin="round" d="${shape}"/>` +
+    (bar ? `<rect class="pb-track" x="12" y="${Hp - 14}" width="${bw}" height="8" rx="4" fill="${NIGHT_700}" fill-opacity=".2"/>` +
+      `<rect class="pb-fill" x="12" y="${Hp - 14}" width="${bw}" height="8" rx="4" fill="${MINT}" data-w="${bw}"/>` : '');
+}
+export const BUBBLE_TAIL = TAIL;
+
+export function orderBubbleSVG(order = {}) {
+  const count = int(order.count, 1, 99, 1);
+  const W = CARD.w + 16;
+  const Hp = 6 + CARD.h + 16;
+  const parts = [bubbleShell(W, Hp), cupCard(order, 9, 6, false)];
   if (count > 1) {
-    parts.push(`<path fill="${GUN}" stroke="${INK}" stroke-width="2.2" d="${ringPath(110, 8, 12)}"/>`);
-    parts.push(`<text x="110" y="13" ${FONT_NUM} font-size="14" text-anchor="middle" fill="${PAPER}">×${count}</text>`);
+    parts.push(`<path fill="${GUN}" stroke="${INK}" stroke-width="2.2" d="${ringPath(W - 6, 6, 12)}"/>`);
+    parts.push(`<text x="${W - 6}" y="11" ${FONT_NUM} font-size="14" text-anchor="middle" fill="${PAPER}">×${count}</text>`);
   }
-  return svg('as-bubble', '0 0 120 100', parts.join(''), ` data-count="${count}"`);
+  return svg('as-bubble', `0 0 ${W} ${Hp + TAIL + 4}`, parts.join(''), ` data-count="${count}"`);
 }
 
 // ─── Coin, patience ring ───────────────────────────────────────────────────────────────────────
@@ -610,10 +635,6 @@ export function coinSVG() {
   return svg('as-coin', '0 0 40 40', body.join(''));
 }
 
-// green (full) → yellow (half) → red (empty)
-function patienceColor(p) {
-  return p >= 0.5 ? mixColor(MINT, TAKE, (p - 0.5) * 2) : mixColor(TAKE, GUN, p * 2);
-}
 export function patienceRingSVG(pct = 1) {
   const p = clamp(Number(pct) || 0, 0, 1);
   const col = patienceColor(p);
@@ -666,119 +687,242 @@ export function counterBackdropSVG() {
 }
 
 // ─── Landscape work table (docs/gameplay-v3-shop.md 10.1, 10.4, 10.7) ─────────────────────────────
-//   tableSVG()                          <svg class="as-table">, viewBox 0 0 1280 378: the steel work table seen from the clerk
-//                                       (back row, a step, front row, a ribbed mat under the work slots)
-//   shelfSVG(n, { autoSeal })           <svg class="as-shelf" data-n>, viewBox 0 0 232 196: the two-tier finished-cup shelf
-//                                       (出杯台, n = 4..6 spots, layout.stations order); autoSeal (seal4) adds the sealing gantry
-//   itemsBubbleSVG(order, got)          <svg class="as-bubble as-items" data-count>: one mini cup per item of a multi-cup
-//                                       order ({ items, big }), a tick on each delivered one; one item = orderBubbleSVG, the
-//                                       golden recipe = a gold cup
+//   tableSVG()                          <svg class="as-table">, viewBox 0 0 1280 378 (design y − 342): the inside face of
+//                                       the counter (warm tiles, an under-counter shelf of props, a picture menu board),
+//                                       the brushed-steel back bench with a warm wood edge, the front worktop with the
+//                                       terracotta rubber prep mat (layout.DECOR.mat), a wood front edge, the cash register
+//   counterLipSVG()                     <svg class="as-lip">, viewBox 0 0 1280 26: the counter top edge the customers lean on
+//   shelfSVG(n, { autoSeal })           <svg class="as-shelf" data-n>, viewBox 0 0 242 196: the two-tier pickup shelf, 3×2
+//                                       holders (layout.stations order), spots ≥ n locked; autoSeal (seal4) adds the gantry
+//   itemsBubbleSVG(order, got)          <svg class="as-bubble as-items" data-count>: one card per cup (2×2 for four), a
+//                                       tick on each delivered one; one plain item = orderBubbleSVG; the golden recipe = a
+//                                       gold cup; a paper bag on big orders
+//   lockedSVG(kind)                     <svg class="as-locked" data-kind>: a covered equipment spot with a padlock badge;
+//                                       kind tea | top | ice | sugar | sealer | slot | helper (same viewBox as the station)
+//   lockBadgeSVG()                      <svg class="as-lock">, viewBox 0 0 40 40: the padlock badge alone
 //   teaManifoldSVG(n)                   <svg class="as-manifold">, viewBox 0 0 264 40: the tea3 pipe over n tanks
 //   iceDispenserSVG()                   <svg class="as-station as-ice as-dispenser">, viewBox 0 0 100 90 (ice2)
 //   potRigSVG(lv)                       <svg class="as-pot-rig" data-lv>, viewBox 0 0 110 110: burner flames (Lv3+) and the
 //                                       refill hopper (Lv4), drawn behind the pot
 //   goldenCardSVG()                     <svg class="as-golden-card">, viewBox 0 0 70 60: the 黃金比例 picture card (menu3)
+//   patienceColor(pct)                  green → yellow → red (the bubble's patience bar)
+const WOOD = '#C98A4B';
+const WOOD_HI = '#E6B373';
+const WOOD_LO = '#8E5A2E';
+const MAT = '#9C5B45';
+const MAT_HI = '#BC7A5E';
+const MAT_LO = '#6B3A2B';
+const TILE = '#F3E4C8';
+const TILE_LINE = '#D3BB93';
+
+function brush(x0, x1, y0, y1, n, seed) {
+  const rnd = mulberry32(seed);
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const y = r1(y0 + rnd() * (y1 - y0));
+    const a = r1(x0 + rnd() * (x1 - x0) * 0.8);
+    d += `M${a} ${y} h${r1(60 + rnd() * 260)} `;
+  }
+  return d;
+}
+
+function lockBadge(cx, cy, r = 14) {
+  const k = r / 14;
+  return `<g class="lk"><path fill="${COUNTER}" stroke="${INK}" stroke-width="${r1(2.4 * k)}" d="${ringPath(cx, cy, r)}"/>` +
+    `<path fill="none" stroke="${LEMON}" stroke-width="${r1(3 * k)}" stroke-linecap="round" d="M${r1(cx - 4.6 * k)} ${r1(cy - 1 * k)} V${r1(cy - 4.6 * k)} A${r1(4.6 * k)} ${r1(4.6 * k)} 0 0 1 ${r1(cx + 4.6 * k)} ${r1(cy - 4.6 * k)} V${r1(cy - 1 * k)}"/>` +
+    `<path fill="${TAKE}" stroke="${INK}" stroke-width="${r1(1.4 * k)}" d="M${r1(cx - 7.4 * k)} ${r1(cy - 1.6 * k)} H${r1(cx + 7.4 * k)} V${r1(cy + 7.6 * k)} H${r1(cx - 7.4 * k)} Z"/>` +
+    `<path fill="${INK}" d="${ringPath(cx, r1(cy + 2.4 * k), r1(1.7 * k))}"/></g>`;
+}
+export function lockBadgeSVG() { return svg('as-lock', '0 0 40 40', lockBadge(20, 20, 17)); }
+
 export function tableSVG() {
-  let ribs = '';
-  for (let x = 396; x < 874; x += 12) ribs += `M${x} 16 V194 `;
-  let brush = '';
-  for (let y = 222; y < 366; y += 9) brush += `M0 ${y} H1280 `;
+  // tiles on the inside face of the counter (y 0–66), the under-counter shelf at y 60–68
+  let grout = '';
+  for (let y = 18; y < 66; y += 18) grout += `M0 ${y} H1032 `;
+  for (let r = 0; r < 4; r++) { const off = r % 2 ? 14 : 0; for (let x = off; x < 1032; x += 28) grout += `M${x} ${r * 18} v18 `; }
+  // props on the under-counter shelf (bottoms at y 60)
+  const tins = [[134, GUN], [222, '#5E9A48'], [306, TAKE_DEEP]].map(([x, c]) =>
+    `<path fill="${c}" stroke="${INK_BG}" stroke-width="2" d="M${x} 24 H${x + 30} V58 Q${x + 30} 60 ${x + 28} 60 H${x + 2} Q${x} 60 ${x} 58 Z"/>` +
+    `<path fill="${celHilite(c)}" d="M${x + 3} 27 h4 v29 h-4 Z"/><path fill="${STEEL}" stroke="${INK_BG}" stroke-width="2" d="M${x - 2} 18 H${x + 32} V25 H${x - 2} Z"/>` +
+    `<path fill="${PAPER}" fill-opacity=".85" d="M${x + 15} 34 q8 4 0 14 q-8 -10 0 -14 Z"/>`).join('');
+  const jars = [[402, PEARL], [446, SYRUP], [490, COCO]].map(([x, c]) =>
+    `<path fill="#E4F3FA" fill-opacity=".7" stroke="${INK_BG}" stroke-width="2" d="M${x} 30 H${x + 34} V56 Q${x + 34} 60 ${x + 30} 60 H${x + 4} Q${x} 60 ${x} 56 Z"/>` +
+    `<path fill="${c}" d="M${x + 3} 40 H${x + 31} V56 Q${x + 31} 57.6 ${x + 29} 57.6 H${x + 5} Q${x + 3} 57.6 ${x + 3} 56 Z"/>` +
+    `<path fill="${STEEL_LO}" stroke="${INK_BG}" stroke-width="2" d="M${x - 1} 24 H${x + 35} V31 H${x - 1} Z"/><path fill="#FFFFFF" fill-opacity=".6" d="M${x + 4} 33 h3 v20 h-3 Z"/>`).join('');
+  const cupsStack = [20, 44].map((x) => `<path fill="#E4F3FA" fill-opacity=".8" stroke="${INK_BG}" stroke-width="1.8" d="M${x} 60 L${x + 3} 18 H${x + 19} L${x + 22} 60 Z"/>` +
+    `<path fill="none" stroke="#9FC4D8" stroke-width="1.4" d="M${x + 1} 52 H${x + 21} M${x + 1.6} 44 H${x + 20.4} M${x + 2.2} 36 H${x + 19.8} M${x + 2.8} 28 H${x + 19.2}"/>`).join('');
+  const straws = `<path fill="${GUN}" stroke="${INK_BG}" stroke-width="2" d="M72 34 H100 V60 H72 Z"/><path fill="none" stroke="${PAPER}" stroke-width="1.6" d="M74 46 H98"/>` +
+    `<path fill="none" stroke="${INK_BG}" stroke-width="4" stroke-linecap="round" d="M78 34 L76 12 M86 34 L87 8 M94 34 L98 14"/><path fill="none" stroke="${LEMON}" stroke-width="2" stroke-linecap="round" d="M78 34 L76 12 M94 34 L98 14"/><path fill="none" stroke="${SHUT}" stroke-width="2" stroke-linecap="round" d="M86 34 L87 8"/>`;
+  // a small potted plant (muted olive, so it never reads as a drink) and a service bell
+  const plant = `<path fill="#7E9A55" stroke="${INK_BG}" stroke-width="1.8" stroke-linejoin="round" d="M540 40 Q526 22 532 6 Q544 20 542 38 Z M544 40 Q548 16 562 8 Q562 28 548 40 Z M538 42 Q520 36 516 24 Q532 26 540 40 Z"/>` +
+    `<path fill="${GUN_DEEP}" stroke="${INK_BG}" stroke-width="2" d="M530 40 H556 L552 60 H534 Z"/><path fill="${GUN}" d="M531 40 H555 V45 H531 Z"/>`;
+  const bell = `<path fill="${TAKE}" stroke="${INK_BG}" stroke-width="2" d="M790 56 Q790 38 806 38 Q822 38 822 56 Z"/><path fill="${STEEL}" stroke="${INK_BG}" stroke-width="2" d="M784 56 H828 V60 H784 Z M803 38 V33 H809 V38"/><path fill="${GOLD_HI}" d="M795 52 Q796 44 802 42 L801 46 Q798 48 798 52 Z"/>`;
+  const napkins = `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="2" d="M732 26 H776 V60 H732 Z"/><path fill="${PAPER}" stroke="${INK_BG}" stroke-width="1.6" d="M742 26 Q754 10 766 26 Z"/><path fill="${celShade(STEEL)}" d="M766 28 H774 V58 H766 Z"/>`;
+  const film = [868, 920].map((x) => `<path fill="${PAPER}" stroke="${INK_BG}" stroke-width="2" d="M${x} 36 H${x + 40} V60 H${x} Z"/><path fill="none" stroke="${GUN}" stroke-width="2.4" stroke-dasharray="3 4" d="M${x + 4} 48 H${x + 36}"/>` +
+    `<path fill="${PAPER_SH}" stroke="${INK_BG}" stroke-width="2" d="${ell(x, 48, 4, 12)}"/>`).join('');
+  // the picture menu board on the tiles over the cup tower: three drinks, no words
+  const menuCups = [[594, TEA_COLORS.black.body], [628, TEA_COLORS.green.body], [662, TEA_COLORS.jade.body]].map(([x, c]) =>
+    `<path fill="${c}" stroke="${INK}" stroke-width="1.6" d="M${x} 12 H${x + 20} L${x + 17} 40 H${x + 3} Z"/><path fill="${PEARL}" d="${ringPath(x + 6, 36, 2)} ${ringPath(x + 10, 36.6, 2)} ${ringPath(x + 14, 36, 2)}"/>` +
+    `<path fill="none" stroke="${INK}" stroke-width="1.6" stroke-linecap="round" d="M${x + 14} 12 L${x + 17} 5"/><path fill="${LEMON}" d="${ringPath(x + 10, 47, 2.6)}"/>`).join('');
+  const menu = `<path fill="${WOOD_LO}" stroke="${INK_BG}" stroke-width="2.4" d="M578 0 H702 V56 H578 Z"/><path fill="${NIGHT_700}" d="M584 2 H696 V51 H584 Z"/>${menuCups}` +
+    `<path fill="none" stroke="${GOLD_HI}" stroke-opacity=".5" stroke-width="1.4" stroke-dasharray="2 3" d="M588 4 H692"/>`;
+  // the cup tower's wooden display stand on the bench (the tower itself is a station drawn on top)
+  const stand = `<path fill="${WOOD_LO}" d="${ell(635, 194, 66, 8)}"/><path fill="${WOOD}" stroke="${INK_BG}" stroke-width="2" d="M569 186 H701 V193 Q635 203 569 193 Z"/><path fill="${WOOD_HI}" stroke="${INK_BG}" stroke-width="2" d="${ell(635, 186, 66, 7)}"/>`;
+  // the cash register on the bench (layout.DECOR.register: x 722–842, design y 452–540 → table 110–198)
+  const reg = `<path fill="#1B1311" fill-opacity=".25" d="${ell(782, 197, 64, 5)}"/>` +
+    `<path fill="${PAPER}" stroke="${INK_BG}" stroke-width="2.4" stroke-linejoin="round" d="M726 166 H840 V196 H726 Z"/><path fill="${PAPER_SH}" d="M726 186 H840 V196 H726 Z"/>` +
+    `<path fill="none" stroke="${INK_BG}" stroke-width="2" d="M770 178 H796"/>` +
+    `<path fill="${GUN}" stroke="${INK_BG}" stroke-width="2.4" stroke-linejoin="round" d="M732 166 L742 132 H824 L834 166 Z"/>` +
+    `<path fill="${STEEL_HI}" d="${[0, 1, 2, 3].flatMap((c) => [0, 1].map((r) => `M${750 + c * 17 + r * 3} ${144 + r * 10} h12 v6 h-12 Z`)).join(' ')}"/>` +
+    `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="2" d="M792 132 V118 H836 V132 Z"/><path fill="${NIGHT_900}" d="M796 121 H832 V130 H796 Z"/>` +
+    `<text x="814" y="129" font-family="'DSEG7 Classic', monospace" font-size="8" text-anchor="middle" fill="${MINT}">250</text>`;
   const body = [
-    `<defs><linearGradient id="asTbBack" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C94A3"/><stop offset="1" stop-color="#A7AFBC"/></linearGradient>` +
-      `<linearGradient id="asTbFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9D0DA"/><stop offset="1" stop-color="#A3AAB7"/></linearGradient></defs>`,
-    `<rect x="0" y="0" width="1280" height="210" fill="url(#asTbBack)"/>`,
-    `<rect x="0" y="0" width="1280" height="10" fill="#1B1311" fill-opacity=".28"/>`,
-    `<path fill="${COUNTER_LO}" fill-opacity=".85" d="M386 12 H880 V198 H386 Z"/>`,
-    `<path fill="none" stroke="#3E3560" stroke-width="3" d="${ribs}"/>`,
-    `<rect x="0" y="206" width="1280" height="172" fill="url(#asTbFront)"/>`,
-    `<path fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1.2" d="${brush}"/>`,
-    `<path fill="none" stroke="${STEEL_HI}" stroke-width="3" d="M0 207.5 H1280"/><rect x="0" y="198" width="1280" height="8" fill="${STEEL_LO}"/>`,
-    `<rect x="0" y="366" width="1280" height="12" fill="${mixColor(STEEL_LO, COUNTER, 0.5)}"/>`,
+    `<defs><linearGradient id="asTbBench" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9AA2B0"/><stop offset="1" stop-color="#C3C9D3"/></linearGradient>` +
+      `<linearGradient id="asTbFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D6DCE4"/><stop offset=".7" stop-color="#BEC5D0"/><stop offset="1" stop-color="#A9B0BD"/></linearGradient>` +
+      `<linearGradient id="asTbWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${WOOD_HI}"/><stop offset=".5" stop-color="${WOOD}"/><stop offset="1" stop-color="${WOOD_LO}"/></linearGradient>` +
+      `<radialGradient id="asTbWarm" gradientUnits="userSpaceOnUse" cx="640" cy="40" r="760"><stop offset="0" stop-color="${WARM_RIM}" stop-opacity=".38"/><stop offset=".6" stop-color="${WARM_RIM}" stop-opacity=".08"/><stop offset="1" stop-color="${WARM_RIM}" stop-opacity="0"/></radialGradient>` +
+      `<radialGradient id="asTbTile" gradientUnits="userSpaceOnUse" cx="560" cy="-40" r="700"><stop offset="0" stop-color="#FFF4DE"/><stop offset=".7" stop-color="${TILE}"/><stop offset="1" stop-color="#D9B98C"/></radialGradient></defs>`,
+    // the inside face of the counter: tiles, grout, a shadow under the lip
+    `<rect x="0" y="0" width="1280" height="70" fill="url(#asTbTile)"/>`,
+    `<path fill="none" stroke="${TILE_LINE}" stroke-width="1.6" d="${grout}"/>`,
+    `<path fill="#FFFFFF" fill-opacity=".55" d="M60 4 h12 v2 h-12 Z M236 22 h12 v2 h-12 Z M412 4 h12 v2 h-12 Z M760 22 h12 v2 h-12 Z M944 4 h12 v2 h-12 Z"/>`,
+    `<rect x="0" y="0" width="1280" height="9" fill="#2A1A10" fill-opacity=".38"/>`,
+    menu,
+    // under-counter shelf + its props
+    cupsStack, straws, tins, jars, plant, napkins, bell, film,
+    `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="2" d="M0 60 H1032 V68 H0 Z"/><path fill="none" stroke="${STEEL_HI}" stroke-width="1.6" d="M0 61.4 H1032"/>`,
+    `<rect x="0" y="68" width="1280" height="5" fill="#1B1311" fill-opacity=".28"/>`,
+    // back bench: brushed steel
+    `<rect x="0" y="70" width="1280" height="128" fill="url(#asTbBench)"/>`,
+    `<path fill="none" stroke="#FFFFFF" stroke-opacity=".16" stroke-width="1.4" d="${brush(0, 1280, 76, 192, 34, 11)}"/>`,
+    `<path fill="none" stroke="#5B6372" stroke-opacity=".14" stroke-width="1.2" d="${brush(0, 1280, 76, 192, 18, 12)}"/>`,
+    stand, reg,
+    // the bench's front edge: steel nosing over warm wood
+    `<rect x="0" y="198" width="1280" height="18" fill="url(#asTbWood)"/>`,
+    `<path fill="none" stroke="${WOOD_LO}" stroke-opacity=".55" stroke-width="1.2" d="M0 206 Q160 203 320 207 T640 205 T960 207 T1280 205 M0 211 Q200 213 420 210 T880 212 T1280 210"/>`,
+    `<path fill="${STEEL_HI}" stroke="${INK_BG}" stroke-width="1.6" d="M0 195 H1280 V199 H0 Z"/>`,
+    `<rect x="0" y="216" width="1280" height="6" fill="#1B1311" fill-opacity=".22"/>`,
+    // front worktop: brushed steel under the warm light
+    `<rect x="0" y="222" width="1280" height="138" fill="url(#asTbFront)"/>`,
+    `<path fill="none" stroke="#FFFFFF" stroke-opacity=".2" stroke-width="1.4" d="${brush(0, 1280, 226, 356, 40, 21)}"/>`,
+    `<path fill="none" stroke="#5B6372" stroke-opacity=".12" stroke-width="1.2" d="${brush(0, 1280, 226, 356, 20, 22)}"/>`,
+    `<rect x="0" y="60" width="1280" height="318" fill="url(#asTbWarm)"/>`,
+    // the rubber bar mat under the cup holders (layout.DECOR.mat: x 520–1050, design y 600–704)
+    `<path fill="#1B1311" fill-opacity=".22" d="M524 266 H1054 V364 H524 Z"/>`,
+    `<path fill="${MAT}" stroke="${MAT_LO}" stroke-width="4" stroke-linejoin="round" d="M528 258 Q520 258 520 266 V352 Q520 360 528 360 H1042 Q1050 360 1050 352 V266 Q1050 258 1042 258 Z"/>`,
+    (() => {
+      let hi = '';
+      let lo = '';
+      for (let y = 270; y < 354; y += 12) for (let x = 534 + ((y / 12) % 2) * 6; x < 1040; x += 12) { hi += ringPath(x, y, 2.6) + ' '; lo += ringPath(r1(x + 0.9), r1(y + 1.2), 2.6) + ' '; }
+      return `<path fill="${MAT_LO}" d="${lo}"/><path fill="${MAT_HI}" d="${hi}"/>`;
+    })(),
+    `<path fill="none" stroke="${MAT_HI}" stroke-width="2" stroke-linecap="round" d="M530 261 H1040"/>`,
+    // front edge: warm wood with a steel nosing
+    `<rect x="0" y="360" width="1280" height="18" fill="url(#asTbWood)"/>`,
+    `<path fill="none" stroke="${WOOD_LO}" stroke-opacity=".5" stroke-width="1.2" d="M0 368 Q220 365 460 369 T960 367 T1280 369 M0 373 Q300 375 620 372 T1280 374"/>`,
+    `<path fill="${STEEL_HI}" stroke="${INK_BG}" stroke-width="1.6" d="M0 357 H1280 V361 H0 Z"/>`,
   ];
   return `<svg class="as-table" viewBox="0 0 1280 378" preserveAspectRatio="none" aria-hidden="true">${body.join('')}</svg>`;
 }
 
-export function shelfSVG(n = 4, { autoSeal = false } = {}) {
-  const k = int(n, 1, 6, 4);
-  const cols = Math.ceil(k / 2);
-  const cw = 232 / cols;
-  let rings = '';
-  for (let i = 0; i < k; i++) {
-    const row = i < cols ? 0 : 1;
-    const col = row ? i - cols : i;
-    const off = row && k % 2 ? cw / 2 : 0;
-    rings += ell(r1(col * cw + off + cw / 2), row ? 186 : 88, r1(cw * 0.3), 4) + ' ';
-  }
-  const body = [
-    `<path fill="#1B1311" fill-opacity=".25" d="M2 192 H230 L232 198 H0 Z"/>`,
-    // back panel + posts
-    `<path fill="${mixColor(STEEL_LO, COUNTER, 0.7)}" d="M6 0 H226 V190 H6 Z"/>`,
-    `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" d="M0 0 H8 V196 H0 Z M224 0 H232 V196 H224 Z"/>`,
-    // two tier boards
-    steelBody('M0 90 H232 V100 H0 Z'), steelBody('M0 188 H232 V196 H0 Z'),
-    `<path fill="none" stroke="${STEEL_HI}" stroke-width="2" d="M2 91.5 H230 M2 189.5 H230"/>`,
-    `<path fill="none" stroke="${STEEL_HI}" stroke-opacity=".5" stroke-width="1.6" d="${rings}"/>`,
-    autoSeal ? `<g class="as-gantry"><path fill="${GUN}" stroke="${INK_BG}" stroke-width="${SW}" stroke-linejoin="round" d="M-4 -18 H236 V-4 H-4 Z"/>` +
-      `<path fill="${LEMON}" stroke="${INK_BG}" stroke-width="1.4" d="M8 -14 H224 V-9 H8 Z"/>` +
-      `<g class="as-gantry-head"><path fill="${STEEL}" stroke="${INK_BG}" stroke-width="1.8" d="M96 -4 H136 V8 H96 Z"/><path fill="${PAPER}" stroke="${INK_BG}" stroke-width="1.4" d="M104 8 H128 V12 H104 Z"/></g></g>` : '',
-  ];
-  return svg('as-shelf', '0 0 232 196', body.join(''), ` data-n="${k}" data-auto="${autoSeal ? 1 : 0}"`);
+export function counterLipSVG() {
+  return `<svg class="as-lip" viewBox="0 0 1280 26" preserveAspectRatio="none" aria-hidden="true">` +
+    `<defs><linearGradient id="asLip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${WOOD_HI}"/><stop offset="1" stop-color="${WOOD}"/></linearGradient></defs>` +
+    `<rect x="0" y="0" width="1280" height="10" fill="url(#asLip)"/><path fill="none" stroke="#FFF2C8" stroke-opacity=".8" stroke-width="2" d="M0 1.6 H1280"/>` +
+    `<path fill="none" stroke="${WOOD_LO}" stroke-opacity=".45" stroke-width="1" d="M0 6 Q300 4 640 7 T1280 5"/>` +
+    `<rect x="0" y="10" width="1280" height="9" fill="${STEEL}"/><path fill="none" stroke="${STEEL_HI}" stroke-width="2.4" d="M0 11.6 H1280"/>` +
+    `<path fill="none" stroke="${INK_BG}" stroke-width="1.6" d="M0 10 H1280 M0 19 H1280"/>` +
+    `<rect x="0" y="19" width="1280" height="7" fill="#1B1311" fill-opacity=".3"/></svg>`;
 }
 
-function miniCard(it, x, y, done) {
-  const c = normCup(it);
-  const golden = !!(it && it.golden);
-  const tea = c.tea ? TEA_COLORS[c.tea] : null;
-  const p = [];
-  p.push(`<path fill="#DDEFF7" d="M${x + 3} ${y + 6} H${x + 27} L${x + 24} ${y + 52} H${x + 6} Z"/>`);
-  if (golden) {
-    p.push(`<path fill="${TAKE}" d="M${x + 3.7} ${y + 14} H${x + 26.3} L${x + 24} ${y + 52} H${x + 6} Z"/><path fill="${GOLD_HI}" d="M${x + 6} ${y + 18} h4 l-1 30 h-3 Z"/>`);
-    p.push(`<path fill="${GOLD_HI}" stroke="${TAKE_DEEP}" stroke-width="1" d="M${x + 38} ${y + 8} l2.4 6 6 2.4 -6 2.4 -2.4 6 -2.4 -6 -6 -2.4 6 -2.4 Z M${x + 40} ${y + 32} l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6 -4 -4 -1.6 4 -1.6 Z"/>`);
-  } else if (tea) {
-    p.push(`<path fill="${tea.body}" d="M${x + 3.7} ${y + 16} H${x + 26.3} L${x + 24} ${y + 52} H${x + 6} Z"/><path fill="${celShade(tea.body)}" d="M${x + 21} ${y + 16} H${x + 26.3} L${x + 24} ${y + 52} H${x + 20} Z"/>`);
-    if (c.tea === 'jade') p.push(`<path fill="${LEMON}" stroke="#E2A800" stroke-width="1" d="${ringPath(x + 10, y + 22, 3.2)}"/>`);
+export function shelfSVG(n = 4, { autoSeal = false } = {}) {
+  const k = int(n, 1, 6, 4);
+  const cols = 3;
+  const cw = 242 / cols;
+  let rings = '';
+  let locks = '';
+  for (let i = 0; i < 6; i++) {
+    const row = i < cols ? 0 : 1;
+    const col = row ? i - cols : i;
+    const cx = r1(col * cw + cw / 2);
+    const cy = row ? 184 : 86;
+    if (i < k) rings += `${ell(cx, cy, r1(cw * 0.32), 4.6)} `;
+    else locks += `<path fill="none" stroke="${INK_BG}" stroke-opacity=".5" stroke-width="1.6" stroke-dasharray="4 3" d="${ell(cx, cy, r1(cw * 0.32), 4.6)}"/>${lockBadge(cx, cy - 34, 12)}`;
   }
-  if (!golden) {
-    c.toppings.forEach((k, i) => {
-      const cx = x + 15;
-      const cy = y + 45 - i * 9;
-      const ic = toppingIcon(k, 0, 0);
-      p.push(`<path fill="${ic.fill}" stroke="${INK}" stroke-width="1.3" stroke-linejoin="round" transform="translate(${r1(cx)} ${r1(cy)}) scale(.78)" d="${ic.a}"/>`);
-    });
-    for (let i = 0; i < c.ice; i++) p.push(`<path fill="${ICE}" stroke="${ICE_EDGE}" stroke-width="1.4" stroke-linejoin="round" d="${sq(x + 39, y + 11 + i * 11, 9, i ? 10 : -8)}"/>`);
-    for (let i = 0; i < c.sugar; i++) {
-      const sx = x + 39;
-      const sy = y + 36 + i * 11;
-      p.push(`<path fill="${SYRUP}" stroke="${INK}" stroke-width="1.2" stroke-linejoin="round" d="M${sx} ${sy - 6} Q${sx + 5} ${sy} ${sx + 4} ${sy + 2} A4.4 4.4 0 0 1 ${sx - 4} ${sy + 2} Q${sx - 5} ${sy} ${sx} ${sy - 6} Z"/>`);
-    }
-  }
-  p.push(`<path fill="none" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M${x + 3} ${y + 6} L${x + 6} ${y + 52} H${x + 24} L${x + 27} ${y + 6} M${x + 1} ${y + 6} H${x + 29} M${x + 19} ${y + 6} L${x + 23} ${y - 2}"/>`);
-  if (done) {
-    p.push(`<path fill="${PAPER}" fill-opacity=".62" d="M${x} ${y - 4} H${x + 50} V${y + 58} H${x} Z"/>`);
-    p.push(`<path fill="${MINT}" stroke="${INK}" stroke-width="2" d="${ringPath(x + 36, y + 42, 10)}"/><path fill="none" stroke="${PAPER}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" d="M${x + 31} ${y + 42} L${x + 35} ${y + 46} L${x + 42} ${y + 37}"/>`);
-  }
-  return `<g class="as-item${done ? ' done' : ''}">${p.join('')}</g>`;
+  const body = [
+    `<path fill="#1B1311" fill-opacity=".25" d="M2 192 H240 L242 198 H0 Z"/>`,
+    // warm wood back panel with a soft light, steel posts
+    `<path fill="${WOOD_LO}" d="M6 0 H236 V190 H6 Z"/><path fill="${WOOD}" fill-opacity=".55" d="M10 4 H232 V88 H10 Z M10 102 H232 V186 H10 Z"/>`,
+    `<path fill="none" stroke="${WOOD_HI}" stroke-opacity=".5" stroke-width="1.4" d="M10 30 H232 M10 60 H232 M10 128 H232 M10 158 H232"/>`,
+    `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" d="M0 0 H8 V196 H0 Z M234 0 H242 V196 H234 Z"/>`,
+    // two tier boards
+    steelBody('M0 90 H242 V100 H0 Z'), steelBody('M0 188 H242 V196 H0 Z'),
+    `<path fill="none" stroke="${STEEL_HI}" stroke-width="2" d="M2 91.5 H240 M2 189.5 H240"/>`,
+    `<path fill="${STEEL_LO}" stroke="${INK_BG}" stroke-width="1.4" d="${rings}"/>`,
+    locks,
+    autoSeal ? `<g class="as-gantry"><path fill="${GUN}" stroke="${INK_BG}" stroke-width="${SW}" stroke-linejoin="round" d="M-4 -18 H246 V-4 H-4 Z"/>` +
+      `<path fill="${LEMON}" stroke="${INK_BG}" stroke-width="1.4" d="M8 -14 H234 V-9 H8 Z"/>` +
+      `<g class="as-gantry-head"><path fill="${STEEL}" stroke="${INK_BG}" stroke-width="1.8" d="M100 -4 H140 V8 H100 Z"/><path fill="${PAPER}" stroke="${INK_BG}" stroke-width="1.4" d="M108 8 H132 V12 H108 Z"/></g></g>` : '',
+  ];
+  return svg('as-shelf', '0 0 242 196', body.join(''), ` data-n="${k}" data-auto="${autoSeal ? 1 : 0}"`);
 }
 
 export function itemsBubbleSVG(order = {}, got = []) {
   const items = Array.isArray(order.items) ? order.items : [order];
   const n = items.length;
   if (n === 1 && !items[0].golden) return orderBubbleSVG({ ...items[0], count: 1 });
-  const cols = n === 1 ? 1 : 2;
+  const cols = n === 4 ? 2 : n;
   const rows = Math.ceil(n / cols);
-  const W = 16 + cols * 50 + (cols - 1) * 4;
-  const H = 16 + rows * 58 + (rows - 1) * 4;
-  const shape = `M12 2 H${W - 12} Q${W - 2} 2 ${W - 2} 12 V${H - 12} Q${W - 2} ${H - 2} ${W - 12} ${H - 2} H34 L16 ${H + 14} L20 ${H - 2} H12 Q2 ${H - 2} 2 ${H - 12} V12 Q2 2 12 2 Z`;
-  const parts = [
-    `<path fill="${PAPER_SH}" d="${shape}" transform="translate(0 3)"/>`,
-    `<path fill="${n === 1 ? LEMON : PAPER}" stroke="${INK}" stroke-width="2.6" stroke-linejoin="round" d="${shape}"/>`,
-  ];
-  items.forEach((it, i) => parts.push(miniCard(it, 8 + (i % cols) * 54, 10 + Math.floor(i / cols) * 62, !!got[i])));
+  const W = 16 + cols * CARD.w + (cols - 1) * 6;
+  const Hp = 6 + rows * CARD.h + (rows - 1) * 6 + 16;
+  const parts = [bubbleShell(W, Hp, n === 1 ? GOLD_HI : PAPER)];
+  items.forEach((it, i) => parts.push(`<g class="as-item${got[i] ? ' done' : ''}">${cupCard(it, 9 + (i % cols) * (CARD.w + 6), 6 + Math.floor(i / cols) * (CARD.h + 6), !!got[i])}</g>`));
   if (order.big) {
     // a big order: a paper carry bag on the corner
-    parts.push(`<path fill="#C99A62" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M${W - 18} -6 H${W + 6} L${W + 8} 20 H${W - 20} Z"/><path fill="none" stroke="${INK}" stroke-width="2" d="M${W - 12} -6 Q${W - 6} -18 ${W} -6"/>`);
+    parts.push(`<path fill="#C99A62" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round" d="M${W - 22} -8 H${W + 4} L${W + 7} 20 H${W - 25} Z"/><path fill="none" stroke="${INK}" stroke-width="2.4" d="M${W - 15} -8 Q${W - 9} -20 ${W - 3} -8"/>`);
   }
-  return svg('as-bubble as-items', `0 0 ${W} ${H + 16}`, parts.join(''), ` data-count="${n}" data-got="${got.filter(Boolean).length}"`);
+  return svg('as-bubble as-items', `0 0 ${W} ${Hp + TAIL + 4}`, parts.join(''), ` data-count="${n}" data-got="${got.filter(Boolean).length}"`);
+}
+
+// covered spots (not bought / not on the menu yet): a dust cover or lid in muted steel and a padlock badge
+const COVER = '#8C95A5';
+const COVER_LO = '#6E7686';
+export function lockedSVG(kind = 'tea') {
+  const dash = `fill="none" stroke="${INK_BG}" stroke-opacity=".45" stroke-width="1.8" stroke-dasharray="5 4"`;
+  const drape = (d, folds) => `<path fill="${COVER}" stroke="${INK_BG}" stroke-width="2" stroke-linejoin="round" d="${d}"/><path fill="none" stroke="${COVER_LO}" stroke-width="2" stroke-linecap="round" d="${folds}"/>`;
+  const shadow = (cx, cy, rx) => `<path fill="#1B1311" fill-opacity=".2" d="${ell(cx, cy, rx, 4)}"/>`;
+  let vb = '0 0 100 140';
+  let body = '';
+  if (kind === 'tea') {
+    body = shadow(50, 134, 34) + drape('M16 34 Q16 6 50 6 Q84 6 84 34 L90 128 Q70 134 50 130 Q30 134 10 128 Z', 'M32 30 L26 124 M50 20 V126 M68 30 L74 124') + lockBadge(50, 76, 17);
+  } else if (kind === 'top' || kind === 'ice') {
+    vb = '0 0 100 90';
+    body = shadow(50, 66, 46) + `<path ${dash} d="M10 14 H90 L97 46 H3 Z"/>` +
+      `<path fill="${COVER}" stroke="${INK_BG}" stroke-width="2" stroke-linejoin="round" d="M6 30 H94 L96 46 H4 Z"/><path fill="${STEEL}" stroke="${INK_BG}" stroke-width="2" d="M4 46 H96 L94 62 H6 Z"/>` +
+      `<path fill="${COVER_LO}" stroke="${INK_BG}" stroke-width="2" d="M40 22 H60 V30 H40 Z"/>` + lockBadge(50, 46, 14);
+  } else if (kind === 'sugar') {
+    vb = '0 0 70 130';
+    body = shadow(35, 126, 24) + drape('M22 20 H48 Q60 40 60 64 V120 Q60 124 54 124 H16 Q10 124 10 120 V64 Q10 40 22 20 Z', 'M26 40 L22 118 M44 40 L48 118') + lockBadge(35, 76, 15);
+  } else if (kind === 'sealer') {
+    vb = '0 0 110 150';
+    body = shadow(55, 146, 50) + `<path fill="${STEEL_LO}" stroke="${INK_BG}" stroke-width="2" d="M8 132 H102 L104 144 H6 Z"/>` +
+      drape('M14 30 Q14 12 34 12 H86 Q100 12 100 30 L104 134 Q80 140 56 136 Q32 140 8 134 Z', 'M36 26 L30 130 M60 22 V132 M82 26 L88 130') + lockBadge(55, 76, 17);
+  } else if (kind === 'slot') {
+    vb = '0 0 100 50';
+    body = `<path fill="#1B1311" fill-opacity=".3" d="${ell(50, 33, 44, 11)}"/><path fill="${COVER}" stroke="${INK_BG}" stroke-width="2.2" d="${ell(50, 28, 42, 14)}"/>` +
+      `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="1.6" d="${ell(50, 25, 32, 9)}"/><path fill="none" stroke="${STEEL_HI}" stroke-width="2" stroke-linecap="round" d="M24 21 Q36 16.6 50 16.4"/>` + lockBadge(50, 25, 12);
+  } else if (kind === 'helper') {
+    vb = '0 0 142 166';
+    body = `<path ${dash} d="M71 20 a26 26 0 1 1 -0.1 0 Z M22 166 Q24 104 71 98 Q118 104 120 166"/>` + lockBadge(71, 122, 18);
+  } else {
+    body = lockBadge(50, 70, 17);
+  }
+  return svg('as-locked', vb, body, ` data-kind="${kind}"`);
+}
+
+export function patienceColor(p) {
+  const q = clamp(Number(p) || 0, 0, 1);
+  return q >= 0.5 ? mixColor(MINT, TAKE, (q - 0.5) * 2) : mixColor(TAKE, GUN, q * 2);
 }
 
 export function teaManifoldSVG(n = 3) {

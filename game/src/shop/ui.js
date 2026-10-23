@@ -1,37 +1,42 @@
 // ui.js — gameplay v3 shop screen, landscape (docs/gameplay-v3-shop.md 10): a 16:9 stage (design 1280×720, layout.js),
-// the camera behind the counter looking out. Top: the night street, customers walking in from the far corner, the line,
-// the counter spots (bubbles, patience rings, gestures). Bottom: the work table with every station (art-shop.js), the
-// shelf, the cup tower, the part-timer. DOM rendering, pointer input (taps on stations, cup drags, gestures on customers
-// through src/gesture.js, J/K/L keys), juice, the day 1 finger guide, cards (start, day, receipt, upgrade shop, pause,
-// voice prompt, rotate-your-phone). Layout and look: shop.css. No game rules here: main.js owns the engine and calls
-// render(state) every frame and onEvent(ev) per event.
+// the camera behind the counter looking out. Top: the night street (traffic and passers-by on the far side), customers
+// walking in from the far corner, the line, the counter spots (order bubbles with the patience bar, gestures). Bottom:
+// the work table with a fixed spot for every station (art-shop.js; spots not owned yet are covered and locked), the
+// prep mat, the shelf, the cup tower, the part-timer. DOM rendering, pointer input (taps on stations, cup drags, gestures
+// on customers through src/gesture.js, J/K/L keys), juice (pour streams, topping arcs, the sealer press, coins to the
+// HUD), the day 1 finger guide, cards (start, day, receipt, upgrade shop, pause, voice prompt, rotate-your-phone).
+// Layout and look: shop.css. No game rules here: main.js owns the engine and calls render(state) every frame and
+// onEvent(ev) per event.
 //
 //   createShopUI(root, handlers) → ui
 //     handlers: onTake(), onTea(kind), onTopping(kind), onIce(), onSugar(), onCook(), onSelect(w),
 //               onDrop(ref, { type: 'sealer'|'shelf'|'seat'|'trash'|null, slot }), ref = { w } | { shelf },
 //               onAnswer(slot, key, info), onKey(key), onPause(), onFirstInput(), onToggleLang()
-//     ui.build(shop)            stations, slots, shelf, seats and the upgrade props for today's menu / upgrades
-//     ui.render(state)          per frame: HUD, walkers (interpolated from the engine's street positions), bubbles,
-//                               patience rings, cups, sealers, pot, helper, cup tower
+//     ui.build(shop)            stations, locked spots, slots, shelf, seats and the upgrade props for today
+//     ui.render(state)          per frame: HUD (money ticks up as coins land), walkers (interpolated from the engine's
+//                               street positions), bubbles, patience bars, cups, sealers, pot, helper, cup tower, traffic
 //     ui.onEvent(ev, ctx)       visuals of one engine event
-//     ui.say(text, who, key)    a subtitle (clerk lines get the '|' punch half big in the key colour)
+//     ui.say(text, who, key)    a subtitle on the counter lip (clerk lines get the '|' punch half big in the key colour)
 //     ui.guide(step, state)     the finger demo for a guide step (null hides it)
 //     ui.dayCard / receipt / upgradeShop / startCard / pauseSheet / voicePrompt / endCard  (cards; resolve via callbacks)
 //     ui.where(name)            viewport centre of a part (tools): 'rack' | 'tea-<k>' | 'top-<k>' | 'sealer' | 'sealer-1' |
 //                               'shelfArea' | 'trash' | 'pot' | 'ice' | 'sugar' | 'cup-<w>' | 'shelf-<i>' | 'seat-<i>'
 import {
   cupSVG, teaTankSVG, toppingTraySVG, iceBinSVG, syrupSVG, sealerSVG, potSVG, cupRackSVG, trashSVG, workSlotSVG,
-  orderBubbleSVG, coinSVG, patienceRingSVG, tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG,
-  goldenCardSVG,
+  coinSVG, tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG,
+  goldenCardSVG, counterLipSVG, lockedSVG, lockBadgeSVG, patienceColor, TEA_COLORS,
 } from './art-shop.js';
-import { streetSVG, cornerSVG, awningSVG, walkerSVG, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG } from './art-street.js';
+import { streetSVG, cornerSVG, awningSVG, walkerSVG, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG, vehicleSVG, pedSVG, roadLane, farWalk } from './art-street.js';
 import { customerSVG, FINGER_SVG, CLERK_SVG, logoSVG, cupStackSVG, MEGAPHONE_SVG } from '../art.js';
 import { createRecognizer } from '../gesture.js';
 import { okeBubbleSVG, STAMP_SVG, starRowSVG } from './oke-art.js';
 import { okeOf } from './oke.js';
 import { STATIONS, TABS, levelOf, nextLevel, canBuy } from './upgrades.js';
 import { shopText, fmt } from './text.js';
-import { STAGE, LIP_Y, PERSON, PILLAR, streetPoint, seatPoint, seatColumn, stepPoint, stations as stationRects } from './layout.js';
+import {
+  STAGE, LIP_Y, PERSON, PILLAR, BUBBLE, DECOR, streetPoint, lineU, seatPoint, seatColumn, stepPoint, bubbleWidth,
+  stations as stationRects, lockedSpots,
+} from './layout.js';
 
 const TOP_ORDER = ['pearl', 'pudding', 'grass', 'coconut'];
 const KEY_COLOR = { gun: 'var(--gun)', shut: 'var(--shut)', take: 'var(--lemon)' };
@@ -40,8 +45,26 @@ const stripDir = (s) => String(s ?? '').replace(/（[^（）]*）/g, '').replace
 const money = (n) => Math.round(n).toLocaleString('en-US');
 const cq = (v) => `${(v * 100 / STAGE.w).toFixed(3)}cqw`; // design px → container units
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
 // the cup tower at a fixed cup size: its svg is as wide as its bottom row (art.js cupStackSVG, at most 5 cups = 89 units)
 const towerHTML = (n) => { const k = clamp(Math.floor(n), 0, 9); const w = Math.max(1, Math.ceil(k / 2)) * 17 + 4; return cupStackSVG(k).replace('<svg ', `<svg style="width:${((w / 89) * 92).toFixed(1)}%" `); };
+
+// small UI icons (cards and HUD chrome; no words)
+const ICON = {
+  cal: '<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="7" width="32" height="29" rx="5" fill="#FFF7E6" stroke="#1B1311" stroke-width="3"/><path d="M4 12 Q4 7 9 7 H31 Q36 7 36 12 V16 H4 Z" fill="#EE4130" stroke="#1B1311" stroke-width="3" stroke-linejoin="round"/><path d="M12 3 V11 M28 3 V11" stroke="#1B1311" stroke-width="3.4" stroke-linecap="round"/></svg>',
+  clock: '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="21" r="16" class="ht-bg"/><circle cx="20" cy="21" r="12.5" class="ht-arc" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 20 21)"/><path class="ht-hand" d="M20 21 V12" stroke-linecap="round"/><circle cx="20" cy="21" r="2.4" fill="#1B1311"/><path d="M14 3.4 H26" stroke="#1B1311" stroke-width="3.4" stroke-linecap="round"/></svg>',
+  flag: '<svg viewBox="0 0 20 24" aria-hidden="true"><path d="M3 2 V23" stroke="#1B1311" stroke-width="2.6" stroke-linecap="round"/><path d="M4 3 H17 L13 8 L17 13 H4 Z" fill="#EE4130" stroke="#1B1311" stroke-width="2" stroke-linejoin="round"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="#1B1311" stroke="#1B1311" stroke-width="2" stroke-linejoin="round"/></svg>',
+  resume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M3 12 H21 M12 3 Q6 12 12 21 Q18 12 12 3" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9 H7 L12 5 V19 L7 15 H3 Z" fill="currentColor"/><path d="M15 9 Q17 12 15 15 M18 6 Q22 12 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9 H7 L12 5 V19 L7 15 H3 Z" fill="currentColor"/><path d="M16 9 L22 15 M22 9 L16 15" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  shutter: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4 H21 V20 H3 Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3 8 H21 M3 12 H21 M3 16 H21" stroke="currentColor" stroke-width="1.8"/></svg>',
+  restart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 A7 7 0 1 0 8 6.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4 3 V8 H9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  mic: '<svg viewBox="0 0 60 90" aria-hidden="true"><rect x="16" y="4" width="28" height="50" rx="14" fill="#BCC3CE" stroke="#1B1311" stroke-width="4"/><path d="M22 18 H38 M22 28 H38 M22 38 H38" stroke="#737C8C" stroke-width="3" stroke-linecap="round"/><path d="M8 40 Q8 66 30 66 Q52 66 52 40" fill="none" stroke="#1B1311" stroke-width="4" stroke-linecap="round"/><path d="M30 66 V82 M18 84 H42" stroke="#1B1311" stroke-width="4" stroke-linecap="round"/><path d="M20 10 Q19 20 20 30" stroke="#F2F4F7" stroke-width="3" stroke-linecap="round" fill="none"/></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 L10 17 L19 7" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  arrow: '<svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 8 H18 M13 3 L19 8 L13 13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -56,6 +79,7 @@ function place(e, r, h) {
   if (h != null) e.style.height = cq(h);
   return e;
 }
+const restart = (e, cls) => { if (!e) return; e.classList.remove(cls); void e.offsetWidth; e.classList.add(cls); };
 
 export function createShopUI(root, h = {}) {
   const call = (k, ...a) => { try { return h[k] && h[k](...a); } catch (e) { console.error('[shop ui]', e); return undefined; } };
@@ -74,6 +98,7 @@ export function createShopUI(root, h = {}) {
   const shaker = el('div', 'shaker');
   stage.append(shaker);
   const street = el('div', 'street');
+  const traffic = el('div', 'traffic');
   const walkersEl = el('div', 'walkers');
   const corner = el('div', 'corner', cornerSVG());
   const awning = el('div', 'awning', awningSVG());
@@ -81,20 +106,21 @@ export function createShopUI(root, h = {}) {
   place(pillar, PILLAR, PILLAR.h);
   const seatsEl = el('div', 'seats');
   const counter = el('div', 'counter');
-  counter.innerHTML = `<div class="lip"></div><div class="table">${tableSVG()}</div>`;
+  counter.innerHTML = `<div class="lip">${counterLipSVG()}</div><div class="table">${tableSVG()}</div>`;
   const cupsEl = el('div', 'cups');
-  shaker.append(street, walkersEl, corner, awning, pillar, seatsEl, counter);
+  shaker.append(street, traffic, walkersEl, corner, awning, pillar, seatsEl, counter);
   counter.append(cupsEl);
   const fx = el('div', 'fx');
-  const clerkCut = el('div', 'clerk-cut', CLERK_SVG);
+  const clerkCut = el('div', 'clerk-cut', `<div class="cc-burst"></div><div class="cc-clerk">${CLERK_SVG}</div>`);
   const subs = el('div', 'subs');
   const finger = el('div', 'finger', FINGER_SVG);
   finger.hidden = true;
   const hud = el('div', 'hud');
   hud.innerHTML = `<button class="hud-pause" aria-label="pause"><i></i><i></i></button>` +
-    `<div class="hud-money"><span class="hud-coin">${coinSVG()}</span><b class="hud-num">0</b><i class="hud-goal"><i></i></i></div>` +
-    `<div class="hud-stars"></div><div class="hud-timer"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" class="ht-bg"/>` +
-    `<circle cx="20" cy="20" r="16" class="ht-arc" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 20 20)"/></svg><b class="ht-num"></b></div>`;
+    `<div class="hud-day">${ICON.cal}<b class="hud-dayn">1</b></div>` +
+    `<div class="hud-money"><span class="hud-coin">${coinSVG()}</span><b class="hud-num">0</b><i class="hud-goal"><i></i></i><span class="hud-flag">${ICON.flag}</span></div>` +
+    `<div class="hud-timer">${ICON.clock}<b class="ht-num"></b></div>` +
+    `<div class="hud-stars"></div>`;
   const cards = el('div', 'cards');
   stage.append(fx, clerkCut, subs, finger, hud, cards);
   const rotate = el('div', 'rotate');
@@ -104,8 +130,10 @@ export function createShopUI(root, h = {}) {
   const hudGoal = hud.querySelector('.hud-goal > i');
   const hudStars = hud.querySelector('.hud-stars');
   const htArc = hud.querySelector('.ht-arc');
+  const htHand = hud.querySelector('.ht-hand');
   const htNum = hud.querySelector('.ht-num');
   const hudTimer = hud.querySelector('.hud-timer');
+  const hudDay = hud.querySelector('.hud-dayn');
   hud.querySelector('.hud-pause').addEventListener('click', () => call('onPause'));
 
   // stage scale (design px → screen px), kept current on resize
@@ -114,14 +142,16 @@ export function createShopUI(root, h = {}) {
   measure();
   try { new ResizeObserver(measure).observe(stage); } catch { window.addEventListener('resize', measure); }
 
-  let seats = [];      // [{ el, bubble, ring, uid, key, pct }]
+  let seats = [];      // [{ el, bubble, pb, pbw, uid, key, pct }]
   let wslots = [];     // work slot elements
   let st = {};         // station elements by name
   let R = {};          // station rects (design px)
   let cupEls = new Map(); // cup id → { el, key, ref }
-  const walkers = new Map(); // customer uid → { el, inner, kind, leaving }
-  let lastStars = 0;
+  const walkers = new Map(); // customer uid → { el, inner, leaving, mode }
+  let lastStars = -1;
   let lastMoney = null;
+  let shown = 0;       // the HUD money as displayed (ticks up when the coins land)
+  let tween = null;    // { from, to, t0, dur }
   let lastTower = -1;
   let cfg = null;
   let def = null;
@@ -136,12 +166,18 @@ export function createShopUI(root, h = {}) {
     counter.insertBefore(e, cupsEl);
     return e;
   }
+  function prop(cls, html, rect) {
+    const e = el('div', `prop ${cls}`, html);
+    place(e, rect, rect.h);
+    counter.insertBefore(e, cupsEl);
+    return e;
+  }
 
   function build(shop) {
     const s = shop.state;
     cfg = shop.cfg;
     def = shop.def;
-    counter.querySelectorAll('.st, .wslot, .prop').forEach((n) => n.remove());
+    counter.querySelectorAll('.st, .wslot, .prop, .lock-spot').forEach((n) => n.remove());
     pillar.innerHTML = '';
     cupsEl.innerHTML = '';
     cupEls = new Map();
@@ -149,29 +185,34 @@ export function createShopUI(root, h = {}) {
     walkers.clear();
     st = {};
     const tops = TOP_ORDER.filter((k) => def.toppings.includes(k) || (k === 'coconut' && cfg.coconut));
-    R = stationRects({ teas: def.teas, toppings: tops, ice: def.ice, sugar: def.sugar, workSlots: s.work.length, shelf: s.shelf.length, sealers: cfg.sealers });
+    const spec = { teas: def.teas, toppings: tops, ice: def.ice, sugar: def.sugar, workSlots: s.work.length, shelf: s.shelf.length, sealers: cfg.sealers, helper: !!cfg.helperMs };
+    R = stationRects(spec);
     stage.dataset.seats = String(s.slots.length);
     street.innerHTML = streetSVG({ neon: cfg.fameMult > 1, rail: cfg.queueBonus > 0 });
+    hudDay.textContent = String(def.n || 1);
+    // covered spots for everything not owned / not on the menu yet (the shelf draws its own locks)
+    for (const L of lockedSpots(spec)) {
+      if (L.kind === 'shelf') continue;
+      const e = el('div', `lock-spot lk-${L.kind}`, lockedSVG(L.kind));
+      e.dataset.name = L.name;
+      place(e, L, L.h);
+      counter.insertBefore(e, cupsEl);
+    }
     // back row
     st.rack = station('st-rack', cupRackSVG(), 'take', null, R.rack);
     const fast = cfg.pourMs < 600;
     def.teas.forEach((k) => { st['tea-' + k] = station('st-tea', teaTankSVG(k, { fast }), 'tea', k, R['tea-' + k]); });
     if (cfg.teaAll) {
       const xs = def.teas.map((k) => R['tea-' + k]);
-      const x0 = xs[0].x;
-      const x1 = xs[xs.length - 1].x + xs[xs.length - 1].w;
-      const m = el('div', 'prop manifold', teaManifoldSVG(def.teas.length));
-      place(m, { x: x0, y: 336, w: x1 - x0 });
-      counter.insertBefore(m, cupsEl);
+      const x0 = Math.min(...xs.map((r) => r.x)) - 4;
+      const x1 = Math.max(...xs.map((r) => r.x + r.w)) + 4;
+      const m = prop('manifold', teaManifoldSVG(def.teas.length), { x: x0, y: xs[0].y - 26, w: x1 - x0 });
+      m.style.height = '';
     }
-    wslots = s.work.map((_, w) => {
-      const r = R['slot-' + w];
-      const e = el('div', 'wslot', `<div class="plate">${workSlotSVG()}</div>`);
-      e.dataset.w = String(w);
-      place(e, r, r.h);
-      counter.insertBefore(e, cupsEl);
-      return e;
-    });
+    if (def.ice) st.ice = station('st-ice', cfg.iceSmart ? iceDispenserSVG() : iceBinSVG(), 'ice', null, R.ice);
+    if (def.sugar) st.sugar = station('st-syrup', syrupSVG(), 'sugar', null, R.sugar);
+    st.tower = station('st-tower', '', null, null, R.tower);
+    if (cfg.golden) prop('golden-card', goldenCardSVG(), DECOR.golden);
     for (let k = 0; k < cfg.sealers; k++) {
       const e = station('st-sealer', sealerSVG('idle', { turbo: cfg.sealMs < 800 }), 'sealer', String(k), R['sealer-' + k]);
       e.dataset.k = String(k);
@@ -180,17 +221,17 @@ export function createShopUI(root, h = {}) {
     }
     st.shelf = station('st-shelf', shelfSVG(s.shelf.length, { autoSeal: cfg.autoSeal }), 'shelf', null, R.shelf);
     // front row
-    if (cfg.cookMs < 8000 || cfg.autoCook) {
-      const rig = el('div', 'prop pot-rig', potRigSVG(cfg.autoCook ? 4 : 3));
-      place(rig, R.pot);
-      counter.insertBefore(rig, cupsEl);
-    }
+    if (cfg.cookMs < 8000 || cfg.autoCook) prop('pot-rig', potRigSVG(cfg.autoCook ? 4 : 3), R.pot);
     st.pot = station(`st-pot${cfg.potMax > 10 ? ' big' : ''}`, potSVG({ scoops: Math.min(10, s.pot.scoops), cookingPct: 0 }), 'cook', null, R.pot);
     tops.forEach((k) => { st['top-' + k] = station('st-top', toppingTraySVG(k, 10), 'topping', k, R['top-' + k]); st['top-' + k].dataset.kind = k; });
-    if (def.ice) st.ice = station('st-ice', cfg.iceSmart ? iceDispenserSVG() : iceBinSVG(), 'ice', null, R.ice);
-    if (def.sugar) st.sugar = station('st-syrup', syrupSVG(), 'sugar', null, R.sugar);
-    st.tower = station('st-tower', '', null, null, R.tower);
-    if (cfg.golden) { const g = el('div', 'prop golden-card', goldenCardSVG()); place(g, { x: R.tower.x - 4, y: R.tower.y + 70, w: 66 }); counter.insertBefore(g, cupsEl); }
+    wslots = s.work.map((_, w) => {
+      const r = R['slot-' + w];
+      const e = el('div', 'wslot', `<div class="plate">${workSlotSVG()}</div>`);
+      e.dataset.w = String(w);
+      place(e, r, r.h);
+      counter.insertBefore(e, cupsEl);
+      return e;
+    });
     st.trash = station('st-trash', trashSVG(), 'trash', null, R.trash);
     if (cfg.helperMs) {
       st.helper = station('st-helper', helperSVG(cfg.helperMs < 8000 ? 2 : 1) + '<div class="helper-cup"></div><i class="helper-bar"><i></i></i>', null, null, R.helper);
@@ -200,18 +241,19 @@ export function createShopUI(root, h = {}) {
       (cfg.tipMult > 1 ? `<div class="pp pp-speaker">${speakerSVG()}</div>` : '') +
       (cfg.megaphone ? `<div class="pp pp-mega">${MEGAPHONE_SVG}</div>` : '') +
       (cfg.prepayMult > 1 ? `<div class="pp pp-ticket">${ticketMachineSVG()}</div>` : '');
-    // counter spots: bubble, ring, the gesture column
+    // counter spots: the bubble (with its patience bar) and the gesture column
     seatsEl.innerHTML = '';
     seats = s.slots.map((_, i) => {
       const col = seatColumn(i, s.slots.length);
       const e = el('div', 'seat');
       e.dataset.slot = String(i);
       place(e, { x: col.x, y: 0, w: col.w }, LIP_Y);
-      e.innerHTML = '<div class="bubble"></div><div class="ring"></div><div class="hit"></div>';
+      e.innerHTML = '<div class="bubble"></div><div class="hit"></div>';
       seatsEl.append(e);
-      return { el: e, bubble: e.querySelector('.bubble'), ring: e.querySelector('.ring'), uid: null, key: '', pct: -1 };
+      return { el: e, bubble: e.querySelector('.bubble'), pb: null, pbw: 0, colW: col.w, uid: null, key: '', pct: -1 };
     });
-    lastStars = 0; lastMoney = null; lastTower = -1;
+    lastStars = -1; lastMoney = null; lastTower = -1; tween = null;
+    shown = Math.round(s.earned);
     stage.dataset.helper = cfg.helperMs ? '1' : '';
     render(s);
   }
@@ -222,7 +264,10 @@ export function createShopUI(root, h = {}) {
     e.dataset.uid = String(c.uid);
     e.dataset.kind = c.kind === 'oke' ? 'oke' : 'normal';
     const tag = c.kind === 'oke' ? `<div class="wk-tag">${okeBubbleSVG(okeOf(c.oke).prop)}</div>` : '';
-    e.innerHTML = `<div class="wk-inner">${walkerSVG({ cid: c.cid, visit: c.visit || 0, fixed: c.oke === 'c250' ? 'c250' : undefined, oke: c.oke })}${tag}</div>`;
+    e.innerHTML = `<div class="wk-inner">${walkerSVG({ cid: c.cid, visit: c.visit || 0, fixed: c.oke === 'c250' ? 'c250' : undefined, oke: c.oke, uid: c.uid })}${tag}</div>`;
+    // every person blinks and sways on their own beat
+    e.style.setProperty('--blink', `${(-(c.uid * 1.37) % 4).toFixed(2)}s`);
+    e.style.setProperty('--sway', `${(-(c.uid * 0.71) % 3).toFixed(2)}s`);
     walkersEl.append(e);
     const w = { el: e, inner: e.querySelector('.wk-inner'), leaving: null, mode: '' };
     if (c.fan && (c.uid % 3 === 0)) e.classList.add('phone');
@@ -249,9 +294,11 @@ export function createShopUI(root, h = {}) {
     s.queue.forEach((c) => {
       seen.add(c.uid);
       const w = walkers.get(c.uid) || walkerEl(c);
-      // the cut-in customer squeezes past on the road side; people in line stand a little off a straight line
-      const lane = c.cut && c.phase === 'walk' ? 0.9 : ((c.uid % 3) - 1) * 0.14;
-      setPos(w, streetPoint(c.u, lane), clamp((c.u - 0.42) / 0.3, 0, 1));
+      // the cut-in customer squeezes past on the road side; people in line stand a little off a straight line, spread
+      // out along the sidewalk (lineU) instead of in a clump
+      const lane = c.cut && c.phase === 'walk' ? 0.9 : ((c.uid % 3) - 1) * 0.16;
+      const u = lineU(c.u);
+      setPos(w, streetPoint(u, lane), clamp((u - 0.42) / 0.3, 0, 1));
       const moving = c.phase === 'walk';
       setMode(w, moving ? (c.run ? 'run' : c.kind === 'oke' ? 'swag' : 'walk') : 'idle');
     });
@@ -271,15 +318,17 @@ export function createShopUI(root, h = {}) {
       setMode(w, 'counter');
       w.el.classList.toggle('oke-live', c.kind === 'oke' && !c.converted);
     });
-    // anyone no longer in the state walks away (closing time, or a leave event already started it)
+    // anyone no longer in the state walks away (closing time, or a leave event already started it): a happy hop first
+    // for a paying customer, then they turn round (back view) and walk off into the distance on the road-side lane
     const now = performance.now();
     for (const [uid, w] of walkers) {
       if (seen.has(uid) && !w.leaving) continue;
       if (!w.leaving) startLeave(w, 'walk');
       const L = w.leaving;
-      const t = now - L.t0;
+      const t = now - L.t0 - (L.hold || 0);
       if (L.kind === 'fly') { if (t > 700) { w.el.remove(); walkers.delete(uid); } continue; }
-      // walk back into the distance on the road-side lane: first out to the street, then toward the corner
+      if (t < 0) continue;
+      if (!w.el.classList.contains('back')) { w.el.classList.add('back'); w.el.classList.remove('happy'); setMode(w, 'walk'); }
       const from = L.from;
       const out = streetPoint(0, 1.3);
       let p;
@@ -296,35 +345,48 @@ export function createShopUI(root, h = {}) {
     }
   }
   function startLeave(w, kind, reason) {
-    w.leaving = { kind, t0: performance.now(), from: w.pos || streetPoint(0) };
+    const happy = reason === 'served' || reason === 'take';
+    w.leaving = { kind, t0: performance.now(), from: w.pos || streetPoint(0), hold: happy && kind === 'walk' ? 420 : 0 };
     w.el.classList.remove('oke-live');
     if (reason) w.el.dataset.exit = reason;
-    if (kind === 'walk') { setMode(w, 'walk'); w.el.classList.add('leaving'); }
+    if (happy && kind === 'walk') restart(w.el, 'happy');
+    if (kind === 'walk') { setMode(w, w.leaving.hold ? 'counter' : 'walk'); w.el.classList.add('leaving'); }
   }
 
-  // ---- seats (bubbles, rings) ----
+  // ---- seats (bubbles, patience bars) ----
   function seatKey(c) { return c ? `${c.uid}|${c.kind}|${c.converted ? 1 : 0}|${(c.got || []).map((g) => (g ? 1 : 0)).join('')}` : ''; }
   function renderSeats(s) {
     s.slots.forEach((c, i) => {
       const se = seats[i];
       if (!se) return;
       const key = seatKey(c);
+      const isOke = !!(c && c.kind === 'oke' && !c.converted);
       if (key !== se.key) {
         const fresh = !c || !se.key || se.key.split('|')[0] !== key.split('|')[0];
         se.key = key;
         se.uid = c ? c.uid : null;
-        se.el.dataset.kind = !c ? '' : c.kind === 'oke' && !c.converted ? 'oke' : 'normal';
+        se.el.dataset.kind = !c ? '' : isOke ? 'oke' : 'normal';
         se.el.classList.toggle('double', !!(c && c.doublePay));
-        se.bubble.innerHTML = !c ? '' : c.kind === 'oke' && !c.converted ? okeBubbleSVG(okeOf(c.oke).prop) : itemsBubbleSVG(c.order, c.got);
-        se.bubble.dataset.n = c && c.order ? String(c.order.count) : '1';
+        const n = c && c.order ? c.order.count : 1;
+        const bw = isOke ? 112 : bubbleWidth(n, se.colW);
+        se.bubble.style.width = cq(bw);
+        se.bubble.style.marginLeft = cq(isOke ? -bw * 0.32 : -bw / 2);
+        se.bubble.innerHTML = !c ? '' : isOke ? okeBubbleSVG(okeOf(c.oke).prop) : itemsBubbleSVG(c.order, c.got);
+        se.bubble.dataset.n = String(n);
+        se.pb = se.bubble.querySelector('.pb-fill');
+        se.pbw = se.pb ? Number(se.pb.dataset.w) : 0;
         se.pct = -1;
-        if (!c || (c.kind === 'oke' && !c.converted)) se.ring.innerHTML = '';
-        if (c && fresh) { se.bubble.classList.remove('pop'); void se.bubble.offsetWidth; se.bubble.classList.add('pop'); }
+        if (c && fresh) restart(se.bubble, 'pop');
       }
-      if (c && !(c.kind === 'oke' && !c.converted)) {
+      if (c && !isOke && se.pb) {
         const pct = Number.isFinite(c.patienceMax) ? Math.max(0, c.patience / c.patienceMax) : 1;
-        const q = Math.round(pct * 50) / 50;
-        if (q !== se.pct) { se.pct = q; se.ring.innerHTML = patienceRingSVG(q); se.el.classList.toggle('hurry', q < 0.3); }
+        const q = Math.round(pct * 60) / 60;
+        if (q !== se.pct) {
+          se.pct = q;
+          se.pb.setAttribute('width', (se.pbw * q).toFixed(1));
+          se.pb.setAttribute('fill', patienceColor(q));
+          se.el.classList.toggle('hurry', q < 0.3);
+        }
       } else se.el.classList.remove('hurry');
     });
   }
@@ -333,17 +395,16 @@ export function createShopUI(root, h = {}) {
   function cupPlace(ref, cup) {
     if (ref.shelf != null) {
       const r = R['shelf-' + ref.shelf];
-      const w = Math.min(60, r.w * 0.62);
-      return { x: r.x + r.w / 2, y: r.y + 88, w };
+      const w = Math.min(54, r.w * 0.64);
+      return { x: r.x + r.w / 2, y: r.y + 89, w };
     }
     if (cup.sealingUntil && !cup.sealed && cup.sealer >= 0 && R['sealer-' + cup.sealer]) {
       const r = R['sealer-' + cup.sealer];
-      return { x: r.x + r.w * 0.5, y: r.y + r.w * (136 / 110), w: r.w * 0.52 };
+      return { x: r.x + r.w * 0.5, y: r.y + r.h * (136 / 150) + 3, w: r.w * 0.5 };
     }
     const r = R['slot-' + ref.w];
-    const w = Math.min(90, r.w * 0.68);
-    const plateH = r.w * 0.92 * 0.5;
-    return { x: r.x + r.w / 2, y: r.y + r.h - plateH * 0.42, w };
+    const w = Math.min(72, r.w * 0.72);
+    return { x: r.x + r.w / 2, y: r.y + r.h - 24, w };
   }
   function renderCups(s) {
     const live = new Set();
@@ -369,6 +430,7 @@ export function createShopUI(root, h = {}) {
         c.el.style.top = cq(pos.y - pos.w * 1.6);
         c.el.style.width = cq(pos.w);
       }
+      c.pos = pos;
       c.ref = ref;
       c.el.dataset.ref = refKey;
       c.el.classList.toggle('sealing', sealing);
@@ -387,26 +449,107 @@ export function createShopUI(root, h = {}) {
   }
   const cupById = (id) => cupEls.get(id);
 
+  // ---- traffic on the road and passers-by on the far sidewalk (decoration; never customers, never riders) ----
+  let nextCar = 2500;
+  let nextPed = 800;
+  let lastT = 0;
+  let carSeed = 1;
+  function spawnCar() {
+    const toward = Math.random() < 0.5;
+    const scooter = Math.random() < 0.3;
+    const xa = toward ? 30 : 1380;
+    const xb = toward ? 1380 : 30;
+    const a = roadLane(xa, !toward);
+    const b = roadLane(xb, !toward);
+    const sz = scooter ? 0.62 : 1;
+    const e = el('div', `vehicle${toward ? ' toward' : ''}`, vehicleSVG(scooter ? 'scooter' : 'car', carSeed++));
+    const W = 170 * K;
+    e.style.setProperty('--x0', `${(xa * K - W / 2).toFixed(1)}px`);
+    e.style.setProperty('--y0', `${(a.y * K - W * 0.45).toFixed(1)}px`);
+    e.style.setProperty('--s0', (a.s * sz).toFixed(3));
+    e.style.setProperty('--x1', `${(xb * K - W / 2).toFixed(1)}px`);
+    e.style.setProperty('--y1', `${(b.y * K - W * 0.45).toFixed(1)}px`);
+    e.style.setProperty('--s1', (b.s * sz).toFixed(3));
+    e.style.animationDuration = `${(scooter ? 4.2 : 3.4) + Math.random() * 1.6}s`;
+    e.addEventListener('animationend', () => e.remove());
+    traffic.append(e);
+  }
+  function spawnPed() {
+    if (traffic.querySelectorAll('.ped').length >= 3) return;
+    const right = Math.random() < 0.5;
+    const xa = right ? 90 : 1200;
+    const xb = right ? 1200 : 90;
+    const a = farWalk(xa);
+    const b = farWalk(xb);
+    const e = el('div', `ped${right ? ' right' : ''}`, pedSVG(carSeed++));
+    const W = 24 * 3 * K;
+    e.style.setProperty('--x0', `${(xa * K - W / 2).toFixed(1)}px`);
+    e.style.setProperty('--y0', `${(a.y * K - W * 2.45).toFixed(1)}px`);
+    e.style.setProperty('--s0', (a.s * 1.5).toFixed(3));
+    e.style.setProperty('--x1', `${(xb * K - W / 2).toFixed(1)}px`);
+    e.style.setProperty('--y1', `${(b.y * K - W * 2.45).toFixed(1)}px`);
+    e.style.setProperty('--s1', (b.s * 1.5).toFixed(3));
+    e.style.animationDuration = `${16 + Math.random() * 8}s`;
+    e.addEventListener('animationend', () => e.remove());
+    traffic.append(e);
+  }
+  function renderTraffic() {
+    const now = performance.now();
+    const dt = lastT ? Math.min(200, now - lastT) : 0;
+    lastT = now;
+    if (reduced() || document.hidden) return;
+    nextCar -= dt;
+    nextPed -= dt;
+    if (nextCar <= 0) { spawnCar(); nextCar = 5000 + Math.random() * 7000; }
+    if (nextPed <= 0) { spawnPed(); nextPed = 3500 + Math.random() * 5000; }
+  }
+
   // ---- per frame ----
   function render(s) {
     lastState = s;
+    const now = performance.now();
     const m = Math.round(s.earned);
     if (m !== lastMoney) {
-      hudNum.textContent = money(m);
+      if (lastMoney == null) shown = m;
+      else tween = { from: shown, to: m, t0: now + (m > shown ? 480 : 0), dur: 420 };
       lastMoney = m;
-      hudGoal.style.width = `${clamp(m / s.def.goal, 0, 1) * 100}%`;
       hud.classList.toggle('goal-met', m >= s.def.goal);
     }
-    if (s.stars !== lastStars) { hudStars.innerHTML = starRowSVG(s.stars); lastStars = s.stars; stage.dataset.stars = String(s.stars); }
+    if (tween && now >= tween.t0) {
+      const e = clamp((now - tween.t0) / tween.dur, 0, 1);
+      const v = Math.round(tween.from + (tween.to - tween.from) * e);
+      if (v !== shown || e >= 1) {
+        shown = v;
+        if (e >= 1) tween = null;
+      }
+    }
+    const txt = money(shown);
+    if (hudNum.textContent !== txt) {
+      hudNum.textContent = txt;
+      hudGoal.style.width = `${clamp(shown / s.def.goal, 0, 1) * 100}%`;
+    }
+    if (s.stars !== lastStars) {
+      hudStars.innerHTML = starRowSVG(s.stars);
+      if (lastStars >= 0 && s.stars > lastStars) {
+        const star = hudStars.querySelectorAll('.star')[s.stars - 1];
+        if (star) star.classList.add('fill');
+      }
+      lastStars = s.stars;
+      stage.dataset.stars = String(s.stars);
+    }
     const left = Math.max(0, s.length - s.clock);
     const sec = Math.ceil(left / 1000);
-    htNum.textContent = s.phase === 'guide' ? '' : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-    htArc.setAttribute('stroke-dasharray', `${(left / s.length) * 100} 100`);
+    const tt = s.phase === 'guide' ? '' : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    if (htNum.textContent !== tt) htNum.textContent = tt;
+    const frac = left / s.length;
+    htArc.setAttribute('stroke-dasharray', `${(frac * 100).toFixed(1)} 100`);
+    htHand.setAttribute('transform', `rotate(${(-360 * frac).toFixed(1)} 20 21)`);
     hudTimer.classList.toggle('late', s.phase === 'open' && left < 15000);
     hud.classList.toggle('guide', s.phase === 'guide');
     renderWalkers(s);
     renderSeats(s);
     renderCups(s);
+    renderTraffic();
     // sealers
     for (let k = 0; k < (cfg ? cfg.sealers : 1); k++) {
       const e = st['sealer-' + k];
@@ -420,14 +563,15 @@ export function createShopUI(root, h = {}) {
     // pot (the art shows up to 10 scoops; a big pot shows its share)
     if (st.pot) {
       const pct = s.pot.cookingUntil ? 1 - (s.pot.cookingUntil - s.t) / cfg.cookMs : 0;
-      const shown = Math.ceil((s.pot.scoops / s.pot.max) * 10);
-      const key = `${shown}|${Math.round(pct * 20)}`;
+      const shownScoops = Math.ceil((s.pot.scoops / s.pot.max) * 10);
+      const key = `${shownScoops}|${Math.round(pct * 20)}`;
       if (st.pot.dataset.key !== key) {
         st.pot.dataset.key = key;
-        st.pot.querySelector('svg').outerHTML = potSVG({ scoops: shown, cookingPct: s.pot.cookingUntil ? Math.max(0.02, pct) : 0 });
+        st.pot.querySelector('svg').outerHTML = potSVG({ scoops: shownScoops, cookingPct: s.pot.cookingUntil ? Math.max(0.02, pct) : 0 });
         st.pot.classList.toggle('empty', s.pot.scoops === 0 && !s.pot.cookingUntil);
+        st.pot.classList.toggle('cooking', !!s.pot.cookingUntil);
         const tray = st['top-pearl'];
-        if (tray) { tray.querySelector('svg').outerHTML = toppingTraySVG('pearl', shown); tray.classList.toggle('empty', s.pot.scoops === 0); }
+        if (tray) { tray.querySelector('svg').outerHTML = toppingTraySVG('pearl', shownScoops); tray.classList.toggle('empty', s.pot.scoops === 0); }
       }
     }
     // the part-timer
@@ -444,9 +588,10 @@ export function createShopUI(root, h = {}) {
     // cup tower: grows with the cups sold today
     const tower = Math.min(9, Math.floor(s.stats.served / 3));
     if (tower !== lastTower && st.tower) {
+      const grew = lastTower >= 0 && tower > lastTower;
       lastTower = tower;
       st.tower.innerHTML = towerHTML(tower);
-      st.tower.classList.remove('grow'); void st.tower.offsetWidth; st.tower.classList.add('grow');
+      if (grew) restart(st.tower, 'grow');
     }
   }
 
@@ -465,10 +610,9 @@ export function createShopUI(root, h = {}) {
     return { x: (p.x - w / 2) * K, y: top * K, w: w * K, h: hh * K, cx: p.x * K, cy: (top + hh / 2) * K };
   }
   function shake(px = 4) {
+    if (reduced()) px = Math.round(px / 2);
     shaker.style.setProperty('--sh', `${px}px`);
-    shaker.classList.remove('shake');
-    void shaker.offsetWidth;
-    shaker.classList.add('shake');
+    restart(shaker, 'shake');
   }
   let floatBusy = 0;
   function floatNum(text, x, y, cls = '') {
@@ -483,6 +627,7 @@ export function createShopUI(root, h = {}) {
       setTimeout(() => f.remove(), 900);
     }, delay);
   }
+  // coins pop out of the customer, then fly into the HUD coin; the HUD number ticks up as they land (render)
   function coinsFly(from, n = 3) {
     const to = rectIn(hud.querySelector('.hud-coin'));
     for (let i = 0; i < n; i++) {
@@ -490,12 +635,18 @@ export function createShopUI(root, h = {}) {
       c.style.left = `${from.cx}px`;
       c.style.top = `${from.cy}px`;
       fx.append(c);
+      const px = (Math.random() - 0.5) * 70 * K;
+      const py = -(40 + Math.random() * 40) * K;
       const dx = to.cx - from.cx;
       const dy = to.cy - from.cy;
-      setTimeout(() => { c.style.transform = `translate(${dx}px, ${dy}px) scale(.6)`; c.style.opacity = '.4'; }, 30 + i * 70);
-      setTimeout(() => c.remove(), 700 + i * 70);
+      const a = c.animate ? c.animate([
+        { transform: 'translate(0, 0) scale(.3)', opacity: 0 },
+        { transform: `translate(${px}px, ${py}px) scale(1.15)`, opacity: 1, offset: 0.32, easing: 'cubic-bezier(.4, 0, .9, .6)' },
+        { transform: `translate(${dx}px, ${dy}px) scale(.7)`, opacity: 1 },
+      ], { duration: 640 + i * 60, delay: i * 55, easing: 'linear', fill: 'both' }) : null;
+      const done = () => { c.remove(); restart(hud, 'bump'); };
+      if (a) a.onfinish = done; else setTimeout(done, 700);
     }
-    setTimeout(() => { hud.classList.remove('bump'); void hud.offsetWidth; hud.classList.add('bump'); }, 520);
   }
   function burst(x, y, kind, n = 5) {
     for (let i = 0; i < n; i++) {
@@ -510,6 +661,52 @@ export function createShopUI(root, h = {}) {
       setTimeout(() => p.remove(), 650);
     }
   }
+  // a small arc from a station to the cup (toppings, ice, syrup)
+  function arcDrop(kind, from, to, n = 3) {
+    for (let i = 0; i < n; i++) {
+      const o = el('div', 'arc-x');
+      const inner = el('i', `pt-drop pt-${kind}`);
+      o.append(inner);
+      const jx = (i - (n - 1) / 2) * 7 * K;
+      o.style.left = `${from.x + jx}px`;
+      o.style.top = `${from.y}px`;
+      o.style.setProperty('--dx', `${to.x - from.x - jx * 0.5}px`);
+      inner.style.setProperty('--dy', `${to.y - from.y}px`);
+      inner.style.setProperty('--up', `${-Math.max(30 * K, (from.y - to.y) * 0.25 + 46 * K)}px`);
+      o.style.animationDelay = inner.style.animationDelay = `${i * 50}ms`;
+      fx.append(o);
+      setTimeout(() => o.remove(), 520 + i * 50);
+    }
+  }
+  // the tea stream: a curved ribbon from the tap's spout into the cup
+  function pour(kind, from, to, ms) {
+    const c = TEA_COLORS[kind] ? TEA_COLORS[kind].body : '#C8915C';
+    const mx = (from.x + to.x) / 2;
+    const my = Math.min(from.y, to.y) - 40 * K;
+    const W = stage.clientWidth;
+    const H = stage.clientHeight;
+    const e = el('div', 'stream', `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><path pathLength="100" d="M${from.x.toFixed(1)} ${from.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${to.x.toFixed(1)} ${to.y.toFixed(1)}" stroke="#4A2C1C" stroke-width="${(9 * K).toFixed(1)}"/>` +
+      `<path pathLength="100" d="M${from.x.toFixed(1)} ${from.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${to.x.toFixed(1)} ${to.y.toFixed(1)}" stroke="${c}" stroke-width="${(6 * K).toFixed(1)}"/>` +
+      `<path class="stream-glint" pathLength="100" d="M${from.x.toFixed(1)} ${from.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${to.x.toFixed(1)} ${to.y.toFixed(1)}" stroke="#FFFFFF" stroke-opacity=".6" stroke-width="${(1.6 * K).toFixed(1)}"/></svg>`);
+    e.style.setProperty('--ms', `${Math.max(240, ms)}ms`);
+    fx.append(e);
+    setTimeout(() => e.remove(), Math.max(240, ms) + 320);
+    // a splash ring on the cup
+    const sp = el('div', 'splash');
+    sp.style.left = `${to.x}px`;
+    sp.style.top = `${to.y}px`;
+    sp.style.setProperty('--c', c);
+    sp.style.animationDelay = '160ms';
+    fx.append(sp);
+    setTimeout(() => sp.remove(), 700);
+  }
+  const dp = (x, y) => ({ x: x * K, y: y * K });
+  function cupTop(w) {
+    const cup = lastState && lastState.work[w];
+    const c = cup && cupById(cup.id);
+    if (!c || !c.pos) return null;
+    return dp(c.pos.x, c.pos.y - c.pos.w * 1.6 + c.pos.w * 0.3);
+  }
   let clerkT = 0;
   function clerkPop(key) {
     const svg = clerkCut.querySelector('svg');
@@ -518,8 +715,8 @@ export function createShopUI(root, h = {}) {
     svg.dataset.mood = 'hit';
     clerkT = setTimeout(() => {
       svg.dataset.mood = 'perfect';
-      clerkT = setTimeout(() => { clerkCut.className = 'clerk-cut'; svg.dataset.mood = 'idle'; }, 650);
-    }, 700);
+      clerkT = setTimeout(() => { clerkCut.className = `clerk-cut k-${key}`; svg.dataset.mood = 'idle'; }, 560);
+    }, 640);
   }
   function stampOn(i) {
     const r = seatHeadRect(i);
@@ -534,6 +731,17 @@ export function createShopUI(root, h = {}) {
     setTimeout(() => s.remove(), 1100);
     setTimeout(() => tk.remove(), 1600);
   }
+  function sparkle(x, y, n = 6) {
+    for (let i = 0; i < n; i++) {
+      const p = el('i', 'spark');
+      const a = (Math.PI * 2 * i) / n;
+      p.style.left = `${x}px`;
+      p.style.top = `${y}px`;
+      p.style.setProperty('--a', `${(a * 180) / Math.PI}deg`);
+      fx.append(p);
+      setTimeout(() => p.remove(), 520);
+    }
+  }
 
   let subT = 0;
   function say(text, who = 'clerk', key = 'gun') {
@@ -544,7 +752,7 @@ export function createShopUI(root, h = {}) {
       const i = raw.indexOf('|');
       const setup = i < 0 ? '' : stripDir(raw.slice(0, i));
       const punch = stripDir(i < 0 ? raw : raw.slice(i + 1).replace(/\|/g, ''));
-      subs.innerHTML = `<div class="sub clerk">${setup ? `<span class="setup">${esc(setup)}</span>` : ''}<b class="punch" style="color:${KEY_COLOR[key] || 'var(--text)'}">${esc(punch)}</b></div>`;
+      subs.innerHTML = `<div class="sub clerk" style="--bar:${KEY_COLOR[key] || 'var(--text)'}">${setup ? `<span class="setup">${esc(setup)}</span>` : ''}<b class="punch" style="color:${KEY_COLOR[key] || 'var(--text)'}">${esc(punch)}</b></div>`;
     } else {
       subs.innerHTML = `<div class="sub cust" style="--bar:${KEY_COLOR[key] || 'var(--paper)'}">${esc(stripDir(raw.replace(/\|/g, '')))}</div>`;
     }
@@ -562,7 +770,7 @@ export function createShopUI(root, h = {}) {
           burst(r.cx, r.cy, 'ice', 5);
           if (w) { startLeave(w, 'fly', 'gun'); w.el.classList.add('fly'); }
         } else if (w) {
-          if (ev.reason === 'take') { stampOn(ev.slot); w.el.classList.add('ticket'); }
+          if (ev.reason === 'take') { stampOn(ev.slot); w.el.classList.add('has-ticket'); }
           if (ev.reason === 'timeout') w.el.classList.add('sad');
           startLeave(w, 'walk', ev.reason);
         }
@@ -571,15 +779,15 @@ export function createShopUI(root, h = {}) {
       case 'answer': {
         if (ev.key === 'shut' && !ev.normal) {
           const w = walkers.get(ev.cust.uid);
-          if (w) { w.el.classList.remove('squash'); void w.el.offsetWidth; w.el.classList.add('squash'); }
+          if (w) restart(w.el, 'squash');
           const r = seatHeadRect(ev.slot);
           burst(r.cx, r.cy, 'pearl', 3);
           shake(4);
         }
         clerkPop(ev.key);
         const r = seatHeadRect(ev.slot);
-        if (ev.prepay) { floatNum(`+${ev.prepay}`, r.cx, r.y + r.h * 0.2, 'gold'); coinsFly({ cx: r.cx, cy: r.y + r.h * 0.4 }, 5); }
-        if (ev.best) { stage.classList.remove('laugh'); void stage.offsetWidth; stage.classList.add('laugh'); }
+        if (ev.prepay) { floatNum(`+${ev.prepay}`, r.cx, r.y + r.h * 0.2, 'gold'); coinsFly({ cx: r.cx, cy: r.y + r.h * 0.5 }, 5); }
+        if (ev.best) restart(stage, 'laugh');
         break;
       }
       case 'fans': {
@@ -587,72 +795,108 @@ export function createShopUI(root, h = {}) {
           const w = walkers.get(uid);
           if (w && ev.why === 'star' && uid === ev.uids[0]) w.el.classList.add('sign');
         }
-        corner.classList.remove('surge'); void corner.offsetWidth; corner.classList.add('surge');
+        restart(corner, 'surge');
         break;
       }
       case 'serve': {
-        const r = seatHeadRect(ev.slot);
+        const w = walkers.get(ev.cust.uid);
         if (ev.correct) {
-          if (!ev.done && seats[ev.slot]) { const b = seats[ev.slot].bubble; b.classList.remove('tickpop'); void b.offsetWidth; b.classList.add('tickpop'); }
+          if (w && !ev.done) restart(w.el, 'happy');
+          if (!ev.done && seats[ev.slot]) restart(seats[ev.slot].bubble, 'tickpop');
         } else {
-          const w = walkers.get(ev.cust.uid);
-          if (w) { w.el.classList.remove('wobble'); void w.el.offsetWidth; w.el.classList.add('wobble'); }
+          if (w) restart(w.el, 'wobble');
           say(t.complaints[Math.floor(Math.random() * t.complaints.length)], 'cust', 'shut');
         }
         break;
       }
       case 'pay': {
         const r = seatHeadRect(ev.slot);
-        floatNum(`+${ev.pay + ev.tip}`, r.cx, r.y + r.h * 0.2, ev.wrong ? 'dim' : '');
-        coinsFly({ cx: r.cx, cy: r.y + r.h * 0.4 }, ev.tip > 0 ? 3 : 2);
+        floatNum(`+${ev.pay + ev.tip}`, r.cx, r.y + r.h * 0.1, ev.wrong ? 'dim' : '');
+        coinsFly({ cx: r.cx, cy: r.y + r.h * 0.55 }, ev.tip > 0 ? 4 : 3);
         break;
       }
       case 'tea': {
         renderCupsNow();
         const c = lastState && lastState.work[ev.w] && cupById(lastState.work[ev.w].id);
-        if (c) { c.el.classList.remove('pour'); void c.el.offsetWidth; c.el.classList.add('pour'); }
-        if (st['tea-' + ev.kind]) press(st['tea-' + ev.kind]);
+        if (c) restart(c.el, 'pour');
+        const tank = st['tea-' + ev.kind];
+        if (tank) {
+          press(tank);
+          const r = R['tea-' + ev.kind];
+          const to = cupTop(ev.w);
+          if (to) pour(ev.kind, dp(r.x + r.w * 0.5, r.y + r.h * 0.93), to, ev.ms || 600);
+        }
         break;
       }
-      case 'topping': if (st['top-' + ev.kind]) press(st['top-' + ev.kind]); bounceCup(ev.w); break;
-      case 'ice': if (st.ice) press(st.ice); bounceCup(ev.w); break;
-      case 'sugar': if (st.sugar) press(st.sugar); bounceCup(ev.w); break;
-      case 'cup': press(st.rack); break;
+      case 'topping': {
+        const tr = st['top-' + ev.kind];
+        if (tr) press(tr);
+        const r = R['top-' + ev.kind];
+        const to = cupTop(ev.w);
+        if (r && to) arcDrop(ev.kind, dp(r.x + r.w * 0.5, r.y + r.h * 0.38), to, 3);
+        bounceCup(ev.w, 300);
+        break;
+      }
+      case 'ice': {
+        if (st.ice) press(st.ice);
+        const r = R.ice;
+        const to = cupTop(ev.w);
+        if (r && to && ev.level) arcDrop('ice', dp(r.x + r.w * 0.5, r.y + r.h * 0.3), to, 2);
+        bounceCup(ev.w, 300);
+        break;
+      }
+      case 'sugar': {
+        if (st.sugar) press(st.sugar);
+        const r = R.sugar;
+        const to = cupTop(ev.w);
+        if (r && to && ev.level) arcDrop('syrup', dp(r.x + r.w * 0.86, r.y + r.h * 0.2), to, 2);
+        bounceCup(ev.w, 300);
+        break;
+      }
+      case 'cup': press(st.rack); bounceCup(ev.w, 0); break;
       case 'sealStart': if (ev.shelf) press(st.shelf); else press(st['sealer-' + (ev.sealer || 0)]); break;
       case 'sealed': {
         shake(3);
         const e = ev.shelf != null ? st.shelf : st['sealer-' + (ev.sealer || 0)];
-        if (e) { const r = rectIn(e); floatNum('喀', r.cx, r.y + r.h * 0.3, 'kaa'); }
+        const c = cupById(ev.id);
+        if (c) restart(c.el, 'snap');
+        if (e) {
+          const r = c ? rectIn(c.el) : rectIn(e);
+          floatNum('喀', r.cx, r.y - 8 * K, 'kaa');
+          sparkle(r.cx, r.y + r.w * 0.24, 6);
+        }
         break;
       }
       case 'helperCup': if (st.helper) press(st.helper); break;
       case 'trash': press(st.trash); break;
       case 'cookStart': press(st.pot); break;
       case 'star': {
-        stage.classList.remove('starup'); void stage.offsetWidth; stage.classList.add('starup');
+        restart(stage, 'starup');
+        const r = rectIn(hudStars);
+        sparkle(r.x + r.w * ((ev.stars - 0.5) / 5), r.cy, 8);
         break;
       }
       case 'nope': {
         const target = ev.reason === 'potEmpty' ? st.pot : ev.reason === 'noCup' || ev.reason === 'noSlot' ? st.rack
           : ev.reason === 'sealerBusy' ? st['sealer-0'] : ev.reason === 'shelfFull' ? st.shelf : null;
-        if (target) { target.classList.remove('nudge'); void target.offsetWidth; target.classList.add('nudge'); }
+        restart(target, 'nudge');
         break;
       }
       case 'refuse': {
         const w = walkers.get(ev.cust.uid);
-        if (w) { w.el.classList.remove('wobble'); void w.el.offsetWidth; w.el.classList.add('wobble'); }
+        if (w) restart(w.el, 'wobble');
         break;
       }
       default: break;
     }
   }
   function renderCupsNow() { if (lastState) renderCups(lastState); }
-  function press(e) { if (!e) return; e.classList.remove('press'); void e.offsetWidth; e.classList.add('press'); }
-  function bounceCup(w) {
+  function press(e) { restart(e, 'press'); }
+  function bounceCup(w, delay = 0) {
     renderCupsNow();
     const cup = lastState && lastState.work[w];
     const c = cup && cupById(cup.id);
-    if (c) { c.el.classList.remove('bounce'); void c.el.offsetWidth; c.el.classList.add('bounce'); }
+    if (c) setTimeout(() => restart(c.el, 'bounce'), delay);
   }
 
   // ---- guide finger ----
@@ -793,6 +1037,8 @@ export function createShopUI(root, h = {}) {
       else if (act === 'cook') call('onCook');
       return;
     }
+    const lk = e.target.closest('.lock-spot');
+    if (lk) { restart(lk, 'nudge'); return; }
     const ws = e.target.closest('.wslot');
     if (ws && lastState && !lastState.work[Number(ws.dataset.w)]) call('onTake');
   });
@@ -802,7 +1048,7 @@ export function createShopUI(root, h = {}) {
       const dx = p.x - drag.x0;
       const dy = p.y - drag.y0;
       if (!drag.moved && Math.hypot(dx, dy) > 8) { drag.moved = true; drag.el.classList.add('dragging'); }
-      if (drag.moved) drag.el.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
+      if (drag.moved) drag.el.style.transform = `translate(${dx}px, ${dy}px) scale(1.1) rotate(${clamp(dx / 40, -6, 6).toFixed(1)}deg)`;
       return;
     }
     if (gestureSeat.has(e.pointerId)) rec.move(e.pointerId, e.clientX, e.clientY, performance.now());
@@ -817,13 +1063,11 @@ export function createShopUI(root, h = {}) {
       if (!d.moved) { if (d.ref.w != null) call('onSelect', d.ref.w); return; }
       if (cancel) return;
       const tgt = hitTarget(p.x, p.y, d.ref);
-      const before = lastState;
       call('onDrop', d.ref, tgt);
       // a served / trashed cup disappears where it was dropped (no slide back)
       if (tgt.type === 'seat' || tgt.type === 'trash') {
         for (const [, c] of cupEls) if (c.el === d.el) { c.gone = true; d.el.style.transform = `translate(${p.x - d.x0}px, ${p.y - d.y0}px) scale(.7)`; d.el.classList.add('vanish'); }
       }
-      void before;
       return;
     }
     if (gestureSeat.has(e.pointerId) || rec.active) {
@@ -847,13 +1091,13 @@ export function createShopUI(root, h = {}) {
     app.classList.toggle('portrait', portrait);
   }
   function drawRotate() {
-    rotate.innerHTML = `<div class="rot-card"><div class="rot-icon">${rotateIconSVG()}</div><p>${esc(T.rotate.line)}</p><button class="btn-gold rot-go">${esc(T.rotate.play)}</button></div>`;
+    rotate.innerHTML = `<div class="rot-card panel"><div class="ribbon"><span>${esc(T.title)}</span></div><div class="rot-icon">${rotateIconSVG()}</div><p>${esc(T.rotate.line)}</p><button class="btn-gold rot-go">${ICON.play}<span>${esc(T.rotate.play)}</span></button></div>`;
     rotate.querySelector('.rot-go').addEventListener('click', () => { rotateOk = true; checkRotate(); });
   }
   window.addEventListener('resize', checkRotate);
   try { screen.orientation && screen.orientation.addEventListener && screen.orientation.addEventListener('change', checkRotate); } catch { /* old browsers */ }
 
-  // ---- cards ----
+  // ---- cards (art: shop.css "cards"; chunky panels with a ribbon header, gold buttons, icons) ----
   function card(cls, html) {
     cards.innerHTML = '';
     const c = el('div', `card ${cls}`, html);
@@ -862,11 +1106,12 @@ export function createShopUI(root, h = {}) {
     return c;
   }
   function hideCards() { cards.innerHTML = ''; cards.hidden = true; }
+  const ribbon = (txt) => `<div class="ribbon"><span>${esc(txt)}</span></div>`;
 
   function startCard({ day, hasSave, voice }, onStart, onFresh) {
-    const c = card('start-card', `<div class="logo">${logoSVG(lang)}</div><div class="start-btns">` +
-      `<button class="btn-gold go">${esc(hasSave && day > 1 ? fmt(T.cont, { n: day }) : T.start)}</button>` +
-      (hasSave && day > 1 ? `<button class="btn-2 fresh">${esc(T.fresh)}</button>` : '') + '</div>' +
+    const c = card('start-card', `<div class="rays"></div><div class="logo">${logoSVG(lang)}</div><div class="start-btns">` +
+      `<button class="btn-gold big go">${ICON.play}<span>${esc(hasSave && day > 1 ? fmt(T.cont, { n: day }) : T.start)}</span></button>` +
+      (hasSave && day > 1 ? `<button class="btn-2 fresh">${ICON.restart}<span>${esc(T.fresh)}</span></button>` : '') + '</div>' +
       `<button class="tog lang" aria-label="language">${lang === 'zh' ? 'EN' : '中'}</button>`);
     c.querySelector('.go').addEventListener('click', () => onStart());
     const f = c.querySelector('.fresh');
@@ -891,10 +1136,10 @@ export function createShopUI(root, h = {}) {
   }
   function dayCard(d, _opts, onOpen) {
     const icons = (d.newStuff || []).map(newIcon).join('');
-    const c = card('day-card', `<div class="dc-board"><h2>${esc(fmt(T.day, { n: d.n }))}</h2>` +
-      `<div class="dc-goal"><span class="dc-coin">${coinSVG()}</span><b>${money(d.goal)}</b></div>` +
+    const c = card('day-card', `<div class="panel dc-board">${ribbon(fmt(T.day, { n: d.n }))}` +
+      `<div class="dc-goal"><small>${esc(T.goal)}</small><span class="dc-coin">${coinSVG()}</span><b>${money(d.goal)}</b><span class="dc-flag">${ICON.flag}</span></div>` +
       (icons ? `<div class="dc-new"><small>${esc(T.newToday)}</small><div class="dc-icons">${icons}</div></div>` : '') +
-      `</div><button class="btn-gold go">${esc(T.open)}</button>`);
+      `</div><button class="btn-gold big go">${ICON.play}<span>${esc(T.open)}</span></button>`);
     c.querySelector('.go').addEventListener('click', () => { hideCards(); onOpen(); });
   }
 
@@ -907,6 +1152,7 @@ export function createShopUI(root, h = {}) {
       `<div class="rc-hd"><div class="rc-head">${esc(fmt(T.day, { n: sum.day }))} · ${esc(T.receiptTitle)}</div><div class="rc-no">NO.${String(sum.day).padStart(4, '0')} · 2:30</div></div></div><hr>` +
       `<div class="rc-big"><span class="dc-coin">${coinSVG()}</span><b>${money(sum.earned)}</b></div>` +
       `<div class="rc-goal ${sum.met ? 'met' : ''}">${esc(sum.met ? T.met : fmt(T.missed, { n: money(sum.goal - sum.earned) }))} <small>/ ${money(sum.goal)}</small></div>` +
+      `<div class="rc-bar"><i style="width:${(clamp(sum.earned / sum.goal, 0, 1) * 100).toFixed(1)}%"></i></div>` +
       `<div class="rc-stars">${starRowSVG(sum.stars)}</div><hr><ul>` +
       row(Rw.sales, money(sales)) + row(Rw.tips, money(sum.tips)) + row(Rw.prepay, money(sum.prepay)) +
       row(Rw.cups, String(sum.sold), 'hot') + row(Rw.served, String(sum.orders)) + row(Rw.wrong, String(sum.wrong)) + row(Rw.walkouts, String(sum.walkouts)) +
@@ -914,7 +1160,8 @@ export function createShopUI(root, h = {}) {
       row(Rw.fame, `${fameD >= 0 ? '+' : ''}${fameD}`, 'hot') +
       `</ul><hr><div class="rc-wallet"><span>${esc(T.wallet)}</span><b>${money(wallet)}</b></div>` +
       `<div class="rc-stamp ${sum.met ? '' : 'miss'}">${sum.met ? '★' : '…'}</div></div>` +
-      `<div class="rc-side"><div class="rc-tower">${towerHTML(sum.sold / 3)}</div><button class="btn-gold go">${esc(T.toShop)}</button></div>`);
+      `<div class="rc-side"><div class="rc-tower">${towerHTML(sum.sold / 3)}</div><button class="btn-gold big go"><span>${esc(T.toShop)}</span>${ICON.arrow}</button></div>`);
+    c.querySelectorAll('.rc-stars .star.on').forEach((s, i) => { s.style.animationDelay = `${380 + i * 140}ms`; s.classList.add('fill'); });
     c.querySelector('.go').addEventListener('click', () => onNext());
   }
 
@@ -923,7 +1170,7 @@ export function createShopUI(root, h = {}) {
     switch (stId) {
       case 'pot': return `<span class="ui-stack">${lv >= 3 ? potRigSVG(lv) : ''}${potSVG({ scoops: lv >= 2 ? 10 : 6, cookingPct: 0 })}</span>`;
       case 'tea': return lv >= 3 ? `<span class="ui-stack">${teaTankSVG('black', { fast: true })}<span class="ui-over">${teaManifoldSVG(1)}</span></span>` : teaTankSVG('black', { fast: lv >= 2 });
-      case 'seal': return lv >= 4 ? shelfSVG(4, { autoSeal: true }) : lv >= 3 ? `<span class="ui-two">${sealerSVG('idle', { turbo: true })}${sealerSVG('idle', { turbo: true })}</span>` : sealerSVG('idle', { turbo: lv >= 2 });
+      case 'seal': return lv >= 4 ? shelfSVG(6, { autoSeal: true }) : lv >= 3 ? `<span class="ui-two">${sealerSVG('idle', { turbo: true })}${sealerSVG('idle', { turbo: true })}</span>` : sealerSVG('idle', { turbo: lv >= 2 });
       case 'prep': return `<span class="ui-two">${workSlotSVG()}${cupSVG({ tea: 'black', toppings: ['pearl'] })}</span>`;
       case 'shelf': return shelfSVG(lv >= 3 ? 6 : lv >= 2 ? 5 : 4);
       case 'ice': return lv >= 2 ? iceDispenserSVG() : iceBinSVG();
@@ -941,43 +1188,80 @@ export function createShopUI(root, h = {}) {
   }
   let shopTab = 'equip';
   function upgradeShop(save, { nextDay, retry }, onBuy, onGo) {
-    const draw = (sv) => {
+    let shownWallet = save.wallet;
+    const draw = (sv, justBought) => {
       const tabs = TABS.map((tb) => `<button class="sc-tab${tb === shopTab ? ' on' : ''}" data-tab="${tb}">${esc(T.tabs[tb])}</button>`).join('');
       const items = STATIONS.filter((x) => x.tab === shopTab).map((sta) => {
         const have = levelOf(sv.upgrades, sta.id);
         const nx = nextLevel(sv.upgrades, sta.id);
         const total = sta.levels.length;
         const single = total === 1;
-        const pips = Array.from({ length: total + (single ? 0 : 1) }, (_, i) => `<i class="pip${i < have + (single ? 0 : 1) ? ' on' : ''}"></i>`).join('');
+        const pips = Array.from({ length: total + (single ? 0 : 1) }, (_, i) => `<i class="pip${i < have + (single ? 0 : 1) ? ' on' : ''}${nx && i === have + (single ? 0 : 1) ? ' next' : ''}"></i>`).join('');
         const can = nx && canBuy(nx.id, sv.upgrades, sv.wallet);
-        const shownLv = nx ? (single ? 1 : nx.lv) : (single ? 1 : total + 1);
+        const cur = single ? 0 : have + 1;
         const [name, eff] = nx ? T.upgrades[nx.id] : T.upgrades[sta.levels[total - 1].id];
-        const btn = nx ? `<button class="up-buy" data-id="${nx.id}" ${can ? '' : 'disabled'}><span class="dc-coin">${coinSVG()}</span>${money(nx.cost)}</button>`
-          : `<span class="up-max">${esc(single ? T.owned : T.max)}</span>`;
-        return `<li class="up ${!nx ? 'owned' : can ? 'can' : 'cant'}" data-station="${sta.id}"><span class="up-ic">${upIcon(sta.id, nx ? nx.lv : total + 1)}</span>` +
-          `<span class="up-txt"><small class="up-st">${esc(T.stations[sta.id])}${single ? '' : ` · ${esc(fmt(T.lv, { n: shownLv }))}`}</small><b>${esc(name)}</b><small class="up-eff">${esc(eff)}</small><span class="pips">${pips}</span></span>${btn}</li>`;
+        const lvRow = single ? '' : nx
+          ? `<span class="up-lv"><em>${esc(fmt(T.lv, { n: cur }))}</em>${ICON.arrow}<em class="nx">${esc(fmt(T.lv, { n: nx.lv }))}</em></span>`
+          : `<span class="up-lv"><em class="nx">${esc(fmt(T.lv, { n: total + 1 }))}</em></span>`;
+        const btn = nx ? `<button class="up-buy" data-id="${nx.id}" ${can ? '' : 'disabled'}>${can ? '' : `<span class="up-lock">${lockBadgeSVG()}</span>`}<span class="dc-coin">${coinSVG()}</span>${money(nx.cost)}</button>`
+          : `<span class="up-max">${ICON.check}<span>${esc(single ? T.owned : T.max)}</span></span>`;
+        return `<li class="up ${!nx ? 'owned' : can ? 'can' : 'cant'}${justBought === sta.id ? ' bought' : ''}" data-station="${sta.id}"><span class="up-ic">${upIcon(sta.id, nx ? nx.lv : total + 1)}</span>` +
+          `<span class="up-txt"><small class="up-st">${esc(T.stations[sta.id])}</small>${lvRow}<b>${esc(name)}</b><small class="up-eff">${esc(eff)}</small><span class="pips">${pips}</span></span>${btn}</li>`;
       }).join('');
-      const c = card('shop-card', `<div class="sc-head"><h2>${esc(T.shopTitle)}</h2><div class="sc-tabs">${tabs}</div><div class="sc-wallet"><span class="dc-coin">${coinSVG()}</span><b>${money(sv.wallet)}</b></div></div>` +
-        `<ul class="ups">${items}</ul><button class="btn-gold go">${esc(fmt(retry ? T.retry : T.next, { n: nextDay }))}</button>`);
+      const c = card('shop-card', `<div class="panel sc-panel">${ribbon(T.shopTitle)}<div class="sc-head"><div class="sc-tabs">${tabs}</div><div class="sc-wallet"><span class="dc-coin">${coinSVG()}</span><b>${money(shownWallet)}</b></div></div>` +
+        `<ul class="ups">${items}</ul></div><button class="btn-gold big go">${ICON.play}<span>${esc(fmt(retry ? T.retry : T.next, { n: nextDay }))}</span></button>`);
       c.querySelectorAll('.sc-tab').forEach((b) => b.addEventListener('click', () => { shopTab = b.dataset.tab; draw(sv); }));
       c.querySelectorAll('.up.can .up-buy').forEach((b) => b.addEventListener('click', () => {
+        const from = rectIn(b);
+        const stId = b.closest('.up').dataset.station;
         const res = onBuy(b.dataset.id);
-        if (res && res.ok) draw(res.save);
+        if (res && res.ok) {
+          const before = shownWallet;
+          draw(res.save, stId);
+          buyFx(from, before, res.save.wallet);
+          shownWallet = res.save.wallet;
+        }
       }));
       c.querySelector('.go').addEventListener('click', () => { hideCards(); onGo(); });
+    };
+    // the purchase: coins burst out of the price button, the wallet ticks down, the bought card's icon bounces
+    const buyFx = (from, a, b) => {
+      for (let i = 0; i < 8; i++) {
+        const p = el('div', 'coin-fly buy', coinSVG());
+        p.style.left = `${from.cx}px`;
+        p.style.top = `${from.cy}px`;
+        cards.append(p);
+        const ang = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
+        const d = (50 + Math.random() * 40) * K;
+        const an = p.animate ? p.animate([
+          { transform: 'translate(0,0) scale(.5)', opacity: 1 },
+          { transform: `translate(${Math.cos(ang) * d}px, ${Math.sin(ang) * d - 30 * K}px) scale(1)`, opacity: 1, offset: 0.55 },
+          { transform: `translate(${Math.cos(ang) * d * 1.2}px, ${Math.sin(ang) * d + 40 * K}px) scale(.6)`, opacity: 0 },
+        ], { duration: 620, easing: 'cubic-bezier(.2,.7,.4,1)' }) : null;
+        if (an) an.onfinish = () => p.remove(); else setTimeout(() => p.remove(), 640);
+      }
+      const wb = cards.querySelector('.sc-wallet b');
+      const t0 = performance.now();
+      const tick = () => {
+        const e = clamp((performance.now() - t0) / 500, 0, 1);
+        if (wb && wb.isConnected) wb.textContent = money(a + (b - a) * e);
+        if (e < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      restart(cards.querySelector('.sc-wallet'), 'bump');
     };
     draw(save);
   }
 
   function endCard(onAgain) {
-    const c = card('day-card', `<div class="dc-board"><div class="logo">${logoSVG(lang)}</div><p class="dc-end">${esc(T.end)}</p></div><button class="btn-gold go">${esc(fmt(T.next, { n: 6 }))}</button>`);
+    const c = card('day-card', `<div class="panel dc-board">${ribbon(T.title)}<div class="logo">${logoSVG(lang)}</div><p class="dc-end">${esc(T.end)}</p></div><button class="btn-gold big go">${ICON.play}<span>${esc(fmt(T.next, { n: 6 }))}</span></button>`);
     c.querySelector('.go').addEventListener('click', () => { hideCards(); onAgain(); });
   }
 
   function pauseSheet({ muted }, acts) {
-    const c = card('pause-card', `<button class="btn-gold resume">${esc(T.pause.resume)}</button>` +
-      `<div class="pause-row"><button class="btn-2 tog lang">${esc(T.pause.lang)}</button><button class="btn-2 tog mute">${esc(muted ? T.pause.unmute : T.pause.mute)}</button></div>` +
-      `<div class="pause-row"><button class="btn-2 close">${esc(T.pause.close)}</button><button class="btn-2 restart">${esc(T.pause.restart)}</button></div>`);
+    const c = card('pause-card', `<div class="panel pc-panel">${ribbon(T.pause.title)}<button class="btn-gold big resume">${ICON.resume}<span>${esc(T.pause.resume)}</span></button>` +
+      `<div class="pause-row"><button class="btn-2 tog lang">${ICON.globe}<span>${esc(T.pause.lang)}</span></button><button class="btn-2 tog mute">${muted ? ICON.sound : ICON.mute}<span>${esc(muted ? T.pause.unmute : T.pause.mute)}</span></button></div>` +
+      `<div class="pause-row"><button class="btn-2 close">${ICON.shutter}<span>${esc(T.pause.close)}</span></button><button class="btn-2 restart">${ICON.restart}<span>${esc(T.pause.restart)}</span></button></div></div>`);
     c.querySelector('.resume').addEventListener('click', () => { hideCards(); acts.resume(); });
     c.querySelector('.lang').addEventListener('click', () => acts.lang());
     c.querySelector('.mute').addEventListener('click', () => acts.mute());
@@ -986,8 +1270,8 @@ export function createShopUI(root, h = {}) {
   }
 
   function voicePrompt(onAllow, onNo) {
-    const c = card('voice-card', `<div class="mic"></div><div class="vc-txt"><p>${esc(T.voice.ask)}</p><p class="small">${esc(T.voice.privacy)}</p>` +
-      `<div class="vc-btns"><button class="btn-gold allow">${esc(T.voice.allow)}</button><button class="btn-2 no">${esc(T.voice.no)}</button></div></div>`);
+    const c = card('voice-card', `<div class="panel vc-panel">${ribbon(T.voice.title)}<div class="vc-body"><div class="mic">${ICON.mic}</div><div class="vc-txt"><p>${esc(T.voice.ask)}</p><p class="small">${esc(T.voice.privacy)}</p>` +
+      `<div class="vc-btns"><button class="btn-gold allow">${esc(T.voice.allow)}</button><button class="btn-2 no">${esc(T.voice.no)}</button></div></div></div></div>`);
     c.querySelector('.allow').addEventListener('click', () => { hideCards(); onAllow(); });
     c.querySelector('.no').addEventListener('click', () => { hideCards(); onNo(); });
   }

@@ -4,8 +4,8 @@
 //
 // URL parameters: ?lang=zh|en  ?day=N (jump to day N, no guide)  ?reset=1 (clear the save)  ?seed=N  ?len=ms (day
 // length, tools)  ?speed=K (game clock ×K, tools)  ?input=voice  ?mute=1
-// window.__shop (tools): { state, phase, save, where(name), shop, ui }
-import { createShop } from './engine.js';
+// window.__shop (tools): { state, phase, save, where(name), shop }. Keys J / K / L answer the leftmost 奧客 (engine.keyTarget).
+import { createShop, keyTarget } from './engine.js';
 import { dayDef, MAX_DAY } from './days.js';
 import { okeLine, normalLine, customerSays, okeOf } from './oke.js';
 import { loadSave, writeSave, clearSave, afterDay, buyUpgrade, freshSave } from './save.js';
@@ -53,12 +53,21 @@ const ui = createShopUI(document.getElementById('root'), {
   onSugar: () => act(() => shop.tapSugar()),
   onCook: () => act(() => shop.cook()),
   onSelect: (w) => act(() => shop.select(w)),
-  onDrop: (w, tgt) => act(() => {
+  onDrop: (ref, tgt) => act(() => {
+    if (ref.shelf != null) {
+      if (tgt.type === 'trash') return shop.trashShelf(ref.shelf);
+      if (tgt.type === 'seat') return shop.serveShelf(ref.shelf, tgt.slot);
+      return null;
+    }
+    const w = ref.w;
     if (tgt.type === 'sealer') return shop.seal(w);
+    if (tgt.type === 'shelf') return shop.seal(w, { toShelf: true });
     if (tgt.type === 'trash') return shop.trash(w);
     if (tgt.type === 'seat') return shop.serve(w, tgt.slot);
     return null;
   }),
+  // keyboard J / K / L = 滾 / 閉嘴 / 收 on the leftmost unanswered 奧客 at the counter (else the leftmost customer)
+  onKey: (key) => act(() => { const slot = keyTarget(shop.state); return slot >= 0 ? shop.answer(slot, key) : null; }),
   onAnswer: (slot, key) => act(() => shop.answer(slot, key)),
   onPause: () => pause(),
   onToggleLang: () => { setLang(lang === 'zh' ? 'en' : 'zh'); showStart(); },
@@ -110,8 +119,13 @@ function handle(ev) {
       break;
     }
     case 'serve':
-      if (ev.correct) { audio.sfx('coin'); if (ev.tip > 0) audio.sfx('ding', { delay: 0.12 }); } else audio.sfx('huh');
+      if (!ev.correct) audio.sfx('huh');
+      else if (!ev.done) audio.sfx('ding', { intensity: 0.5 });
+      if (ev.correct && ev.golden) { const line = content.system.opening && content.system.opening.r4b; if (line) { ui.say(line, 'clerk', 'take'); audio.playClerk(line, {}); } }
       break;
+    case 'pay': audio.sfx('coin'); if (ev.tip > 0) audio.sfx('ding', { delay: 0.12 }); break;
+    case 'fans': if (ev.why === 'star') audio.sfx('cheer', { delay: 0.1 }); break;
+    case 'helperCup': audio.sfx('slap', { intensity: 0.35 }); break;
     case 'refuse': {
       const says = customerSays(ev.cust.cid, content);
       ui.say(says, 'cust', okeOf(ev.cust.oke).best);

@@ -241,7 +241,7 @@ const SW = 2.2; // prop outline (≈ 0.45cqw at station size), --ink-bg
 const steelBody = (d) => `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" stroke-linejoin="round" d="${d}"/>`;
 const label = (x, y, text, size, fill = INK, extra = '') => `<text x="${x}" y="${y}" ${FONT_ZH} font-size="${size}" text-anchor="middle" fill="${fill}"${extra}>${text}</text>`;
 
-export function teaTankSVG(kind = 'black') {
+export function teaTankSVG(kind = 'black', { fast = false } = {}) {
   const k = TEA_KINDS.includes(kind) ? kind : 'black';
   const t = TEA_COLORS[k];
   const long = t.name.length > 2;
@@ -268,8 +268,12 @@ export function teaTankSVG(kind = 'black') {
     `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" stroke-linejoin="round" d="M40 108 H60 V118 H55 V126 Q55 128 53 128 H47 Q45 128 45 126 V118 H40 Z"/>`,
     `<path fill="${GUN}" stroke="${INK_BG}" stroke-width="1.8" stroke-linejoin="round" d="M57 110 L70 98 Q73 96 74.5 99 Q75 101 73 103 L60 114 Z"/>`,
     `<path fill="${t.body}" stroke="${INK_BG}" stroke-width="1" d="M48 128 h4 l-.6 3.4 a1.4 1.4 0 0 1 -2.8 0 Z"/>`,
+    // fast taps (tea2): a chrome double spout and a gold lightning badge on the tank
+    fast ? `<path fill="${STEEL_HI}" stroke="${INK_BG}" stroke-width="1.6" stroke-linejoin="round" d="M26 108 H38 V120 H34 V126 H30 V120 H26 Z"/>` +
+      `<path fill="${t.body}" d="M30.6 126 h2.8 l-.4 3 a1.1 1.1 0 0 1 -2 0 Z"/>` +
+      `<path fill="${LEMON}" stroke="${INK_BG}" stroke-width="1.4" stroke-linejoin="round" d="M30 64 L24 80 H30 L27 94 L38 76 H32 L36 64 Z"/>` : '',
   ];
-  return svg('as-station as-tank', '0 0 100 140', body.join(''), ` data-kind="${k}"`);
+  return svg('as-station as-tank', '0 0 100 140', body.join(''), ` data-kind="${k}" data-fast="${fast ? 1 : 0}"`);
 }
 
 // Steel hotel pan in three-quarter view: back edge y 14, front edge y 46, front face y 46–62.
@@ -384,7 +388,7 @@ export function syrupSVG() {
   return svg('as-station as-syrup', '0 0 70 130', body.join(''));
 }
 
-export function sealerSVG(state = 'idle') {
+export function sealerSVG(state = 'idle', { turbo = false } = {}) {
   const busy = state === 'busy';
   const dy = busy ? 16 : 0;
   const body = [
@@ -414,8 +418,10 @@ export function sealerSVG(state = 'idle') {
       (busy ? `<path fill="${TAKE}" fill-opacity=".35" d="${ell(55, 92, 30, 5)}"/><path fill="${GOLD_HI}" fill-opacity=".8" d="${ell(55, 91, 22, 2.4)}"/>` : '') +
     `</g>`,
     `<g class="as-sealer-lever" transform="rotate(${busy ? 24 : 0} 96 42)"><path fill="none" stroke="${INK_BG}" stroke-width="5" stroke-linecap="round" d="M96 42 L108 14"/><path fill="none" stroke="${STEEL_HI}" stroke-width="2.6" stroke-linecap="round" d="M96 42 L108 14"/><path fill="${GUN}" stroke="${INK_BG}" stroke-width="1.6" d="${ringPath(108, 12, 5.4)}"/></g>`,
+    // fast sealer (seal2): a gold racing stripe and a lightning badge on the housing
+    turbo ? `<path fill="${LEMON}" stroke="${INK_BG}" stroke-width="1.2" d="M14 48 H98 V53 H14 Z"/><path fill="${LEMON}" stroke="${INK_BG}" stroke-width="1.4" stroke-linejoin="round" d="M68 24 L62 38 H68 L65 50 L76 34 H70 L74 24 Z"/>` : '',
   ];
-  return svg('as-station as-sealer', '0 0 110 150', body.join(''), ` data-state="${busy ? 'busy' : 'idle'}"`);
+  return svg('as-station as-sealer', '0 0 110 150', body.join(''), ` data-state="${busy ? 'busy' : 'idle'}" data-turbo="${turbo ? 1 : 0}"`);
 }
 
 export function potSVG(opts = {}) {
@@ -657,4 +663,174 @@ export function counterBackdropSVG() {
     `<path fill="none" stroke="${INK_BG}" stroke-width="4" stroke-linecap="round" d="${handles.join(' ')}"/><path fill="none" stroke="${STEEL_HI}" stroke-width="1.6" stroke-linecap="round" d="${handles.join(' ')}"/>`,
   ];
   return `<svg class="as-backdrop" viewBox="0 0 360 300" preserveAspectRatio="xMidYMid slice" overflow="visible" aria-hidden="true">${body.join('')}</svg>`;
+}
+
+// ─── Landscape work table (docs/gameplay-v3-shop.md 10.1, 10.4, 10.7) ─────────────────────────────
+//   tableSVG()                          <svg class="as-table">, viewBox 0 0 1280 378: the steel work table seen from the clerk
+//                                       (back row, a step, front row, a ribbed mat under the work slots)
+//   shelfSVG(n, { autoSeal })           <svg class="as-shelf" data-n>, viewBox 0 0 232 196: the two-tier finished-cup shelf
+//                                       (出杯台, n = 4..6 spots, layout.stations order); autoSeal (seal4) adds the sealing gantry
+//   itemsBubbleSVG(order, got)          <svg class="as-bubble as-items" data-count>: one mini cup per item of a multi-cup
+//                                       order ({ items, big }), a tick on each delivered one; one item = orderBubbleSVG, the
+//                                       golden recipe = a gold cup
+//   teaManifoldSVG(n)                   <svg class="as-manifold">, viewBox 0 0 264 40: the tea3 pipe over n tanks
+//   iceDispenserSVG()                   <svg class="as-station as-ice as-dispenser">, viewBox 0 0 100 90 (ice2)
+//   potRigSVG(lv)                       <svg class="as-pot-rig" data-lv>, viewBox 0 0 110 110: burner flames (Lv3+) and the
+//                                       refill hopper (Lv4), drawn behind the pot
+//   goldenCardSVG()                     <svg class="as-golden-card">, viewBox 0 0 70 60: the 黃金比例 picture card (menu3)
+export function tableSVG() {
+  let ribs = '';
+  for (let x = 396; x < 874; x += 12) ribs += `M${x} 16 V194 `;
+  let brush = '';
+  for (let y = 222; y < 366; y += 9) brush += `M0 ${y} H1280 `;
+  const body = [
+    `<defs><linearGradient id="asTbBack" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C94A3"/><stop offset="1" stop-color="#A7AFBC"/></linearGradient>` +
+      `<linearGradient id="asTbFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9D0DA"/><stop offset="1" stop-color="#A3AAB7"/></linearGradient></defs>`,
+    `<rect x="0" y="0" width="1280" height="210" fill="url(#asTbBack)"/>`,
+    `<rect x="0" y="0" width="1280" height="10" fill="#1B1311" fill-opacity=".28"/>`,
+    `<path fill="${COUNTER_LO}" fill-opacity=".85" d="M386 12 H880 V198 H386 Z"/>`,
+    `<path fill="none" stroke="#3E3560" stroke-width="3" d="${ribs}"/>`,
+    `<rect x="0" y="206" width="1280" height="172" fill="url(#asTbFront)"/>`,
+    `<path fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1.2" d="${brush}"/>`,
+    `<path fill="none" stroke="${STEEL_HI}" stroke-width="3" d="M0 207.5 H1280"/><rect x="0" y="198" width="1280" height="8" fill="${STEEL_LO}"/>`,
+    `<rect x="0" y="366" width="1280" height="12" fill="${mixColor(STEEL_LO, COUNTER, 0.5)}"/>`,
+  ];
+  return `<svg class="as-table" viewBox="0 0 1280 378" preserveAspectRatio="none" aria-hidden="true">${body.join('')}</svg>`;
+}
+
+export function shelfSVG(n = 4, { autoSeal = false } = {}) {
+  const k = int(n, 1, 6, 4);
+  const cols = Math.ceil(k / 2);
+  const cw = 232 / cols;
+  let rings = '';
+  for (let i = 0; i < k; i++) {
+    const row = i < cols ? 0 : 1;
+    const col = row ? i - cols : i;
+    const off = row && k % 2 ? cw / 2 : 0;
+    rings += ell(r1(col * cw + off + cw / 2), row ? 186 : 88, r1(cw * 0.3), 4) + ' ';
+  }
+  const body = [
+    `<path fill="#1B1311" fill-opacity=".25" d="M2 192 H230 L232 198 H0 Z"/>`,
+    // back panel + posts
+    `<path fill="${mixColor(STEEL_LO, COUNTER, 0.7)}" d="M6 0 H226 V190 H6 Z"/>`,
+    `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" d="M0 0 H8 V196 H0 Z M224 0 H232 V196 H224 Z"/>`,
+    // two tier boards
+    steelBody('M0 90 H232 V100 H0 Z'), steelBody('M0 188 H232 V196 H0 Z'),
+    `<path fill="none" stroke="${STEEL_HI}" stroke-width="2" d="M2 91.5 H230 M2 189.5 H230"/>`,
+    `<path fill="none" stroke="${STEEL_HI}" stroke-opacity=".5" stroke-width="1.6" d="${rings}"/>`,
+    autoSeal ? `<g class="as-gantry"><path fill="${GUN}" stroke="${INK_BG}" stroke-width="${SW}" stroke-linejoin="round" d="M-4 -18 H236 V-4 H-4 Z"/>` +
+      `<path fill="${LEMON}" stroke="${INK_BG}" stroke-width="1.4" d="M8 -14 H224 V-9 H8 Z"/>` +
+      `<g class="as-gantry-head"><path fill="${STEEL}" stroke="${INK_BG}" stroke-width="1.8" d="M96 -4 H136 V8 H96 Z"/><path fill="${PAPER}" stroke="${INK_BG}" stroke-width="1.4" d="M104 8 H128 V12 H104 Z"/></g></g>` : '',
+  ];
+  return svg('as-shelf', '0 0 232 196', body.join(''), ` data-n="${k}" data-auto="${autoSeal ? 1 : 0}"`);
+}
+
+function miniCard(it, x, y, done) {
+  const c = normCup(it);
+  const golden = !!(it && it.golden);
+  const tea = c.tea ? TEA_COLORS[c.tea] : null;
+  const p = [];
+  p.push(`<path fill="#DDEFF7" d="M${x + 3} ${y + 6} H${x + 27} L${x + 24} ${y + 52} H${x + 6} Z"/>`);
+  if (golden) {
+    p.push(`<path fill="${TAKE}" d="M${x + 3.7} ${y + 14} H${x + 26.3} L${x + 24} ${y + 52} H${x + 6} Z"/><path fill="${GOLD_HI}" d="M${x + 6} ${y + 18} h4 l-1 30 h-3 Z"/>`);
+    p.push(`<path fill="${GOLD_HI}" stroke="${TAKE_DEEP}" stroke-width="1" d="M${x + 38} ${y + 8} l2.4 6 6 2.4 -6 2.4 -2.4 6 -2.4 -6 -6 -2.4 6 -2.4 Z M${x + 40} ${y + 32} l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6 -4 -4 -1.6 4 -1.6 Z"/>`);
+  } else if (tea) {
+    p.push(`<path fill="${tea.body}" d="M${x + 3.7} ${y + 16} H${x + 26.3} L${x + 24} ${y + 52} H${x + 6} Z"/><path fill="${celShade(tea.body)}" d="M${x + 21} ${y + 16} H${x + 26.3} L${x + 24} ${y + 52} H${x + 20} Z"/>`);
+    if (c.tea === 'jade') p.push(`<path fill="${LEMON}" stroke="#E2A800" stroke-width="1" d="${ringPath(x + 10, y + 22, 3.2)}"/>`);
+  }
+  if (!golden) {
+    c.toppings.forEach((k, i) => {
+      const cx = x + 15;
+      const cy = y + 45 - i * 9;
+      const ic = toppingIcon(k, 0, 0);
+      p.push(`<path fill="${ic.fill}" stroke="${INK}" stroke-width="1.3" stroke-linejoin="round" transform="translate(${r1(cx)} ${r1(cy)}) scale(.78)" d="${ic.a}"/>`);
+    });
+    for (let i = 0; i < c.ice; i++) p.push(`<path fill="${ICE}" stroke="${ICE_EDGE}" stroke-width="1.4" stroke-linejoin="round" d="${sq(x + 39, y + 11 + i * 11, 9, i ? 10 : -8)}"/>`);
+    for (let i = 0; i < c.sugar; i++) {
+      const sx = x + 39;
+      const sy = y + 36 + i * 11;
+      p.push(`<path fill="${SYRUP}" stroke="${INK}" stroke-width="1.2" stroke-linejoin="round" d="M${sx} ${sy - 6} Q${sx + 5} ${sy} ${sx + 4} ${sy + 2} A4.4 4.4 0 0 1 ${sx - 4} ${sy + 2} Q${sx - 5} ${sy} ${sx} ${sy - 6} Z"/>`);
+    }
+  }
+  p.push(`<path fill="none" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M${x + 3} ${y + 6} L${x + 6} ${y + 52} H${x + 24} L${x + 27} ${y + 6} M${x + 1} ${y + 6} H${x + 29} M${x + 19} ${y + 6} L${x + 23} ${y - 2}"/>`);
+  if (done) {
+    p.push(`<path fill="${PAPER}" fill-opacity=".62" d="M${x} ${y - 4} H${x + 50} V${y + 58} H${x} Z"/>`);
+    p.push(`<path fill="${MINT}" stroke="${INK}" stroke-width="2" d="${ringPath(x + 36, y + 42, 10)}"/><path fill="none" stroke="${PAPER}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" d="M${x + 31} ${y + 42} L${x + 35} ${y + 46} L${x + 42} ${y + 37}"/>`);
+  }
+  return `<g class="as-item${done ? ' done' : ''}">${p.join('')}</g>`;
+}
+
+export function itemsBubbleSVG(order = {}, got = []) {
+  const items = Array.isArray(order.items) ? order.items : [order];
+  const n = items.length;
+  if (n === 1 && !items[0].golden) return orderBubbleSVG({ ...items[0], count: 1 });
+  const cols = n === 1 ? 1 : 2;
+  const rows = Math.ceil(n / cols);
+  const W = 16 + cols * 50 + (cols - 1) * 4;
+  const H = 16 + rows * 58 + (rows - 1) * 4;
+  const shape = `M12 2 H${W - 12} Q${W - 2} 2 ${W - 2} 12 V${H - 12} Q${W - 2} ${H - 2} ${W - 12} ${H - 2} H34 L16 ${H + 14} L20 ${H - 2} H12 Q2 ${H - 2} 2 ${H - 12} V12 Q2 2 12 2 Z`;
+  const parts = [
+    `<path fill="${PAPER_SH}" d="${shape}" transform="translate(0 3)"/>`,
+    `<path fill="${n === 1 ? LEMON : PAPER}" stroke="${INK}" stroke-width="2.6" stroke-linejoin="round" d="${shape}"/>`,
+  ];
+  items.forEach((it, i) => parts.push(miniCard(it, 8 + (i % cols) * 54, 10 + Math.floor(i / cols) * 62, !!got[i])));
+  if (order.big) {
+    // a big order: a paper carry bag on the corner
+    parts.push(`<path fill="#C99A62" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M${W - 18} -6 H${W + 6} L${W + 8} 20 H${W - 20} Z"/><path fill="none" stroke="${INK}" stroke-width="2" d="M${W - 12} -6 Q${W - 6} -18 ${W} -6"/>`);
+  }
+  return svg('as-bubble as-items', `0 0 ${W} ${H + 16}`, parts.join(''), ` data-count="${n}" data-got="${got.filter(Boolean).length}"`);
+}
+
+export function teaManifoldSVG(n = 3) {
+  const k = int(n, 1, 3, 3);
+  const w = 264 / k;
+  let drops = '';
+  for (let i = 0; i < k; i++) drops += `M${r1(w * (i + 0.5) - 5)} 24 h10 v14 h-10 Z `;
+  return svg('as-manifold', '0 0 264 40', `<path fill="${STEEL}" stroke="${INK_BG}" stroke-width="${SW}" d="M4 14 H260 V26 H4 Z ${drops}"/>` +
+    `<path fill="none" stroke="${STEEL_HI}" stroke-width="2" d="M6 16.5 H258"/>` +
+    `<path fill="${GUN}" stroke="${INK_BG}" stroke-width="1.8" d="${ringPath(18, 8, 7)}"/><path fill="none" stroke="${INK_BG}" stroke-width="2" d="M18 15 V20"/>`);
+}
+
+export function iceDispenserSVG() {
+  const body = [
+    `<path fill="#1B1311" fill-opacity=".25" d="${ell(50, 86, 44, 4)}"/>`,
+    steelBody('M8 4 Q8 0 12 0 H88 Q92 0 92 4 V82 H8 Z'),
+    `<path fill="${celShade(STEEL)}" d="M76 1.4 H88 Q90.6 1.4 90.6 4 V80.6 H76 Z"/>`,
+    `<path fill="#CFE7F4" stroke="${INK_BG}" stroke-width="1.8" d="M16 8 H70 V40 H16 Z"/>`,
+    `<path fill="${ICE}" stroke="${ICE_EDGE}" stroke-width="1" d="${[[24, 30], [34, 26], [46, 31], [58, 27], [30, 18], [52, 17], [64, 34]].map(([x, y], i) => sq(x, y, 9, i * 17)).join(' ')}"/>`,
+    `<path fill="${NIGHT_700}" stroke="${INK_BG}" stroke-width="1.8" d="M30 48 H56 V62 H50 L46 70 H40 L36 62 H30 Z"/>`,
+    `<path fill="${COUNTER}" stroke="${INK_BG}" stroke-width="1.6" d="M72 48 H86 V74 H72 Z"/>`,
+    `<path fill="#7FD4FF" d="${ringPath(79, 54, 2.4)} ${ringPath(79, 61, 2.4)} ${ringPath(79, 68, 2.4)}"/>`,
+    steelBody('M4 82 H96 V88 H4 Z'),
+  ];
+  return svg('as-station as-ice as-dispenser', '0 0 100 90', body.join(''));
+}
+
+export function potRigSVG(lv = 1) {
+  const parts = [];
+  if (lv >= 3) {
+    // double burner: a ring of blue-cored flames under the pot
+    let fl = '';
+    let core = '';
+    for (let i = 0; i < 7; i++) {
+      const x = 22 + i * 11;
+      fl += `M${x - 5} 112 Q${x - 4} 100 ${x} 94 Q${x + 4} 100 ${x + 5} 112 Z `;
+      core += `M${x - 2.4} 112 Q${x - 2} 106 ${x} 103 Q${x + 2} 106 ${x + 2.4} 112 Z `;
+    }
+    parts.push(`<path fill="${COUNTER_LO}" d="M10 110 H100 V118 H10 Z"/><path fill="${TAKE}" d="${fl}"/><path fill="#7FD4FF" d="${core}"/>`);
+  }
+  if (lv >= 4) {
+    // auto refill hopper behind the pot, with an arm down to the rim
+    parts.push(steelBody('M2 -44 H40 L28 -10 H14 Z'));
+    parts.push(`<path fill="${PEARL}" d="${ringPath(12, -36, 3.4)} ${ringPath(21, -38, 3.4)} ${ringPath(30, -36, 3.4)} ${ringPath(17, -30, 3)} ${ringPath(25, -30, 3)}"/>`);
+    parts.push(`<path fill="none" stroke="${INK_BG}" stroke-width="7" stroke-linecap="round" d="M21 -10 V8 Q21 22 36 30"/><path fill="none" stroke="${STEEL_HI}" stroke-width="3.6" stroke-linecap="round" d="M21 -10 V8 Q21 22 36 30"/>`);
+    parts.push(`<path fill="${MINT}" stroke="${INK_BG}" stroke-width="1.4" d="${ringPath(34, -20, 3.4)}"/>`);
+  }
+  return svg('as-pot-rig', '0 0 110 110', parts.join(''), ` data-lv="${int(lv, 1, 4, 1)}"`);
+}
+
+export function goldenCardSVG() {
+  return svg('as-golden-card', '0 0 70 60', `<path fill="${INK_BG}" d="M8 58 L14 6 H56 L62 58 Z"/><path fill="${PAPER}" stroke="${INK_BG}" stroke-width="2" d="M12 54 L17 8 H53 L58 54 Z"/>` +
+    `<path fill="${TAKE}" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M26 18 H44 L42 46 H28 Z"/><path fill="none" stroke="${INK}" stroke-width="2" d="M24 18 H46 M38 18 L42 10"/>` +
+    `<path fill="${GOLD_HI}" stroke="${TAKE_DEEP}" stroke-width="1" d="M50 22 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 Z M18 34 l1.4 3.4 3.4 1.4 -3.4 1.4 -1.4 3.4 -1.4 -3.4 -3.4 -1.4 3.4 -1.4 Z"/>`);
 }

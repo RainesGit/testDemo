@@ -3,14 +3,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DAYS, dayDef, MAX_DAY } from '../src/shop/days.js';
-import { UPGRADES, applyUpgrades, canBuy } from '../src/shop/upgrades.js';
+import { UPGRADES, LEVELS, STATIONS, TABS, OLD_IDS, applyUpgrades, canBuy, levelOf, nextLevel, BASE_TUNING } from '../src/shop/upgrades.js';
 import { OKE, okePool, okeLine, normalLine, customerSays } from '../src/shop/oke.js';
-import { freshSave, loadSave, writeSave, afterDay, buyUpgrade, SAVE_KEY } from '../src/shop/save.js';
+import { freshSave, loadSave, writeSave, afterDay, buyUpgrade, migrateUpgrades, SAVE_KEY } from '../src/shop/save.js';
 import { TEXT } from '../src/shop/text.js';
 import { okeBubbleSVG, starRowSVG } from '../src/shop/oke-art.js';
 import { getContent } from '../src/content.js';
 import { clipKey, splitPunch, stripStage } from '../src/audio.js';
-import { playDay } from '../tools/shop-sim.mjs';
+import { playDay, runCareer } from '../tools/shop-sim.mjs';
 
 test('days 1–5: goals rise, menus grow, each day brings its 奧客 (spec 5)', () => {
   assert.equal(DAYS.length, MAX_DAY);
@@ -19,7 +19,10 @@ test('days 1–5: goals rise, menus grow, each day brings its 奧客 (spec 5)', 
   assert.deepEqual(DAYS[0].toppings, ['pearl']);
   assert.ok(DAYS[2].teas.includes('jade') && DAYS[2].ice);
   assert.ok(DAYS[3].toppings.includes('grass') && DAYS[3].sugar);
-  assert.ok(DAYS[4].twoCupShare > 0);
+  assert.deepEqual(DAYS[0].cups, [0, 0]);
+  assert.ok(DAYS[1].cups[0] > 0 && DAYS[1].cups[1] === 0 && !DAYS[1].bigShare, 'two cups from day 2');
+  assert.ok(DAYS[2].bigShare > 0, 'big orders from day 3');
+  assert.ok(DAYS[3].cups[1] > 0, 'three cups from day 4');
   assert.equal(DAYS[0].script[0].oke, 'c250');
   assert.equal(dayDef(7).n, 7);
   assert.ok(dayDef(7).goal > DAYS[4].goal);
@@ -52,16 +55,53 @@ test('every 奧客 answer line and what they say has an AI voice clip (zh + en)'
   assert.equal(okeLine('c250', 'take', getContent('zh')), '250杯，|兩個月後過來拿。');
 });
 
-test('upgrades: 8 items, tuning and affordability', () => {
-  assert.equal(UPGRADES.length, 8);
-  const t = applyUpgrades(UPGRADES.map((u) => u.id));
-  assert.equal(t.workSlots, 3);
-  assert.equal(t.seats, 4);
-  assert.equal(t.potMax, 20);
-  assert.ok(t.coconut && t.megaphone && t.fameMult > 1 && t.prepayMult === 2);
-  assert.ok(!canBuy('slot3', [], 10));
-  assert.ok(canBuy('slot3', [], 5000));
-  assert.ok(!canBuy('slot3', ['slot3'], 5000));
+test('upgrade tree: every station Lv1 → Lv2/3/4, capacity → speed → automation, prices rise within a station', () => {
+  assert.ok(LEVELS.length >= 20 && STATIONS.length >= 12);
+  for (const st of STATIONS) {
+    assert.ok(TABS.includes(st.tab), st.id);
+    for (let i = 1; i < st.levels.length; i++) assert.ok(st.levels[i].cost > st.levels[i - 1].cost, `${st.id} prices rise`);
+  }
+  const lv = (id) => STATIONS.find((s) => s.id === id).levels.length + 1;
+  assert.equal(lv('pot'), 4); assert.equal(lv('tea'), 3); assert.equal(lv('seal'), 4); assert.equal(lv('prep'), 3); assert.equal(lv('shelf'), 3);
+  assert.equal(lv('ice'), 2); assert.equal(lv('menu'), 3); assert.equal(lv('staff'), 3);
+  assert.deepEqual(applyUpgrades([]), BASE_TUNING);
+  assert.equal(BASE_TUNING.workSlots, 3); assert.equal(BASE_TUNING.seats, 4); assert.equal(BASE_TUNING.shelf, 4);
+  const all = applyUpgrades(UPGRADES.map((u) => u.id));
+  assert.equal(all.workSlots, 5); assert.equal(all.seats, 5); assert.equal(all.shelf, 6);
+  assert.equal(all.potMax, 20); assert.equal(all.cookMs, 4000); assert.ok(all.autoCook);
+  assert.equal(all.pourMs, 250); assert.ok(all.teaAll);
+  assert.equal(all.sealMs, 350); assert.equal(all.sealers, 2); assert.ok(all.autoSeal);
+  assert.ok(all.iceSmart && all.coconut && all.golden && all.megaphone);
+  assert.equal(all.helperMs, 5000); assert.equal(all.prepayMult, 2); assert.equal(all.fameMult, 1.5);
+  assert.equal(all.patienceMult, 1.2); assert.equal(all.tipMult, 1.5); assert.equal(all.queueBonus, 4);
+  // levels in order: Lv3 needs Lv2; a skipped level does nothing
+  assert.ok(!canBuy('pot3', [], 1e6), 'Lv3 needs Lv2');
+  assert.ok(canBuy('pot2', [], 1e6));
+  assert.ok(canBuy('pot3', ['pot2'], 1e6));
+  assert.ok(!canBuy('pot2', [], 10), 'too expensive');
+  assert.ok(!canBuy('pot2', ['pot2'], 1e6), 'owned');
+  assert.equal(applyUpgrades(['pot3']).cookMs, BASE_TUNING.cookMs, 'pot3 without pot2 counts as nothing');
+  assert.equal(levelOf(['pot2', 'pot3'], 'pot'), 2);
+  assert.equal(nextLevel(['pot2', 'pot3'], 'pot').id, 'pot4');
+  assert.equal(nextLevel(['ice2'], 'ice'), null);
+  // cheap Lv2s early, automation late
+  const cost = (id) => LEVELS.find((l) => l.id === id).cost;
+  for (const auto of ['pot4', 'tea3', 'seal4', 'staff1']) for (const early of ['pot2', 'tea2', 'seal2', 'shelf2']) assert.ok(cost(auto) > 2 * cost(early));
+});
+
+test('old saves keep what they bought: the first version ids map to the closest tree level', () => {
+  for (const [old, now] of Object.entries(OLD_IDS)) assert.ok(LEVELS.some((l) => l.id === now), `${old} → ${now}`);
+  assert.deepEqual(migrateUpgrades(['slot3', 'fastSeal', 'bigPot', 'coconut', 'neon', 'ticket', 'megaphone', 'seat4', 'bogus', 'neon']),
+    ['prep2', 'seal2', 'pot2', 'menu2', 'neon', 'ticket', 'mega', 'seat5']);
+  const mem = new Map();
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  mem.set(SAVE_KEY, JSON.stringify({ v: 1, day: 3, wallet: 1234, fame: 200, upgrades: ['slot3', 'seat4', 'whatever'], best: { 1: 900 }, guideDone: true }));
+  const sv = loadSave(storage);
+  assert.equal(sv.wallet, 1234);
+  assert.equal(sv.day, 3);
+  assert.deepEqual(sv.upgrades, ['prep2', 'seat5']);
+  const cfg = applyUpgrades(sv.upgrades);
+  assert.equal(cfg.workSlots, 4); assert.equal(cfg.seats, 5);
 });
 
 test('save: try/catch storage, fresh on broken data, afterDay and buyUpgrade', () => {
@@ -77,18 +117,22 @@ test('save: try/catch storage, fresh on broken data, afterDay and buyUpgrade', (
   assert.equal(s.day, 2); assert.equal(s.wallet, 900); assert.equal(s.fame, 150); assert.ok(s.guideDone);
   const failed = afterDay(s, { day: 2, earned: 100, met: false, fame: 160 });
   assert.equal(failed.day, 2); assert.equal(failed.wallet, 1000);
-  const r = buyUpgrade(s, 'bigPot');
-  assert.ok(r.ok); assert.equal(r.save.wallet, 400); assert.deepEqual(r.save.upgrades, ['bigPot']);
-  assert.ok(!buyUpgrade(r.save, 'seat4').ok);
+  const r = buyUpgrade(s, 'pot2');
+  const pot2 = LEVELS.find((l) => l.id === 'pot2').cost;
+  assert.ok(r.ok); assert.equal(r.save.wallet, 900 - pot2); assert.deepEqual(r.save.upgrades, ['pot2']);
+  assert.ok(!buyUpgrade(r.save, 'seat5').ok, 'not enough money');
+  assert.ok(!buyUpgrade({ ...r.save, wallet: 1e6 }, 'pot4').ok, 'pot4 needs pot3');
   assert.ok(writeSave(storage, r.save));
-  assert.deepEqual(loadSave(storage).upgrades, ['bigPot']);
+  assert.deepEqual(loadSave(storage).upgrades, ['pot2']);
   assert.ok(SAVE_KEY.startsWith('250cups.shop.'));
 });
 
 test('text: zh and en have the same keys, every upgrade named', () => {
   const keys = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v) ? keys(v, `${p}${k}.`) : [`${p}${k}`])).sort();
   assert.deepEqual(keys(TEXT.zh), keys(TEXT.en));
-  for (const u of UPGRADES) assert.ok(TEXT.zh.upgrades[u.id] && TEXT.en.upgrades[u.id]);
+  for (const u of UPGRADES) assert.ok(TEXT.zh.upgrades[u.id] && TEXT.en.upgrades[u.id], u.id);
+  for (const st of STATIONS) assert.ok(TEXT.zh.stations[st.id] && TEXT.en.stations[st.id], st.id);
+  for (const t of TABS) assert.ok(TEXT.zh.tabs[t] && TEXT.en.tabs[t]);
 });
 
 test('oke art: one bubble per prop, star row', () => {
@@ -96,12 +140,20 @@ test('oke art: one bubble per prop, star row', () => {
   assert.equal((starRowSVG(3).match(/class="star on"/g) || []).length, 3);
 });
 
-test('balance sim: a normal player makes day 1 comfortably; day 3 is busier than day 1', () => {
+test('balance sim: a first-time player makes day 1 comfortably; day 3 is busier; cursing well brings a longer line and more money; 1–2 upgrades a day', () => {
   const seeds = [1, 2, 3, 4];
   const avg = (list, f) => list.reduce((a, d) => a + f(d), 0) / list.length;
   const d1 = seeds.map((seed) => playDay({ day: 1, fame: 0, upgrades: [], seed, bot: 'rookie', guide: true }));
-  for (const d of d1) assert.ok(d.earned >= DAYS[0].goal * 1.2, `a first-time player earns ${d.earned} on day 1`);
-  const n1 = seeds.map((seed) => playDay({ day: 1, fame: 0, upgrades: [], seed, bot: 'normal' }));
-  const n3 = seeds.map((seed) => playDay({ day: 3, fame: 150, upgrades: [], seed, bot: 'normal' }));
-  assert.ok(avg(n3, (d) => d.hectic) > avg(n1, (d) => d.hectic) + 0.2, 'day 3 keeps the counter full much more often');
+  for (const d of d1) assert.ok(d.earned >= DAYS[0].goal * 1.3, `a first-time player earns ${d.earned} on day 1`);
+  const n1 = seeds.map((seed) => playDay({ day: 1, fame: 0, upgrades: [], seed, bot: 'new' }));
+  const n3 = seeds.map((seed) => playDay({ day: 3, fame: 150, upgrades: [], seed, bot: 'new' }));
+  assert.ok(avg(n3, (d) => d.hectic) > avg(n1, (d) => d.hectic) + 0.15, 'day 3 keeps the counter full much more often');
+  const best = seeds.map((seed) => playDay({ day: 2, fame: 150, upgrades: [], seed, bot: 'normal', bestP: 1 }));
+  const worst = seeds.map((seed) => playDay({ day: 2, fame: 150, upgrades: [], seed, bot: 'normal', bestP: 0 }));
+  assert.ok(avg(best, (d) => d.fans) > avg(worst, (d) => d.fans) + 4, 'the best answers bring more fans');
+  assert.ok(avg(best, (d) => d.meanLine) > avg(worst, (d) => d.meanLine), 'a longer line');
+  assert.ok(avg(best, (d) => d.earned) > avg(worst, (d) => d.earned), 'and more money');
+  const career = runCareer('new', 1, { days: 5 });
+  const bought = career.map((d) => d.bought.length);
+  assert.ok(bought.reduce((a, b) => a + b, 0) >= 5 && bought.reduce((a, b) => a + b, 0) <= 14, `upgrades per day ${bought}`);
 });

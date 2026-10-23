@@ -7,13 +7,25 @@
 //   writeSave(storage, save) → bool
 //   clearSave(storage)
 //   afterDay(save, summary) → the new save: wallet += earned, fame, the next day when the goal was met, bests
-//   buyUpgrade(save, id) → { ok, save }
-import { UPGRADES, UPGRADE_IDS } from './upgrades.js';
+//   buyUpgrade(save, id) → { ok, save } (the station's previous level must be owned)
+//   migrateUpgrades(list) → old ids mapped to the tree (upgrades.js OLD_IDS), unknown ids dropped
+import { UPGRADES, UPGRADE_IDS, OLD_IDS, canBuy } from './upgrades.js';
 
 export const SAVE_KEY = '250cups.shop.v1';
 
 export function freshSave() {
   return { v: 1, day: 1, wallet: 0, fame: 0, upgrades: [], best: {}, guideDone: false };
+}
+
+/** Old ids (the first version's flat list) → their closest tree level; unknown ids dropped; no duplicates. */
+export function migrateUpgrades(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const raw of list) {
+    const id = OLD_IDS[raw] || raw;
+    if (UPGRADE_IDS.includes(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
 }
 
 function sane(x) {
@@ -25,7 +37,7 @@ function sane(x) {
     day: Math.max(1, Math.floor(num(x.day, 1))),
     wallet: Math.max(0, Math.round(num(x.wallet, 0))),
     fame: Math.max(0, Math.round(num(x.fame, 0))),
-    upgrades: Array.isArray(x.upgrades) ? x.upgrades.filter((id) => UPGRADE_IDS.includes(id)) : [],
+    upgrades: migrateUpgrades(x.upgrades),
     best: x.best && typeof x.best === 'object' ? { ...x.best } : {},
     guideDone: !!x.guideDone,
   };
@@ -73,6 +85,6 @@ export function afterDay(save, sum) {
 export function buyUpgrade(save, id) {
   const s = sane(save);
   const u = UPGRADES.find((x) => x.id === id);
-  if (!u || s.upgrades.includes(id) || s.wallet < u.cost) return { ok: false, save: s };
+  if (!u || !canBuy(id, s.upgrades, s.wallet)) return { ok: false, save: s };
   return { ok: true, save: { ...s, wallet: s.wallet - u.cost, upgrades: [...s.upgrades, id] } };
 }

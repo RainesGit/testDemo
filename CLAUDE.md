@@ -13,7 +13,9 @@ playable **web prototype** plus design and voice documents.
 AGENTS.md               Entry point for Codex and other agents; points here and to the acceptance checklist
 docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
-  gameplay-v3-shop.md   Gameplay v3 (current direction): Shawarma Legend-style drink-making shop + 奧客 to curse away
+  gameplay-v3-shop.md   Gameplay v3 (current direction): Shawarma Legend-style drink-making shop + 奧客 to curse away;
+                        section 10 = the landscape version (customers walk in from afar, cursing brings crowds, more cups;
+                        10.6 numbers, 10.7 the station upgrade tree); written in Traditional
   gameplay-v2.md        Gameplay v2 (2026-10-05 expert panel): feel, rage rework, 7 daily rules, meta; wins over
                         first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays);
                         stage 1 (jab/next, speed multiplier, rage rework, forced politeness) and stage 2 (preview + fast
@@ -52,18 +54,28 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, boss, signs, monitor; shared:
                         logo, cup tower, event props, particles; docs/art-direction-v2.md)
-  src/shop/art-shop.js  Gameplay v3 work-area art (docs/gameplay-v3-shop.md 2–3): cupSVG (tea / toppings / ice / sugar /
-                        sealed), tea tanks, topping trays, ice bin, syrup, sealer, pearl pot, cup rack, trash, work slot,
-                        order bubble (icons only), coin, patience ring, counter backdrop; pure strings, tokens from art.js
-  src/shop/engine.js    Gameplay v3 pure shop engine (no DOM): cups (take / tea / toppings / ice / sugar / seal / serve /
-                        trash), pearl pot, 3–4 seats, arrivals + queue, patience, 奧客 answers (gun / shut / take), fame ★1–5,
-                        money, the day 1 guide steps, day close + summary; tick(dt) + drain() events
-  src/shop/days.js      v3 days 1–5 (goal, menu, pace, new 奧客, scripted 250-cup customer); upgrades.js: the 8 upgrades;
+  src/shop/art-shop.js  Gameplay v3 work-area art (docs/gameplay-v3-shop.md 3, 10): cupSVG (tea / toppings / ice / sugar /
+                        sealed), tea tanks (fast taps), topping trays, ice bin / dispenser, syrup, sealer (turbo), pearl pot
+                        + rig (burner, hopper), cup rack, trash, work slot, order bubble, multi-cup bubble with ticks, shelf
+                        (auto-seal gantry), tea manifold, golden card, the landscape table, coin, patience ring; pure strings
+  src/shop/art-street.js  Landscape street (perspective, neon / stanchion upgrades), the corner building, awning, full-body
+                        walkers (art.js heads + bodies, walk / run poses, far silhouettes, fan phone / picture sign, ticket),
+                        the part-timer, shop props (air conditioner, speaker, ticket machine), the rotate-your-phone icon
+  src/shop/layout.js    Landscape stage geometry (1280×720 design px, pure): streetPoint(u) perspective, counter spots, the
+                        step up, the window pillar, every work-table station rect
+  src/shop/engine.js    Gameplay v3 pure shop engine (no DOM): customers spawn far away, walk (fans run) → queue → step up
+                        to 4–5 counter spots (u positions, phases, timing in the state); cups (take / tea / toppings / ice /
+                        sugar / seal / shelf / serve / trash), 3–5 work slots, the 4–6 cup shelf, multi-cup and big orders,
+                        pearl pot, the part-timer, upgrade-tree effects, patience, 奧客 answers (gun / shut / take) + fans,
+                        fame ★1–5, queue cap by stars, money, the day 1 guide, keyTarget (J/K/L), summary; tick(dt) + drain()
+  src/shop/days.js      v3 days 1–5 (goal, menu, pace, cup counts, new 奧客, scripted 250-cup customer); upgrades.js: the
+                        station upgrade tree (Lv1→Lv3/4, old-id map);
                         oke.js: the 8 奧客 (content ids, best answer, voiced lines); save.js: localStorage 250cups.shop.v1;
                         text.js: zh / en UI strings; oke-art.js: 奧客 request bubbles, stamp, star row
-  src/shop/ui.js        v3 DOM: stations, seats, cup drags, gestures on customers (src/gesture.js), juice, finger guide,
-                        cards (day card, receipt, upgrade shop, pause, voice prompt); main.js wires engine + ui + audio +
-                        save + voice mode (window.__shop for tools)
+  src/shop/ui.js        v3 landscape DOM: 16:9 stage, walkers interpolated from the engine, counter spots, stations, cup
+                        drags (slot → sealer → shelf → customer), gestures on customers (src/gesture.js), J/K/L keys, juice,
+                        finger guide, cards (day card, receipt, tabbed upgrade shop, pause, voice prompt, rotate card);
+                        main.js wires engine + ui + audio + save + voice mode (window.__shop for tools)
   src/huazi.js          花字 (caption) picking and rate limits (pure)
   src/ui.js             DOM rendering, camera, 花字 rendering, guidance, cards
   src/audio.js          Procedurally synthesized SFX (WebAudio), AI voice-pack playback with "|" cut points, runtime voice
@@ -71,10 +83,10 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/content.zh.js / content.en.js / content.js   Customer + system lines per language (incl. SYSTEM.opening); zh is
                         Taiwan Traditional at the source
   src/main.js           Wires everything together (start → opening → days)
-  shop.html, shop.css   Gameplay v3 page (tokens / fonts copied from style.css + the shop layout); URL params ?lang ?day=N
+  shop.html, shop.css   Gameplay v3 landscape page (tokens / fonts copied from style.css + the layout); URL params ?lang ?day=N
                         ?reset=1 ?seed ?len=ms ?speed ?input=voice ?mute=1
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
-                        voice, art-shop, shop-engine, shop-data)
+                        voice, art-shop, shop-engine, shop-data, shop-layout)
   tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs);
                         hans-chars.mjs = Simplified-only characters (generated from OpenCC by gen-hans-chars.py)
                         (screenshots and node_modules are gitignored)
@@ -113,11 +125,15 @@ Run from `game/`:
   browser through the opening and day 1, then days 3–7; fails on any character of `tools/hans-chars.mjs`;
   `tools/shots/hant-*.png` or `--out=dir`): `node tools/check-hant.mjs`; the `docs/art-direction-v2.md` 9 kill list (no
   mechanic words such as 反差 / 快嘴 / ×2 / STRIKE on the play screen, one allowed 花字 at a time, no stage directions in
-  subtitles; UI-chrome words are WARN, fatal with `--strict`): `node tools/check-killlist.mjs`. Gameplay v3 shop (`shop.html`): real pointer taps / drags / gestures at 390x844 and 360x640 — day 1 guide, ≥ 5 drinks
-  served, 奧客 swiped away, the 250-cup customer stamped, receipt, an upgrade bought, day 2, days 3–5, voice mode with a fake
-  microphone, frame bounds, no Simplified, no console errors (`tools/shots/shop-*.png` or `--out=dir`):
-  `node tools/check-shop.mjs`; v3 balance sim (no browser; rookie / new / normal / expert players through days 1–5 with
-  upgrades; numbers in `docs/gameplay-v3-shop.md` 9): `node tools/shop-sim.mjs [--seeds=20]`. All take the base URL as an argument. These use the globally installed Playwright
+  subtitles; UI-chrome words are WARN, fatal with `--strict`): `node tools/check-killlist.mjs`. Gameplay v3 landscape shop (`shop.html`): real pointer taps / drags / gestures at 844x390, 640x360 and 1280x720 plus a
+  390x844 portrait run — day 1 guide, customers walking in from afar, fans running in after a curse, ≥ 5 drinks via the
+  shelf, a multi-cup order, 奧客 swiped away and one sent off with J, the 250-cup customer stamped, receipt with cups sold,
+  an upgrade bought, Lv2 + automation levels bought and the changed stations, the part-timer, days 2–5, the rotate card and
+  "play anyway", voice mode with a fake microphone, 16:9 frame bounds, no Simplified, no console errors
+  (`tools/shots/shop-*.png` or `--out=dir`): `node tools/check-shop.mjs`; art-review screenshots of a busy day driven
+  through `window.__shop` (`--day=N --w --h --up=ids --t=ms`, `tools/shots/shop-look-*.png`): `node tools/shot-shop.mjs`;
+  v3 balance sim (no browser; rookie / new / normal / expert players through days 1–5 with upgrades; `--curse` compares
+  cursing styles; numbers in `docs/gameplay-v3-shop.md` 9 and 10.6): `node tools/shop-sim.mjs [--seeds=20] [--curse]`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).
 

@@ -76,7 +76,7 @@ export function stepPoint(i, n, p) {
 /** Order bubble width (design px): one card per cup, scaled down to stay near its column. */
 export function bubbleWidth(n, colW) {
   const k = Math.max(1, n | 0);
-  const natural = k === 1 ? 88 : k === 4 ? 150 : 14 + k * 64;
+  const natural = k === 1 ? 88 : k === 4 ? 100 : 14 + k * 68;
   return Math.min(natural, Math.max(104, colW * (k >= 3 ? 1.14 : 1.02)));
 }
 

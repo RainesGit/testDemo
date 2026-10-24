@@ -2,9 +2,9 @@
 // landscape parts of src/shop/art-shop.js): in bounds, no overlapping stations, perspective, well-formed SVG.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STAGE, LIP_Y, PERSON, PILLAR, SEAT_S, streetPoint, seatPoint, seatColumn, stepPoint, stations } from '../src/shop/layout.js';
-import { streetSVG, cornerSVG, awningSVG, walkerSVG, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG } from '../src/shop/art-street.js';
-import { tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG, goldenCardSVG, teaTankSVG, sealerSVG } from '../src/shop/art-shop.js';
+import { STAGE, LIP_Y, PERSON, PILLAR, SEAT_S, BUBBLE, HUD, streetPoint, seatPoint, seatColumn, stepPoint, stations, lockedSpots, lineU, bubbleWidth } from '../src/shop/layout.js';
+import { streetSVG, cornerSVG, awningSVG, walkerSVG, walkerLook, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG, vehicleSVG, pedSVG, roadLane, farWalk } from '../src/shop/art-street.js';
+import { tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG, goldenCardSVG, teaTankSVG, sealerSVG, lockedSVG, lockBadgeSVG, counterLipSVG, patienceColor } from '../src/shop/art-shop.js';
 import { GOLDEN } from '../src/shop/engine.js';
 import { HANS_ONLY } from '../tools/hans-chars.mjs';
 
@@ -116,4 +116,61 @@ test('landscape stations: table, shelf (4–6, auto sealer), bubbles with a tick
   for (const s of [teaManifoldSVG(1), teaManifoldSVG(3), iceDispenserSVG(), potRigSVG(3), potRigSVG(4), goldenCardSVG(), teaTankSVG('jade', { fast: true }), sealerSVG('busy', { turbo: true })]) wellFormed(s);
   assert.match(teaTankSVG('black', { fast: true }), /data-fast="1"/);
   assert.match(sealerSVG('idle', { turbo: true }), /data-turbo="1"/);
+});
+
+test('fixed table: every spot keeps its place at every level; what is not owned is a locked spot; owned + locked = all', () => {
+  const small = { teas: ['black'], toppings: ['pearl'], workSlots: 3, shelf: 4, sealers: 1 };
+  const full = { teas: ['black', 'green', 'jade'], toppings: ['pearl', 'pudding', 'grass', 'coconut'], ice: true, sugar: true, workSlots: 5, shelf: 6, sealers: 2, helper: true };
+  const a = stations(small);
+  const b = stations(full);
+  for (const k of Object.keys(a)) assert.deepEqual({ ...a[k], cols: undefined }, { ...b[k], cols: undefined }, `${k} does not move`);
+  const locked = lockedSpots(small);
+  assert.deepEqual(lockedSpots(full), []);
+  const names = new Set([...Object.keys(a), ...locked.map((l) => l.name)]);
+  assert.deepEqual([...names].sort(), Object.keys(b).sort());
+  for (const l of locked) assert.ok(['tea', 'top', 'ice', 'sugar', 'slot', 'sealer', 'shelf', 'helper'].includes(l.kind), l.kind);
+  assert.ok(locked.some((l) => l.name === 'slot-4') && locked.some((l) => l.name === 'sealer-1') && locked.some((l) => l.name === 'helper'));
+  for (const kind of ['tea', 'top', 'ice', 'sugar', 'slot', 'sealer', 'helper']) { const s2 = lockedSVG(kind); wellFormed(s2); assert.match(s2, /class="lk"/); }
+  wellFormed(lockBadgeSVG());
+  wellFormed(counterLipSVG());
+  assert.match(shelfSVG(4), /class="lk"/);
+  assert.ok(!/class="lk"/.test(shelfSVG(6)));
+});
+
+test('the line spreads out near the door (lineU): continuous, monotonic, identity past the corner', () => {
+  let prev = -1;
+  for (let u = 0; u <= 1.3; u += 0.01) { const v = lineU(u); assert.ok(v > prev, `monotonic at ${u.toFixed(2)}`); prev = v; }
+  assert.equal(lineU(0), 0);
+  assert.equal(lineU(1), 1);
+  assert.equal(lineU(1.15), 1.15);
+  const gap = streetPoint(lineU(0)).x - streetPoint(lineU(0.065)).x;
+  assert.ok(gap > PERSON.w * streetPoint(0).s * 0.75, `the first two people stand apart (${gap.toFixed(0)} px)`);
+});
+
+test('bubbles fit their band above the heads; the HUD stays left of the counter spots', () => {
+  for (const n of [4, 5]) {
+    const col = seatColumn(0, n);
+    for (const k of [1, 2, 3, 4]) {
+      const w = bubbleWidth(k, col.w);
+      assert.ok(w >= 80 && w <= col.w * 1.2, `${k} cups at ${n} spots: ${w}`);
+    }
+  }
+  const head = seatPoint(0, 4).y - PERSON.h * SEAT_S;
+  assert.ok(BUBBLE.bottom <= head + 14 && BUBBLE.top >= 0, 'the bubble tail reaches the head');
+  assert.ok(HUD.x + HUD.w <= seatColumn(0, 4).x, 'HUD left of the first spot');
+  assert.equal(patienceColor(1), '#3CC98E');
+  assert.equal(patienceColor(0), '#EE4130');
+});
+
+test('street life: cars, scooters and passers-by are well formed; neighbours in line never share a shirt colour', () => {
+  for (let i = 1; i < 8; i++) { wellFormed(vehicleSVG('car', i)); wellFormed(vehicleSVG('scooter', i)); wellFormed(pedSVG(i)); }
+  assert.ok(roadLane(1280).s > roadLane(200).s && farWalk(1000).y < LIP_Y);
+  for (let uid = 1; uid < 60; uid++) {
+    const a = walkerLook({ cid: 7, uid });
+    const b = walkerLook({ cid: 7, uid: uid + 1 });
+    assert.notEqual(a.shirt, b.shirt, `uid ${uid}`);
+  }
+  const w = walkerSVG({ cid: 5, uid: 3 });
+  assert.match(w, /class="wk-back"/);
+  assert.equal((helperSVG(1).match(/<svg/g) || []).length, 1, 'the helper head is a group, not a nested svg');
 });

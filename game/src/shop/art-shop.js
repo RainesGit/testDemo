@@ -531,7 +531,7 @@ function toppingIcon(kind, x, y) {
 
 // Card geometry (bubble units): a mini cup 36 wide on the left (tea colour, toppings as big layers at the bottom),
 // the spec column on the right (one ice cube per ice level, then one syrup drop per sugar level).
-export const CARD = { w: 58, h: 68 };
+export const CARD = { w: 62, h: 68 };
 const CUP_T = 6;   // rim
 const CUP_B = 64;  // base
 function cupCard(it, x, y, done) {
@@ -576,16 +576,16 @@ function cupCard(it, x, y, done) {
   if (!golden) {
     // the spec column: ice cubes then syrup drops, 14 units apart
     const pips = [...Array(c.ice).fill('i'), ...Array(c.sugar).fill('s')];
-    const y0 = y + CUP_T + 8 + (4 - pips.length) * 3.5;
+    const y0 = y + CUP_T + 7 + (4 - pips.length) * 3.75;
     let ice = '';
     let iceG = '';
     let drop = '';
     let dropG = '';
     pips.forEach((k, i) => {
-      const cx = x + 49;
-      const cy = r1(y0 + i * 14.5);
-      if (k === 'i') { ice += sq(cx, cy, 11.6, i % 2 ? 10 : -8) + ' '; iceG += sq(r1(cx - 2.2), r1(cy - 2.2), 3.6, -8) + ' '; }
-      else { drop += `M${cx} ${r1(cy - 7.4)} Q${cx + 6.4} ${cy} ${cx + 5.4} ${r1(cy + 2.4)} A5.6 5.6 0 0 1 ${cx - 5.4} ${r1(cy + 2.4)} Q${cx - 6.4} ${cy} ${cx} ${r1(cy - 7.4)} Z `; dropG += ringPath(r1(cx - 2), r1(cy + 1.6), 1.4) + ' '; }
+      const cx = x + 52;
+      const cy = r1(y0 + i * 15);
+      if (k === 'i') { ice += sq(cx, cy, 13.2, i % 2 ? 10 : -8) + ' '; iceG += sq(r1(cx - 2.6), r1(cy - 2.6), 4, -8) + ' '; }
+      else { drop += `M${cx} ${r1(cy - 8)} Q${cx + 7} ${cy} ${cx + 6} ${r1(cy + 2.6)} A6.2 6.2 0 0 1 ${cx - 6} ${r1(cy + 2.6)} Q${cx - 7} ${cy} ${cx} ${r1(cy - 8)} Z `; dropG += ringPath(r1(cx - 2), r1(cy + 1.6), 1.4) + ' '; }
     });
     if (ice) p.push(`<path fill="${ICE}" stroke="#3E7FA8" stroke-width="1.5" stroke-linejoin="round" d="${ice}"/><path fill="#FFFFFF" d="${iceG}"/>`);
     if (drop) p.push(`<path fill="${SYRUP}" stroke="${INK}" stroke-width="1.4" stroke-linejoin="round" d="${drop}"/><path fill="#FFFFFF" fill-opacity=".75" d="${dropG}"/>`);

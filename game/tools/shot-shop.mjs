@@ -1,5 +1,6 @@
 // shot-shop.mjs — quick screenshots of the landscape shop (shop.html) for art review: drives the page through
-// window.__shop (no real input) to a busy moment of a given day and saves tools/shots/shop-look-*.png.
+// window.__shop (no real input, the full recipes incl. milk, lemon, foam and shaking) to a busy moment of a given day and
+// saves tools/shots/shop-look-*.png.
 // Usage: (serve game/ first) node tools/shot-shop.mjs [baseUrl] [--day=3] [--w=844] [--h=390] [--up=a,b] [--t=20000]
 import { mkdirSync } from 'node:fs';
 const pw = (await import('./pw.mjs')).default;
@@ -33,11 +34,21 @@ await page.evaluate((T) => new Promise((res) => {
     if (s.work.filter(Boolean).length < 2 && p.length) {
       const { it } = p[Math.floor(Math.random() * p.length)];
       const r = sh.takeCup();
-      if (r.ok) { sh.addTea(it.tea); it.toppings.forEach((k) => sh.addTopping(k)); }
+      if (r.ok) {
+        sh.addTea(it.tea);
+        if (it.milk) sh.addMilk();
+        it.toppings.forEach((k) => sh.addTopping(k));
+        if (it.lemon) sh.addLemon();
+        for (let i = 0; i < (it.ice | 0); i++) sh.tapIce();
+        for (let i = 0; i < (it.sugar | 0); i++) sh.tapSugar();
+        if (it.foam) sh.addFoam();
+      }
     }
-    const ready = s.work.findIndex((c) => c && c.tea && !c.sealingUntil && s.t > c.pourUntil);
-    if (ready >= 0 && Math.random() < 0.1) sh.seal(ready);
+    const ready = s.work.findIndex((c) => c && c.tea && !c.sealingUntil && !c.shakingUntil && s.t > c.pourUntil);
+    if (ready >= 0 && Math.random() < 0.1) { if (s.def.shake && !s.work[ready].shaken && !sh.cfg.autoShake) sh.shake(ready); else sh.seal(ready); }
     if (s.pot.scoops < 3 && !s.pot.cookingUntil) sh.cook();
+    if (s.lemon && s.lemon.slices < 2 && !s.lemon.slicingUntil) sh.slice();
+    if (s.snack && !s.snack.cookingUntil && s.snack.ready < 1) sh.cookSnack();
     if (performance.now() - t0 > T) return res();
     setTimeout(loop, 300);
   };

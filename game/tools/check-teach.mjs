@@ -82,6 +82,33 @@ const save = { v: 1, day: 1, wallet: 0, fame: 0, upgrades: [], best: {}, guideDo
   await page.screenshot({ path: `${out}teach-daycard.png` });
   await ctx.close();
 }
+{
+  // a station hint: the first milk-tea order on day 2 gets a finger demo on the milk pump (no freeze, no words); using
+  // the pump ends it and it is saved as shown
+  const all = ['one', 'c250', 'taste', 'lessIce', 'cutIn', 'bucket', 'phone', 'live'];
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
+  await ctx.addInitScript((sv) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('250cups.shop.v1', JSON.stringify(sv)); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } },
+    { ...save, day: 2, taught: all, hinted: [] });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(`${base}/shop.html?lang=zh&mute=1&seed=5&speed=2`);
+  await page.waitForSelector('.start-card .go'); await page.$eval('.start-card .go', (b) => b.click());
+  await page.waitForSelector('.day-card .go'); await page.$eval('.day-card .go', (b) => b.click());
+  const got = await page.waitForFunction(() => window.__shop.state && window.__shop.state.hint, null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const h = await page.evaluate(() => window.__shop.state.hint);
+  check('station hint: the first order that needs a new station shows a hint', got && h && h.id === 'milk', JSON.stringify(h));
+  await sleep(600);
+  const f = await page.evaluate(() => { const e = document.querySelector('.finger'); return { shown: !e.hidden && e.classList.contains('hint'), text: e.textContent.trim() }; });
+  const c1 = await page.evaluate(() => window.__shop.state.clock);
+  await sleep(500);
+  const c2 = await page.evaluate(() => window.__shop.state.clock);
+  check('station hint: a finger demo on the station, no words, the day keeps running', f.shown && !f.text && c2 > c1, JSON.stringify(f));
+  await page.screenshot({ path: `${out}teach-hint-milk.png` });
+  for (const n of ['rack', 'tea-black', 'milk']) { const p = await page.evaluate((x) => window.__shop.where(x), n); await page.mouse.click(p.x, p.y); await sleep(120); }
+  const after = await page.evaluate(() => ({ hint: window.__shop.state.hint, hinted: window.__shop.save.hinted, milk: window.__shop.state.stats.milk }));
+  check('station hint: using the pump ends it and it is saved as shown', !after.hint && after.milk >= 1 && after.hinted.includes('milk'), JSON.stringify(after));
+  await ctx.close();
+}
 check('no console or page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 await browser.close();
 console.log(fails ? `${fails} check(s) failed` : 'all teach checks passed');

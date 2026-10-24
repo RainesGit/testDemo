@@ -784,7 +784,7 @@ export function itemsBubbleSVG(order = {}, got = [], { gotSnack = false } = {}) 
   items.forEach((it, i) => parts.push(`<g class="as-item${got[i] ? ' done' : ''}">${cupCard(it, 9 + (i % cols) * (CARD.w + 6), 6 + Math.floor(i / cols) * (CARD.h + 6), !!got[i])}</g>`));
   if (snack) parts.push(`<g class="as-snack${gotSnack ? ' done' : ''}">${snackCard(W - 9 - SNACK_W, 6 + (rows - 1) * (CARD.h + 6) / 2, gotSnack)}</g>`);
   if (shake) parts.push(shakeBadge(5, 5));
-  if (order.big) parts.push(bagBadge(W - 24, -10));
+  if (order.big) parts.push(bagBadge(W - 6, Hp / 2 - 16)); // on the right edge (the bubble top is close to the frame)
   return svg('as-bubble as-items', `0 0 ${W} ${Hp + TAIL + 4}`, parts.join(''), ` data-count="${n}" data-got="${got.filter(Boolean).length}" data-snack="${snack ? 1 : 0}"`);
 }
 

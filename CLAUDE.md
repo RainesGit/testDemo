@@ -15,7 +15,8 @@ docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
   gameplay-v3-shop.md   Gameplay v3 (current direction): Shawarma Legend-style drink-making shop + 奧客 to curse away;
                         section 10 = the landscape version (customers walk in from afar, cursing brings crowds, more cups;
-                        10.6 numbers, 10.7 the station upgrade tree, 10.8 first-time 奧客 demos); written in Traditional
+                        10.6 numbers, 10.7 the station upgrade tree, 10.8 first-time 奧客 demos, 10.9 the new bar stations (milk,
+                        shaker, cheese foam, lemon board, taro / red bean, waffle-ball snack, carry bag) + their numbers); in Traditional
   gameplay-v2.md        Gameplay v2 (2026-10-05 expert panel): feel, rage rework, 7 daily rules, meta; wins over
                         first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays);
                         stage 1 (jab/next, speed multiplier, rage rework, forced politeness) and stage 2 (preview + fast
@@ -27,7 +28,9 @@ docs/
   first-minute-spec.md  First-minute redesign spec (art, day-1 opening script, pace, 花字, days 1–7); wins
                         over game-design.md where they conflict
   art-direction-v2.md   Art direction v2 (Traditional Chinese): palette tokens, fonts, full-screen frame layout, characters,
-                        UI system, effects, the on-screen meta-text kill list, 12 = the landscape shop's look; replaces first-minute-spec.md 2 (art)
+                        UI system, effects, the on-screen meta-text kill list, 12 = the landscape shop's look, 13 = its depth rules
+                        (tilted camera, gradient volume, contact shadows, thin self-coloured lines; replaces 2.4/2.5 for the shop);
+                        replaces first-minute-spec.md 2 (art)
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
   localization-tw.md    Taiwan Traditional writing guide for zh text (wording, character choices, checks, HK notes, voice)
@@ -54,12 +57,17 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/opening.js        Day 1 opening script director (beat list; the engine stays idle)
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, boss, signs, monitor; shared:
                         logo, cup tower, event props, particles; docs/art-direction-v2.md)
-  src/shop/art-shop.js  Gameplay v3 work-area art (docs/gameplay-v3-shop.md 3, 10; art-direction-v2.md 12): cupSVG (tea /
-                        toppings / ice / sugar / sealed), tea tanks (fast taps), topping trays, ice bin / dispenser, syrup,
-                        sealer (turbo), pearl pot + rig (burner, hopper), cup rack, trash, cup holder, order bubbles (one card
-                        per cup + the patience bar), shelf (locks, auto-seal gantry), tea manifold, golden card, the table
-                        (tiles, under-counter props, menu board, cash register, prep mat, wood edges), counter lip, locked
-                        spots + padlock badge, coin, patience colour; pure strings
+  src/shop/art-kit.js   The shop's depth kit (art-direction-v2.md 13): SHOP_DEFS (one shared set of gradients: cylinder / top /
+                        front shading, glass, liquid, steel, contact shadow, blush), ao / cast / over / line helpers
+  src/shop/art-shop.js  Gameplay v3 work-area art in three-quarter view from above (docs/gameplay-v3-shop.md 3, 10; art-direction
+                        12, 13): cupSVG (tea / milk / toppings / ice / sugar / foam / lemon / froth / sealed), tea tanks, topping
+                        trays (6 kinds), lemon tray, ice bin / dispenser, syrup, sealer, pearl pot + rig, cup rack, trash, cup
+                        holder, order bubbles (one card per cup, snack card, shake badge, carry bag, patience bar), shelf, tea
+                        manifold, golden card, the receding table (sticker wall, raised back bench, seams, prep mat, falloff),
+                        counter lip, locked spots + padlock badge, coin, patience colour; pure strings
+  src/shop/art-bar.js   The 10.9 bar stations (milk pump, cheese foam, shaker, lemon board, waffle-ball iron, snack bag + warmer,
+                        carry bag) and table dressing (drinks fridge, menu light box, desk fan, register, cash tray, tip jar, tower
+                        stand); pictures only, pure strings
   src/shop/art-street.js  Landscape street (perspective, warm light spill, rooftops / picture signs, neon / stanchion
                         upgrades), the lit corner shop, awning, cars / scooters and far passers-by (decoration, no riders),
                         full-body walkers (art.js heads + bodies, 14 colours × 6 cuts by uid, walk / run poses, back view,
@@ -67,18 +75,22 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         speaker, ticket machine), the rotate-your-phone icon
   src/shop/layout.js    Landscape stage geometry (1280×720 design px, pure): streetPoint(u) perspective, lineU (the line
                         spread out at the door), counter spots, the step up, bubble band + widths, the HUD block, the window
-                        pillar, a fixed rect for every station + lockedSpots (what is not owned yet), table decor
+                        pillar, the 37% street + tilted table with back / middle / front rows, a fixed rect for every station
+                        (≥ 40 CSS px at 844×390) + lockedSpots (what is not owned yet), table decor
   src/shop/engine.js    Gameplay v3 pure shop engine (no DOM): customers spawn far away, walk (fans run) → queue → step up
                         to 4–5 counter spots (u positions, phases, timing in the state); cups (take / tea / toppings / ice /
                         sugar / seal / shelf / serve / trash), 3–5 work slots, the 4–6 cup shelf, multi-cup and big orders,
                         pearl pot, the part-timer, upgrade-tree effects, patience, 奧客 answers (gun / shut / take) + fans,
-                        fame ★1–5, queue cap by stars, money, the day 1 guide, keyTarget (J/K/L), summary; tick(dt) + drain()
-  src/shop/days.js      v3 days 1–5 (goal, menu, pace, cup counts, new 奧客, scripted 250-cup customer); upgrades.js: the
-                        station upgrade tree (Lv1→Lv3/4, old-id map);
-                        oke.js: the 8 奧客 (content ids, best answer, voiced lines); save.js: localStorage 250cups.shop.v1;
+                        fame ★1–5, queue cap by stars, money, the day 1 guide, keyTarget (J/K/L), summary; the 10.9 stations
+                        (milk, foam, lemon slices + slicing, the shake rule, carry bag packing, the waffle-ball snack), station
+                        hints; tick(dt) + drain()
+  src/shop/days.js      v3 days 1–5 (goal, menu, pace, cup counts, which new stations each day brings, new 奧客, scripted
+                        250-cup customer); upgrades.js: the station upgrade tree (Lv1→Lv3/4, a bar tab, old-id map);
+                        oke.js: the 8 奧客 (content ids, best answer, voiced lines); save.js: localStorage 250cups.shop.v1 (save v2: + hinted);
                         text.js: zh / en UI strings; oke-art.js: 奧客 request bubbles, stamp, star row
   src/shop/ui.js        v3 landscape DOM: 16:9 stage, walkers interpolated from the engine (blink, sway, happy hop, back
-                        view), traffic, counter spots, stations + locked spots, cup drags (slot → sealer → shelf → customer),
+                        view), traffic, counter spots, stations + locked spots, cup drags (slot → shaker → sealer → shelf →
+                        customer or carry bag; the bag and snack bags dragged to customers), station hint fingers,
                         gestures on customers (src/gesture.js), J/K/L keys, chunky HUD, juice (press squash, pour stream,
                         topping arcs, sealer press, coins to the HUD), the clerk cut-in panel, finger guide, cards (day card,
                         receipt, tabbed upgrade shop with purchase burst, pause, voice prompt, rotate card);
@@ -93,7 +105,7 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   shop.html, shop.css   Gameplay v3 landscape page (tokens / fonts copied from style.css + the layout); URL params ?lang ?day=N
                         ?reset=1 ?seed ?len=ms ?speed ?input=voice ?mute=1 ?teach=0|1
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
-                        voice, art-shop, shop-engine, shop-data, shop-layout)
+                        voice, art-shop, shop-engine, shop-stations, shop-data, shop-layout)
   tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs);
                         hans-chars.mjs = Simplified-only characters (generated from OpenCC by gen-hans-chars.py)
                         (screenshots and node_modules are gitignored)
@@ -135,12 +147,15 @@ Run from `game/`:
   subtitles; UI-chrome words are WARN, fatal with `--strict`): `node tools/check-killlist.mjs`. Gameplay v3 landscape shop (`shop.html`): real pointer taps / drags / gestures at 844x390, 640x360 and 1280x720 plus a
   390x844 portrait run — day 1 guide, customers walking in from afar, fans running in after a curse, ≥ 5 drinks via the
   shelf, a multi-cup order, 奧客 swiped away and one sent off with J, the 250-cup customer stamped, receipt with cups sold,
-  an upgrade bought, Lv2 + automation levels bought and the changed stations, the part-timer, days 2–5, the rotate card and
+  an upgrade bought, Lv2 + automation levels bought and the changed stations, the part-timer, days 2–5 with the new stations
+  (milk tea, shaking on the shaker, cheese foam, lemon refills on the board, a snack bag, a big order packed into the carry
+  bag), the rotate card and
   "play anyway", voice mode with a fake microphone, 16:9 frame bounds, no Simplified, no console errors
   (`tools/shots/shop-*.png` or `--out=dir`): `node tools/check-shop.mjs`; art-review screenshots of a busy day driven
   through `window.__shop` (`--day=N --w --h --up=ids --t=ms`, `tools/shots/shop-look-*.png`): `node tools/shot-shop.mjs`;
   first-time 奧客 demos (the day freezes on a new pest, spotlight + a finger demo of its best gesture; the 250-cup customer
-  taught with a hold and stamped by a real press-and-hold; not frozen again once taught; day card gesture badges;
+  taught with a hold and stamped by a real press-and-hold; not frozen again once taught; day card gesture badges; the first
+  station hint (a finger on the milk pump, no words, the day keeps running, saved once used);
   `tools/shots/teach-*.png` or `--out=dir`): `node tools/check-teach.mjs`; v3 balance sim (no browser; rookie / new / normal / expert players through days 1–5 with upgrades; `--curse` compares
   cursing styles; numbers in `docs/gameplay-v3-shop.md` 9 and 10.6): `node tools/shop-sim.mjs [--seeds=20] [--curse]`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with

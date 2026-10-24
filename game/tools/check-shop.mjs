@@ -7,7 +7,11 @@
 //     3. day 1 (shortened with ?len): make and serve drinks from the order bubbles (≥ 5 correct), swipe 奧客 away,
 //        stamp the 250-cup customer by holding (the number ticket, the prepay)
 //     4. the receipt (cups sold), the upgrade shop: buy an upgrade; day 2 starts with it; a multi-cup order served
-//   844x390 days 3–5 (?day=N): stations, play, the J key on an 奧客, frame, no Simplified
+//   844x390 days 3–5 (?day=N): stations, play, the J key on an 奧客, frame, no Simplified; the 10.9 stations by real input:
+//     milk tea (tap the pump), shaking (drag the cup onto the shaker), cheese foam, lemon slices + refilling the tray on
+//     the board, a 雞蛋糕 bag (tap the iron, drag the ready bag to the customer), a big order packed into the carry bag
+//     (drag each sealed cup onto the bag, then the bag to the customer); when the random orders bring no snack / big
+//     order in time, one waiting customer's order is turned into one through window.__shop (setup only, the play is real)
 //   640x360: the guide and a few drinks
 //   1280x720: a rich save; close day 2 early from the pause sheet, buy Lv2 and automation levels in the upgrade shop
 //     (pot Lv2–4: the auto-refill hopper, tea Lv2–3: the manifold, sealer Lv2–3: a second sealer, the part-timer), check
@@ -61,7 +65,8 @@ async function newPage(w, h, tag, { save } = {}) {
 const st = (page) => page.evaluate(() => {
   const s = window.__shop.state;
   return s && JSON.parse(JSON.stringify({ phase: s.phase, clock: s.clock, t: s.t, earned: s.earned, slots: s.slots, incoming: s.incoming.map(Boolean), work: s.work, shelf: s.shelf, selected: s.selected, pot: s.pot, stats: s.stats, guide: s.guide, stars: s.stars,
-    queue: s.queue.map((c) => ({ uid: c.uid, u: c.u, phase: c.phase, fan: c.fan, run: c.run, kind: c.kind })), cfg: s.cfg }));
+    queue: s.queue.map((c) => ({ uid: c.uid, u: c.u, phase: c.phase, fan: c.fan, run: c.run, kind: c.kind })), cfg: s.cfg,
+    lemon: s.lemon, snack: s.snack, bag: s.bag ? s.bag.cups.length : -1, shake: !!s.def.shake }));
 });
 const where = (page, name) => page.evaluate((n) => window.__shop.where(n), name);
 async function tap(page, name) {
@@ -103,21 +108,24 @@ async function waitFor(page, fn, arg, timeout = 15000) {
 const shot = (page, name) => page.screenshot({ path: `${out}shop-${name}.png` });
 
 /** Make one item of the customer in `slot` and drag it over; returns true when the cup was served. */
-async function makeOne(page, slot, flags) {
+async function makeOne(page, slot, flags, nth = 0) {
   let s = await st(page);
   const c = s.slots[slot];
   if (!c || !c.order) return false;
-  const k = c.got.findIndex((g) => !g);
-  if (k < 0) return false;
+  const open = c.got.map((g, i) => (g ? -1 : i)).filter((i) => i >= 0);
+  const k = open[nth] ?? open[0];
+  if (k == null) return false;
   const it = c.order.items[k];
   const pearls = it.toppings.filter((x) => x === 'pearl').length;
   if (pearls && s.pot.scoops < pearls) {
     if (!s.pot.cookingUntil) await tap(page, 'pot');
     await waitFor(page, (n) => window.__shop.state.pot.scoops >= n, pearls, 12000);
   }
+  const bagIt = !!(c.order.big && s.bag >= 0);
   // a cup the part-timer already put on the shelf?
-  const ready = s.shelf.findIndex((cup) => cup && cup.sealed && cup.tea === it.tea && [...cup.toppings].sort().join() === [...it.toppings].sort().join() && cup.ice === it.ice && cup.sugar === it.sugar);
-  if (ready >= 0) { await drag(page, `shelf-${ready}`, `seat-${slot}`, 10); return true; }
+  const ready = s.shelf.findIndex((cup) => cup && cup.sealed && cup.tea === it.tea && [...cup.toppings].sort().join() === [...it.toppings].sort().join() && cup.ice === it.ice && cup.sugar === it.sugar &&
+    !!cup.milk === !!it.milk && !!cup.foam === !!it.foam && !!cup.lemon === !!it.lemon);
+  if (ready >= 0) { await drag(page, `shelf-${ready}`, bagIt ? 'bag' : `seat-${slot}`, bagIt ? 0 : 10); return bagIt ? 'packed' : true; }
   if (s.work.every(Boolean)) { await drag(page, `cup-${s.work.findIndex(Boolean)}`, 'trash'); s = await st(page); }
   await tap(page, 'rack');
   s = await st(page);
@@ -125,11 +133,37 @@ async function makeOne(page, slot, flags) {
   if (w == null) return false;
   const id = s.work[w].id;
   await tap(page, `tea-${it.tea}`);
+  if (it.milk) { await tap(page, 'milk'); if (flags) flags.milk = (flags.milk || 0) + 1; }
   for (const x of it.toppings) await tap(page, `top-${x}`);
+  if (it.lemon) {
+    let lm = await page.evaluate(() => window.__shop.state.lemon);
+    if (lm.slices <= 0) {
+      // the tray is empty: slice a new batch on the board
+      if (!lm.slicingUntil) await tap(page, 'board');
+      await waitFor(page, () => window.__shop.state.lemon.slices > 0, null, 6000);
+    }
+    await tap(page, 'lemon');
+    lm = await page.evaluate(() => window.__shop.state.lemon);
+    if (flags && !flags.refilled && lm.slices < lm.max && !lm.slicingUntil) {
+      await tap(page, 'board');
+      await waitFor(page, () => window.__shop.state.lemon.slices === window.__shop.state.lemon.max, null, 6000).catch(() => {});
+      const st2 = await page.evaluate(() => window.__shop.state.stats.sliced);
+      if (st2 >= 1) { flags.refilled = st2; await shot(page, `${flags.tag}-lemon-board`); }
+    }
+  }
   const iceTaps = s.cfg.iceSmart ? (it.ice ? 1 : 0) : it.ice;
   for (let i = 0; i < iceTaps; i++) await tap(page, 'ice');
   for (let i = 0; i < it.sugar; i++) await tap(page, 'sugar');
-  await sleep(s.cfg.pourMs + 80);
+  if (it.foam) { await tap(page, 'foam'); if (flags) flags.foam = (flags.foam || 0) + 1; }
+  await sleep(Math.max(s.cfg.pourMs, it.milk ? s.cfg.milkMs : 0, it.foam ? s.cfg.foamMs : 0) + 80);
+  if (s.shake && !s.cfg.autoShake) {
+    // the shaker: drag the cup onto it, it shakes, the cup comes back frothy
+    await waitFor(page, () => !window.__shop.state.work.some((x) => x && x.shakingUntil), null, 6000);
+    await drag(page, `cup-${w}`, 'shaker');
+    await waitFor(page, (cid) => window.__shop.state.work.some((x) => x && x.id === cid && x.shaken), id, 6000);
+    if (flags) { flags.shaken = (flags.shaken || 0) + 1; if (flags.shaken === 1) await shot(page, `${flags.tag}-shaken`); }
+    await sleep(260);
+  }
   await waitFor(page, (n) => window.__shop.state.work.filter((x) => x && x.sealingUntil && !x.sealed && x.sealer >= 0).length < n, s.cfg.sealers, 6000);
   await drag(page, `cup-${w}`, 'sealer');
   await waitFor(page, (cid) => [...window.__shop.state.work, ...window.__shop.state.shelf].some((x) => x && x.id === cid && x.sealed), id, 6000);
@@ -140,15 +174,36 @@ async function makeOne(page, slot, flags) {
   const from = onShelf >= 0 ? `shelf-${onShelf}` : `cup-${s.work.findIndex((x) => x && x.id === id)}`;
   if (onShelf >= 0 && flags) flags.shelved = (flags.shelved || 0) + 1;
   if (now < 0) { await drag(page, from, 'trash'); return false; }
+  if (bagIt) { await drag(page, from, 'bag'); return 'packed'; }
   await drag(page, from, `seat-${now}`, 10);
+  return true;
+}
+/** The snack bag for the customer in slot: start the iron if no bag is ready, then drag a bag over. */
+async function serveSnack(page, slot, flags) {
+  let s = await st(page);
+  if (s.snack.ready <= 0) {
+    if (!s.snack.cookingUntil) await tap(page, 'waffle');
+    await waitFor(page, () => window.__shop.state.snack.ready > 0, null, 12000);
+    await shot(page, `${flags.tag}-snack-ready`);
+  }
+  s = await st(page);
+  const uid = s.slots[slot] && s.slots[slot].uid;
+  const now = s.slots.findIndex((x) => x && x.uid === uid);
+  if (now < 0) return false;
+  await drag(page, 'snack', `seat-${now}`, 10);
+  const a = await st(page);
+  if (a.stats.snacks > s.stats.snacks) flags.snacks = (flags.snacks || 0) + 1;
   return true;
 }
 async function serveCustomer(page, slot, flags) {
   const s0 = await st(page);
   const c = s0.slots[slot];
   if (!c || !c.order) return false;
+  const big = !!(c.order.big && s0.bag >= 0);
+  let packed = 0;
+  if (c.order.snack && !c.gotSnack && s0.snack) await serveSnack(page, slot, flags).catch(() => false);
   for (let i = 0; i < c.order.count; i++) {
-    const ok = await makeOne(page, slot, flags).catch(async (e) => {
+    const ok = await makeOne(page, slot, flags, big ? packed : 0).catch(async (e) => {
       // closing time mid-drink is fine; anything else while the shop is open is an error
       const ph = await page.evaluate(() => window.__shop.state.phase).catch(() => 'closed');
       if (ph === 'open') errors.push(`${flags.tag} makeOne: ${e.message.split('\n')[0]}`);
@@ -156,7 +211,17 @@ async function serveCustomer(page, slot, flags) {
     });
     const s = await st(page);
     const still = s.slots.findIndex((x) => x && x.uid === c.uid);
+    if (ok === 'packed') packed += 1;
     if (!ok || still < 0) break;
+    if (big && packed === c.order.count) {
+      // every cup of the big order is in the carry bag: hand the bag over
+      await shot(page, `${flags.tag}-bag-packed`);
+      const b0 = s.stats.bags;
+      await drag(page, 'bag', `seat-${still}`, 10);
+      const a = await st(page);
+      if (a.stats.bags > b0) { flags.bags = (flags.bags || 0) + 1; await shot(page, `${flags.tag}-bag-served`); }
+      break;
+    }
     if (c.order.count >= 2 && i === 0 && !flags.tickShot) { flags.tickShot = true; await sleep(150); await shot(page, `${flags.tag}-multi-tick`); }
     slot = still;
   }
@@ -353,7 +418,8 @@ async function playDay(page, flags, { untilCorrect = Infinity, untilMulti = fals
   await context.close();
 }
 
-// ---------- days 3–5 at 844x390 (stations, play, the J key, frame) ----------
+// ---------- days 3–5 at 844x390 (stations, play, the J key, frame; the 10.9 stations) ----------
+const STATION_FLAGS = {};
 for (const day of [3, 4, 5]) {
   const tag = `844-d${day}`;
   const { context, page } = await newPage(844, 390, tag);
@@ -364,10 +430,31 @@ for (const day of [3, 4, 5]) {
   await shot(page, `${tag}-card`);
   await clickSel(page, '.day-card .go');
   const flags = { tag, stamped: 0, swiped: 0 };
-  await playDay(page, flags, { maxMs: 22000, key: day === 3 });
+  await playDay(page, flags, { maxMs: 30000, key: day === 3 });
+  // setup only (the play stays real input): when the random orders brought no big order (day 3) / snack (days 4–5) yet,
+  // turn one waiting customer's order into one
+  const want = day === 3 ? 'big' : 'snack';
+  if ((want === 'big' && !flags.bags) || (want === 'snack' && !flags.snacks)) {
+    await waitFor(page, () => window.__shop.state.slots.some((c) => c && c.kind === 'normal' && c.order && !c.got.some(Boolean)), null, 30000).catch(() => {});
+    const slot = await page.evaluate((w) => {
+      const s = window.__shop.state;
+      const i = s.slots.findIndex((c) => c && c.kind === 'normal' && c.order && !c.got.some(Boolean));
+      if (i < 0) return -1;
+      const c = s.slots[i];
+      const it = { ...c.order.items[0], toppings: [] };
+      if (w === 'big') c.order = { items: [0, 1, 2, 3].map(() => ({ ...it })), count: 4, big: true, snack: false };
+      else c.order = { ...c.order, snack: true };
+      c.got = c.order.items.map(() => false);
+      c.patience = c.patienceMax = 1e9;
+      return i;
+    }, want);
+    if (slot >= 0) await serveCustomer(page, slot, flags);
+  }
   await sleep(1200);
   await shot(page, `${tag}-play`);
   const s = await st(page);
+  const all = (STATION_FLAGS[day] = { ...flags, stats: s.stats });
+  void all;
   const stations = await page.evaluate(() => document.querySelectorAll('.st[data-act]').length);
   check(`${tag} plays (served ${s.stats.correct}, line ${s.queue.length}, stations: ${stations})`, s.stats.correct >= 1 && stations >= 9);
   if (day === 3) {
@@ -381,6 +468,17 @@ for (const day of [3, 4, 5]) {
   await frameCheck(page, tag);
   await hantCheck(page, tag);
   await context.close();
+}
+{
+  const F = Object.values(STATION_FLAGS);
+  const sum = (k) => F.reduce((a, f) => a + (f[k] || 0), 0);
+  const stat = (k) => F.reduce((a, f) => a + ((f.stats && f.stats[k]) || 0), 0);
+  check(`844 days 3–5: milk tea made with the pump (${sum('milk')} taps, ${stat('milk')} in the engine)`, sum('milk') >= 1 && stat('milk') >= 1);
+  check(`844 days 3–5: cups shaken by dragging them onto the shaker (${sum('shaken')})`, sum('shaken') >= 1 && stat('shaken') >= 1);
+  check(`844 days 3–5: cheese foam added (${sum('foam')})`, sum('foam') >= 1 && stat('foam') >= 1);
+  check(`844 days 3–5: lemon slices used and the tray refilled on the board (${stat('lemon')} slices, ${stat('sliced')} refills)`, stat('lemon') >= 1 && stat('sliced') >= 1);
+  check(`844 days 4–5: a 雞蛋糕 bag cooked and handed over (${sum('snacks')})`, sum('snacks') >= 1 && stat('snacks') >= 1);
+  check(`844 days 3–5: a big order packed into the carry bag and handed over as one bag (${sum('bags')})`, sum('bags') >= 1 && stat('bags') >= 1);
 }
 
 // ---------- 640x360: guide + a couple of drinks ----------

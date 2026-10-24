@@ -413,7 +413,7 @@ button { font: inherit; color: inherit; border: 0; }
 .clerk[data-mood=hit] .c-head { transform: translate(0, 10px) rotate(3deg) scale(1.08); transform-origin: 130px 196px; }
 
 /* ---------- subtitles: one line sitting on the counter lip (below the bubbles, above the work table) ---------- */
-.subs { position: absolute; left: 17cqw; right: 7cqw; bottom: calc(100cqh - 20.6cqw); z-index: 20; pointer-events: none; display: flex; justify-content: center; }
+.subs { position: absolute; left: 17cqw; right: 7cqw; bottom: calc(100cqh - 24.7cqw); z-index: 20; pointer-events: none; display: flex; justify-content: center; }
 .sub {
   display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; column-gap: .9cqw; max-width: 100%;
   padding: .45cqw 1.8cqw .55cqw 1.6cqw; text-align: center; background: rgb(14 17 32 / .9); border-radius: 1.3cqw;

@@ -2,7 +2,7 @@
 // landscape parts of src/shop/art-shop.js): in bounds, no overlapping stations, perspective, well-formed SVG.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STAGE, LIP_Y, PERSON, PILLAR, SEAT_S, BUBBLE, HUD, streetPoint, seatPoint, seatColumn, stepPoint, stations, lockedSpots, lineU, bubbleWidth } from '../src/shop/layout.js';
+import { STAGE, LIP_Y, TABLE_Y, PERSON, PILLAR, SEAT_S, BUBBLE, HUD, DECOR, BACK_Y, MID_Y, FRONT_Y, streetPoint, seatPoint, seatColumn, stepPoint, stations, lockedSpots, lineU, bubbleWidth } from '../src/shop/layout.js';
 import { streetSVG, cornerSVG, awningSVG, walkerSVG, walkerLook, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG, vehicleSVG, pedSVG, roadLane, farWalk } from '../src/shop/art-street.js';
 import { tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG, goldenCardSVG, teaTankSVG, sealerSVG, lockedSVG, lockBadgeSVG, counterLipSVG, patienceColor } from '../src/shop/art-shop.js';
 import { GOLDEN } from '../src/shop/engine.js';
@@ -59,7 +59,8 @@ test('counter spots: 4 or 5 columns between the line and the pillar; heads show 
 test('work table: every station inside the stage under the lip, no two stations overlap', () => {
   const cases = [
     { teas: ['black'], toppings: ['pearl'], workSlots: 3, shelf: 4 },
-    { teas: ['black', 'green', 'jade'], toppings: ['pearl', 'pudding', 'grass', 'coconut'], ice: true, sugar: true, workSlots: 5, shelf: 6, sealers: 2 },
+    { teas: ['black', 'green', 'jade'], toppings: ['pearl', 'pudding', 'taro', 'grass', 'bean', 'coconut'], ice: true, sugar: true, workSlots: 5, shelf: 6, sealers: 2,
+      milk: true, foam: true, shake: true, lemon: true, snack: true, bag: true, helper: true },
     { teas: ['black', 'green'], toppings: ['pearl', 'pudding'], workSlots: 4, shelf: 5 },
   ];
   const H = { rack: 110, pot: 126, trash: 127, tower: 150, shelf: 196, helper: 148, ice: 101, sugar: 123 };
@@ -120,7 +121,8 @@ test('landscape stations: table, shelf (4–6, auto sealer), bubbles with a tick
 
 test('fixed table: every spot keeps its place at every level; what is not owned is a locked spot; owned + locked = all', () => {
   const small = { teas: ['black'], toppings: ['pearl'], workSlots: 3, shelf: 4, sealers: 1 };
-  const full = { teas: ['black', 'green', 'jade'], toppings: ['pearl', 'pudding', 'grass', 'coconut'], ice: true, sugar: true, workSlots: 5, shelf: 6, sealers: 2, helper: true };
+  const full = { teas: ['black', 'green', 'jade'], toppings: ['pearl', 'pudding', 'taro', 'grass', 'bean', 'coconut'], ice: true, sugar: true, workSlots: 5, shelf: 6, sealers: 2, helper: true,
+    milk: true, foam: true, shake: true, lemon: true, snack: true, bag: true };
   const a = stations(small);
   const b = stations(full);
   for (const k of Object.keys(a)) assert.deepEqual({ ...a[k], cols: undefined }, { ...b[k], cols: undefined }, `${k} does not move`);
@@ -128,9 +130,11 @@ test('fixed table: every spot keeps its place at every level; what is not owned 
   assert.deepEqual(lockedSpots(full), []);
   const names = new Set([...Object.keys(a), ...locked.map((l) => l.name)]);
   assert.deepEqual([...names].sort(), Object.keys(b).sort());
-  for (const l of locked) assert.ok(['tea', 'top', 'ice', 'sugar', 'slot', 'sealer', 'shelf', 'helper'].includes(l.kind), l.kind);
+  const KINDS = ['tea', 'top', 'ice', 'sugar', 'slot', 'sealer', 'shelf', 'helper', 'milk', 'foam', 'shaker', 'lemon', 'board', 'waffle', 'snack', 'bag'];
+  for (const l of locked) assert.ok(KINDS.includes(l.kind), l.kind);
   assert.ok(locked.some((l) => l.name === 'slot-4') && locked.some((l) => l.name === 'sealer-1') && locked.some((l) => l.name === 'helper'));
-  for (const kind of ['tea', 'top', 'ice', 'sugar', 'slot', 'sealer', 'helper']) { const s2 = lockedSVG(kind); wellFormed(s2); assert.match(s2, /class="lk"/); }
+  for (const n of ['milk', 'foam', 'shaker', 'lemon', 'board', 'waffle', 'snack', 'bag', 'top-taro', 'top-bean']) assert.ok(locked.some((l) => l.name === n), `${n} is a covered spot on day 1`);
+  for (const kind of KINDS.filter((k) => k !== 'shelf')) { const s2 = lockedSVG(kind); wellFormed(s2); assert.match(s2, /class="lk"/); }
   wellFormed(lockBadgeSVG());
   wellFormed(counterLipSVG());
   assert.match(shelfSVG(4), /class="lk"/);
@@ -173,4 +177,28 @@ test('street life: cars, scooters and passers-by are well formed; neighbours in 
   const w = walkerSVG({ cid: 5, uid: 3 });
   assert.match(w, /class="wk-back"/);
   assert.equal((helperSVG(1).match(/<svg/g) || []).length, 1, 'the helper head is a group, not a nested svg');
+});
+
+test('the tilted table: the street keeps ≥ 36% of the stage, three depth rows, every station ≥ 61 design px (≈ 40 CSS px at 844×390), dressing clear of stations', () => {
+  assert.ok(LIP_Y / STAGE.h >= 0.36, `street ${(LIP_Y / STAGE.h).toFixed(2)}`);
+  assert.ok(TABLE_Y > LIP_Y && BACK_Y < MID_Y && MID_Y < FRONT_Y && FRONT_Y <= STAGE.h);
+  const full = stations({ teas: ['black', 'green', 'jade'], toppings: ['pearl', 'pudding', 'taro', 'grass', 'bean', 'coconut'], ice: true, sugar: true, workSlots: 5, shelf: 6, sealers: 2,
+    milk: true, foam: true, shake: true, lemon: true, snack: true, bag: true, helper: true });
+  const px = 844 / STAGE.w;
+  for (const [k, r] of Object.entries(full)) {
+    if (k === 'tower' || k === 'helper' || k.startsWith('shelf')) continue;
+    assert.ok(Math.min(r.w, r.h) * px >= 39.5, `${k}: ${(r.w * px).toFixed(0)}×${(r.h * px).toFixed(0)} CSS px`);
+  }
+  // back-row props stand behind the middle row, the middle row behind the front
+  for (const k of ['rack', 'tea-black', 'milk', 'foam', 'sugar', 'ice', 'shaker', 'sealer-0']) assert.ok(Math.abs(full[k].y + full[k].h - BACK_Y) < 1, k);
+  for (const k of ['pot', 'top-pearl', 'lemon', 'board', 'waffle', 'snack']) assert.ok(Math.abs(full[k].y + full[k].h - MID_Y) < 1, k);
+  for (const k of ['trash', 'bag', 'slot-0']) assert.ok(Math.abs(full[k].y + full[k].h - FRONT_Y) < 1, k);
+  const live = Object.entries(full).filter(([k]) => !k.startsWith('shelf-') && k !== 'shelf');
+  for (const [name, d] of Object.entries(DECOR)) {
+    if (name === 'mat' || name === 'golden') continue;
+    for (const [k, r] of live) {
+      const ov = Math.min(d.x + d.w, r.x + r.w) - Math.max(d.x, r.x) > 2 && Math.min(d.y + d.h, r.y + r.h) - Math.max(d.y, r.y) > 2;
+      assert.ok(!ov, `${name} covers ${k}`);
+    }
+  }
 });

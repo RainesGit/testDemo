@@ -1,7 +1,9 @@
 /* shop.css — gameplay v3 shop page (shop.html). Palette / font tokens and @font-face are copied from style.css (art direction 2.1, 3);
    the rest is the landscape shop layout (docs/gameplay-v3-shop.md 10): a 16:9 stage letterboxed in the viewport, the street with
    walkers, counter spots, the steel lip, the work table and its stations (positions from src/shop/layout.js), fx, HUD, cards, the
-   rotate-your-phone card. Sizes in cqw (1cqw = 12.8 design px of the 1280×720 stage). No blur, no emoji. */
+   rotate-your-phone card. Sizes in cqw (1cqw = 12.8 design px of the 1280×720 stage). No blur, no emoji.
+   Depth (docs/art-direction-v2.md 13): the street is the top 37% (to the counter lip at 268 design px), the tilted work
+   table below; the props carry their own gradient shading (src/shop/art-kit.js SHOP_DEFS, inserted once in the stage). */
 :root {
   /* night (outside, the queue, empty space) */
   --night-900: #0E1120; --night-700: #1B2040; --night-500: #2D3466; --rim-cool: #7FD4FF;
@@ -102,7 +104,7 @@ button { font: inherit; color: inherit; border: 0; }
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background:
     radial-gradient(ellipse at 50% 45%, transparent 40%, rgb(0 0 0 / .45) 100%),
-    linear-gradient(var(--night-900) 0, var(--night-700) 40%, var(--wood-warm-hi) 44.2%, var(--wood-warm) 45.4%, #9AA2B0 45.5%, #C3C9D3 74%, var(--wood-warm-hi) 74.4%, var(--wood-warm-lo) 77%, #BEC5D0 77.2%, #A9B0BD 96%, var(--wood-warm) 96.2%);
+    linear-gradient(var(--night-900) 0, var(--night-700) 33%, var(--wood-warm-hi) 37.2%, var(--wood-warm) 38.4%, #6E4A34 38.5%, #6E4A34 44%, #DDE2E8 44.2%, #C3C9D3 60%, var(--wood-warm-hi) 60.4%, var(--wood-warm-lo) 62.4%, #CBD1DA 62.6%, #8F98A6 97.6%, var(--wood-warm) 97.8%);
 }
 .frame {
   position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--night-900);
@@ -110,12 +112,13 @@ button { font: inherit; color: inherit; border: 0; }
   box-shadow: 0 0 0 .25vmin rgb(27 19 17 / .9), 0 0 4vmin rgb(0 0 0 / .5);
 }
 .stage { position: absolute; inset: 0; container-type: size; touch-action: none; }
+.shop-defs { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .shaker { position: absolute; inset: 0; }
 .shaker.shake { animation: shake 220ms ease-out; }
 @keyframes shake { 20% { translate: var(--sh) 0; } 45% { translate: calc(var(--sh) * -.6) 0; } 70% { translate: calc(var(--sh) * .3) 0; } }
 
 /* ---------- the street (top 45%) ---------- */
-.street, .corner { position: absolute; left: 0; top: 0; width: 100cqw; height: 26.72cqw; pointer-events: none; }
+.street, .corner { position: absolute; left: 0; top: 0; width: 100cqw; height: 22.1875cqw; pointer-events: none; }
 .street svg, .corner svg { display: block; width: 100%; height: 100%; }
 .street { z-index: 0; }
 .corner { z-index: 3; }
@@ -211,7 +214,7 @@ button { font: inherit; color: inherit; border: 0; }
 /* ---------- counter spots: the order bubble (with its patience bar) and the gesture column ---------- */
 .seats { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
 .seat { position: absolute; touch-action: none; cursor: pointer; pointer-events: auto; }
-.seat .bubble { position: absolute; left: 50%; bottom: 13.125cqw; pointer-events: none; transform-origin: 50% 100%; }
+.seat .bubble { position: absolute; left: 50%; bottom: 10.94cqw; pointer-events: none; transform-origin: 50% 100%; }
 .bubble svg { display: block; width: 100%; height: auto; overflow: visible; }
 .bubble.pop { animation: bubblePop 320ms cubic-bezier(.2, 1.6, .5, 1); }
 .bubble.tickpop { animation: tickPop 300ms ease-out; }
@@ -235,9 +238,9 @@ button { font: inherit; color: inherit; border: 0; }
 
 /* ---------- the counter: wood + steel lip, the work table (bottom 55%) ---------- */
 .counter { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
-.lip { position: absolute; left: 0; width: 100cqw; top: 25cqw; height: 2.03cqw; }
+.lip { position: absolute; left: 0; width: 100cqw; top: 20.9375cqw; height: 1.25cqw; }
 .lip svg, .table svg { display: block; width: 100%; height: 100%; }
-.table { position: absolute; left: 0; width: 100cqw; top: 26.72cqw; bottom: 0; }
+.table { position: absolute; left: 0; width: 100cqw; top: 22.1875cqw; bottom: 0; }
 .st, .wslot, .prop, .lock-spot { position: absolute; touch-action: none; }
 .st, .wslot, .lock-spot { pointer-events: auto; }
 .st[data-act] { cursor: pointer; }
@@ -269,8 +272,10 @@ button { font: inherit; color: inherit; border: 0; }
 .prop.pot-rig { z-index: 0; }
 .prop.manifold { z-index: 2; pointer-events: none; }
 .st-top.empty { opacity: .55; }
-.st-tower { display: flex; align-items: flex-end; justify-content: center; pointer-events: none; padding-bottom: .5cqw; }
-.st-tower svg { height: auto; }
+.st-tower { pointer-events: none; }
+.st-tower .as-towerstand { position: absolute; left: 0; bottom: 0; width: 100%; height: auto; }
+.st-tower .tower-cups { position: absolute; left: 0; right: 0; bottom: 18%; display: flex; align-items: flex-end; justify-content: center; }
+.st-tower .tower-cups svg { height: auto; }
 .st-tower.grow { animation: towerGrow 420ms cubic-bezier(.2, 1.6, .5, 1); }
 @keyframes towerGrow { 40% { transform: scale(1.06, 1.12); } }
 .prop.golden-card { pointer-events: none; transform: rotate(-6deg); }
@@ -282,6 +287,32 @@ button { font: inherit; color: inherit; border: 0; }
 .helper-bar > i { display: block; height: 100%; width: 0; background: var(--mint); }
 .st-helper.busy .helper-svg { animation: helperWork 600ms ease-in-out infinite alternate; transform-origin: 50% 100%; }
 @keyframes helperWork { to { transform: translateY(-1.5%) rotate(-1.5deg); } }
+/* the 10.9 stations */
+.st-shaker[data-state="busy"] .as-shaker-arm { animation: shakeArm 110ms ease-in-out infinite alternate; transform-box: view-box; transform-origin: 50px 92px; }
+@keyframes shakeArm { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
+.cup.shaking { pointer-events: none; animation: cupShake 110ms ease-in-out infinite alternate; transform-origin: 50% 90%; }
+@keyframes cupShake { from { transform: rotate(-6deg) translateX(-4%); } to { transform: rotate(6deg) translateX(4%); } }
+.cup.froth { animation: froth 360ms cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes froth { 40% { transform: scale(1.08, .92); } }
+.st-board.slicing .as-knife { animation: chop 180ms ease-in-out infinite alternate; transform-box: view-box; transform-origin: 96px 16px; }
+@keyframes chop { from { transform: rotate(-10deg); } to { transform: rotate(4deg); } }
+.st-board.call, .st-waffle.call { animation: potCall 900ms ease-in-out infinite; }
+.st-lemon.empty { opacity: .6; }
+.st.refill { animation: refill 380ms cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes refill { 40% { transform: scale(1.08, .94); } }
+.st-waffle.cooking .as-waffle-steam { animation: steam 900ms ease-in-out infinite alternate; }
+.st-snack.has, .st-bag.has { cursor: grab; }
+.st-bag.has { animation: bagWait 1.2s ease-in-out infinite; }
+@keyframes bagWait { 50% { transform: translateY(-2%) rotate(-1deg); } }
+.st.lifted { opacity: .45; }
+.carry-ghost { position: absolute; z-index: 50; pointer-events: none; transform-origin: 50% 100%; }
+.carry-ghost svg { display: block; width: 100%; height: auto; overflow: visible; }
+/* table dressing (decoration only) */
+.prop.decor { pointer-events: none; }
+.prop.dc-fan .as-fan-blades { transform-box: view-box; transform-origin: 29px 26px; animation: fanSpin 420ms linear infinite; }
+@keyframes fanSpin { to { transform: rotate(360deg); } }
+.prop.dc-lightbox svg { animation: lightHum 3.2s ease-in-out infinite; }
+@keyframes lightHum { 50% { opacity: .92; } }
 
 /* cups (work slot → sealer → shelf), dragged by the player */
 .cups { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
@@ -322,6 +353,9 @@ button { font: inherit; color: inherit; border: 0; }
 .pt-grass { background: #2A2A1E; border-radius: .2cqw; box-shadow: inset .2cqw .2cqw 0 -.08cqw #5B5C3E; }
 .pt-coconut { background: #F4ECCB; border: .14cqw solid #9C8A55; border-radius: .2cqw; }
 .pt-syrup { background: #E9A23B; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; border: .14cqw solid var(--ink); }
+.pt-taro { background: #A07BD0; border: .14cqw solid #5C3F86; border-radius: .35cqw; }
+.pt-bean { background: #7A2A26; border-radius: 50%; box-shadow: inset .2cqw .2cqw 0 -.08cqw #C2615A; }
+.pt-lemon { width: 1.8cqw; height: 1.8cqw; margin: -.9cqw; background: radial-gradient(circle, #FFD84A 0 55%, #FFF6C8 56% 70%, #E2A800 71%); border-radius: 50%; }
 @keyframes pt { to { transform: translate(var(--dx), var(--dy)) rotate(200deg); opacity: 0; } }
 /* topping arcs: x moves linearly, y rises then falls (two nested animations) */
 .arc-x { position: absolute; width: 0; height: 0; animation: arcX 460ms linear both; }
@@ -379,7 +413,7 @@ button { font: inherit; color: inherit; border: 0; }
 .clerk[data-mood=hit] .c-head { transform: translate(0, 10px) rotate(3deg) scale(1.08); transform-origin: 130px 196px; }
 
 /* ---------- subtitles: one line sitting on the counter lip (below the bubbles, above the work table) ---------- */
-.subs { position: absolute; left: 17cqw; right: 7cqw; bottom: calc(100cqh - 24.6cqw); z-index: 20; pointer-events: none; display: flex; justify-content: center; }
+.subs { position: absolute; left: 17cqw; right: 7cqw; bottom: calc(100cqh - 20.6cqw); z-index: 20; pointer-events: none; display: flex; justify-content: center; }
 .sub {
   display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; column-gap: .9cqw; max-width: 100%;
   padding: .45cqw 1.8cqw .55cqw 1.6cqw; text-align: center; background: rgb(14 17 32 / .9); border-radius: 1.3cqw;
@@ -396,6 +430,7 @@ button { font: inherit; color: inherit; border: 0; }
 .finger { position: absolute; left: 0; top: 0; width: 5cqw; z-index: 40; pointer-events: none; transform: translate(var(--x0), var(--y0)); }
 .finger svg { display: block; width: 100%; }
 .finger.tap { animation: fTap 900ms ease-in-out infinite; }
+.finger.hint { width: 4.4cqw; }
 .finger.drag { animation: fDrag 1600ms ease-in-out infinite; }
 .finger.swipe { animation: fSwipe 1100ms cubic-bezier(.5, 0, .5, 1) infinite; }
 /* first-time 奧客: dim everything but the customer, and demo the gesture (hold = press + gold ring, 3 taps, swipe) */

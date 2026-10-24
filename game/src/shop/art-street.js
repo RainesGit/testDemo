@@ -4,10 +4,13 @@
 // (same input → same output), no DOM, no filters / blur / images. Palette tokens from art.js (docs/art-direction-v2.md
 // 2.1): the street is cool and backlit, warm light only spills from the shop.
 //
-//   streetSVG({ neon, rail })   <svg class="street-svg">, viewBox 0 0 1280 342 (stage design px; layout.js geometry):
-//                               sky, far buildings (rooftops, balconies, picture signs), road, our sidewalk under the
-//                               shop's warm light (pool + window shafts) and the corner lamp; neon = the neon-sign upgrade,
-//                               rail = queue stanchions along the line (layout.streetPoint)
+//   streetSVG({ neon, rail })   <svg class="street-svg">, viewBox 0 0 1280 284 (stage design px down to layout.TABLE_Y):
+//                               sky, far buildings (rooftops, balconies, picture signs) fading into a cool haze with
+//                               distance (atmospheric perspective), a wet road with a sheen and light reflections, our
+//                               sidewalk under the shop's soft warm light (pools + window shafts) and the corner lamp;
+//                               neon = the neon-sign upgrade, rail = queue stanchions along the line (layout.streetPoint).
+//                               The scenery is drawn in the 342-tall frame of the first version and mapped into the
+//                               shorter street band by SQUASH (the horizon stays at layout's vanishing point)
 //   cornerSVG()                 <svg class="corner-svg">, same viewBox: the lit corner shop (drawn over walkers)
 //   awningSVG()                 <svg class="awning-svg">, viewBox 0 0 1280 40: the shop's striped valance from inside
 //   roadLane(x, far), farWalk(x)   traffic / passer-by geometry for ui.js (y and scale at screen x)
@@ -23,7 +26,8 @@
 //   helperSVG(level)            <svg class="helper-svg">, viewBox 0 0 142 166: the part-timer's bust behind the worktop
 //   acSVG(), speakerSVG(), ticketMachineSVG(), rotateIconSVG()   shop props and the rotate-your-phone icon
 import { PALETTE, mixColor, celShade, ringPath, mulberry32, fnv1a, customerSVG, customerLook } from '../art.js';
-import { streetPoint } from './layout.js';
+import { streetPoint, TABLE_Y } from './layout.js';
+import { G, ell as kEll } from './art-kit.js';
 
 const { INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, SHUT, TAKE, LEMON, GOLD_HI, RIM, NIGHT_900, NIGHT_700, NIGHT_500,
   STEEL_HI, STEEL, STEEL_LO, COUNTER_HI, COUNTER, COUNTER_LO, WARM_RIM, WOOD_DK_HI } = PALETTE;
@@ -35,6 +39,13 @@ const ell = (cx, cy, rx, ry) => `M${r1(cx - rx)} ${r1(cy)} a${rx} ${ry} 0 1 0 ${
 const V = { x: -300, y: 150 };
 // a line through the vanishing point: y at x for a line that is at y0 at x = 1280
 const persp = (y0, x) => V.y + ((y0 - V.y) * (x - V.x)) / (1280 - V.x);
+// the scenery frame (342 tall, horizon at 150) → the street band (TABLE_Y tall, horizon at layout's 122)
+const H0 = 342;
+const HORIZON = 122;
+const KY = (TABLE_Y + 2 - HORIZON) / (H0 - V.y);
+const mapY = (y) => HORIZON + (y - V.y) * KY;
+const SQUASH = `translate(0 ${HORIZON}) scale(1 ${KY.toFixed(4)}) translate(0 ${-V.y})`;
+const HAZE = '#5C6596';
 
 // ─── The street ────────────────────────────────────────────────────────────────────────────────
 const SIGN_ICONS = [
@@ -66,8 +77,10 @@ function farBuildings() {
     const base = persp(166, x);
     const x0 = x - w;
     const top = base - h;
-    const fill = fills[i % fills.length];
+    // atmospheric perspective: the further (smaller, toward the vanishing point), the hazier and bluer
+    const fill = mixColor(fills[i % fills.length], HAZE, 0.25 + 0.75 * Math.min(1, k * 1.1));
     out += `<path fill="${fill}" d="M${r1(x0)} ${r1(base)} V${r1(top)} H${r1(x)} V${r1(base)} Z"/>`;
+    out += `<path fill="url(#gkCylSoft)" fill-opacity=".5" d="M${r1(x0)} ${r1(base)} V${r1(top)} H${r1(x)} V${r1(base)} Z"/>`;
     // a lighter cornice and a cool rim on the left edge (backlit by the sky glow)
     out += `<path fill="${mixColor(fill, '#8C88C8', 0.7)}" d="M${r1(x0 - 2 * k)} ${r1(top)} H${r1(x + 2 * k)} V${r1(top + 5 * k)} H${r1(x0 - 2 * k)} Z"/>`;
     out += `<path fill="none" stroke="${RIM}" stroke-opacity=".3" stroke-width="${r1(2 * k)}" d="M${r1(x0)} ${r1(base)} V${r1(top)}"/>`;
@@ -150,11 +163,11 @@ function neonSign() {
 /** Road geometry for the traffic layer (ui.js): the centre of the near / far lane at screen x, and the size there. */
 export function roadLane(x, far = false) {
   const y0 = far ? 184 : 210;
-  return { y: r1(persp(y0, x)), s: (x - V.x) / (1280 - V.x) };
+  return { y: r1(mapY(persp(y0, x))), s: ((x - V.x) / (1280 - V.x)) * KY };
 }
 /** The far sidewalk (across the road) for passers-by: feet y and a person's scale at screen x. */
 export function farWalk(x) {
-  return { y: r1(persp(168, x)), s: ((x - V.x) / (1280 - V.x)) * 0.2 };
+  return { y: r1(mapY(persp(168, x))), s: ((x - V.x) / (1280 - V.x)) * 0.2 * KY };
 }
 
 export function streetSVG({ neon = false, rail = false } = {}) {
@@ -168,20 +181,34 @@ export function streetSVG({ neon = false, rail = false } = {}) {
   }
   const body = [
     `<defs><linearGradient id="stSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${NIGHT_900}"/><stop offset=".7" stop-color="${NIGHT_700}"/><stop offset="1" stop-color="#3A3466"/></linearGradient>`,
-    `<radialGradient id="stPool" cx="820" cy="380" r="620" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${WARM_RIM}" stop-opacity=".62"/><stop offset=".5" stop-color="#FFC66E" stop-opacity=".2"/><stop offset="1" stop-color="${WARM_RIM}" stop-opacity="0"/></radialGradient>`,
-    `<radialGradient id="stLamp" cx="150" cy="262" r="120" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${GOLD_HI}" stop-opacity=".45"/><stop offset="1" stop-color="${GOLD_HI}" stop-opacity="0"/></radialGradient>`,
-    `<linearGradient id="stShaft" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFD98A" stop-opacity=".34"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient></defs>`,
+    `<radialGradient id="stPool" cx="820" cy="390" r="660" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${WARM_RIM}" stop-opacity=".6"/><stop offset=".3" stop-color="#FFD07E" stop-opacity=".32"/><stop offset=".6" stop-color="#FFC66E" stop-opacity=".12"/><stop offset="1" stop-color="${WARM_RIM}" stop-opacity="0"/></radialGradient>`,
+    `<radialGradient id="stLamp" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${GOLD_HI}" stop-opacity=".42"/><stop offset=".5" stop-color="${GOLD_HI}" stop-opacity=".16"/><stop offset="1" stop-color="${GOLD_HI}" stop-opacity="0"/></radialGradient>`,
+    `<linearGradient id="stShaft" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFD98A" stop-opacity=".3"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient>`,
+    `<linearGradient id="stHaze" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${HAZE}" stop-opacity=".62"/><stop offset=".45" stop-color="${HAZE}" stop-opacity=".22"/><stop offset="1" stop-color="${HAZE}" stop-opacity="0"/></linearGradient>`,
+    `<linearGradient id="stHorizon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C8FC8" stop-opacity="0"/><stop offset=".7" stop-color="#8C8FC8" stop-opacity=".28"/><stop offset="1" stop-color="#8C8FC8" stop-opacity="0"/></linearGradient>`,
+    `<linearGradient id="stSheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset=".55" stop-color="#C9D2FF" stop-opacity=".16"/><stop offset="1" stop-color="#FFE2A8" stop-opacity=".22"/></linearGradient>`,
+    `<linearGradient id="stStreak" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD98A" stop-opacity=".5"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient></defs>`,
+    `<g transform="${SQUASH}">`,
     `<rect x="0" y="0" width="1280" height="190" fill="url(#stSky)"/>`,
     // a thin moon and a few stars
     `<path fill="${GOLD_HI}" fill-opacity=".8" d="M612 40 a14 14 0 1 0 14 18 a11 11 0 1 1 -14 -18 Z"/>`,
     `<path fill="${PAPER}" fill-opacity=".6" d="${[[180, 34], [330, 18], [520, 52], [700, 22], [860, 44], [1180, 30], [1050, 14]].map(([x, y]) => ell(x, y, 1.6, 1.6)).join(' ')}"/>`,
     farBuildings(),
+    // the haze: thick toward the vanishing point (left), a glow band along the horizon
+    `<rect x="0" y="20" width="1280" height="150" fill="url(#stHaze)"/>`,
+    `<rect x="0" y="110" width="1280" height="64" fill="url(#stHorizon)"/>`,
     neon ? neonSign() : '',
     // far sidewalk, road with a dashed centre line, a zebra crossing near the corner
     `<path fill="#4A4568" d="M0 ${r1(persp(166, 0))} L1280 166 L1280 ${r1(roadFar(1280))} L0 ${r1(roadFar(0))} Z"/>`,
     `<path fill="#232640" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadNear(1280))} L0 ${r1(roadNear(0))} Z"/>`,
-    // the far shops' light reflected on the wet road
-    `<path fill="${WINDOW}" fill-opacity=".08" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadFar(1280) + 14)} L0 ${r1(roadFar(0) + 5)} Z"/>`,
+    // the wet road: a sheen toward us, the far shops' light reflected in long streaks
+    `<path fill="url(#stSheen)" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadNear(1280))} L0 ${r1(roadNear(0))} Z"/>`,
+    `<path fill="${WINDOW}" fill-opacity=".1" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadFar(1280) + 14)} L0 ${r1(roadFar(0) + 5)} Z"/>`,
+    (() => {
+      let d = '';
+      for (const x of [300, 470, 640, 790, 960, 1130]) { const y = roadFar(x); const w = 6 * ((x - V.x) / 1580); d += `M${r1(x - w)} ${r1(y + 1)} h${r1(2 * w)} l${r1(w * 0.6)} ${r1(roadNear(x) - y - 4)} h${r1(-3.2 * w)} Z `; }
+      return `<path fill="url(#stStreak)" d="${d}"/>`;
+    })(),
     (() => {
       let d = '';
       for (let x = 1280; x > 0; x -= 64 * ((x - V.x) / 1580) + 6) {
@@ -207,15 +234,16 @@ export function streetSVG({ neon = false, rail = false } = {}) {
     `<path fill="none" stroke="#2A2742" stroke-width="2" d="M0 ${r1(roadNear(0) + 3)} L1280 ${r1(roadNear(1280) + 3)}"/>`,
     `<rect x="0" y="150" width="1280" height="192" fill="url(#stPool)"/>`,
     `<path fill="url(#stShaft)" d="${shafts}"/>`,
-    `<rect x="40" y="200" width="240" height="142" fill="url(#stLamp)"/>`,
+    `<ellipse cx="160" cy="276" rx="150" ry="62" fill="url(#stLamp)"/>`,
     // street lamps: one on the far curb, one on our side near the corner (people walk out under it)
     `<path fill="none" stroke="${NIGHT_500}" stroke-width="4" d="M760 ${r1(roadFar(760))} V92 Q760 82 772 82 H790"/><path fill="${GOLD_HI}" d="M784 80 h16 l-3 7 h-10 Z"/>` +
       `<path fill="${GOLD_HI}" fill-opacity=".12" d="M792 88 L760 ${r1(roadNear(760))} L840 ${r1(roadNear(840))} Z"/>`,
     `<path fill="none" stroke="${NIGHT_500}" stroke-width="5" d="M196 270 V128 Q196 116 182 116 H164"/><path fill="${GOLD_HI}" d="M154 113 h18 l-3 8 h-12 Z"/>` +
       `<path fill="${NIGHT_700}" d="${ell(196, 271, 7, 2.4)}"/>`,
+    '</g>',
     rail ? stanchions() : '',
   ];
-  return svg('street-svg', '0 0 1280 342', body.join(''), ` preserveAspectRatio="none" data-neon="${neon ? 1 : 0}" data-rail="${rail ? 1 : 0}"`);
+  return svg('street-svg', `0 0 1280 ${TABLE_Y}`, body.join(''), ` preserveAspectRatio="none" data-neon="${neon ? 1 : 0}" data-rail="${rail ? 1 : 0}"`);
 }
 
 export function cornerSVG() {
@@ -224,6 +252,7 @@ export function cornerSVG() {
   const base = 252;
   const body = [
     `<defs><linearGradient id="cnWin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE7B0"/><stop offset="1" stop-color="#F2B866"/></linearGradient></defs>`,
+    `<g transform="${SQUASH}">`,
     `<path fill="${COUNTER_HI}" d="M-20 20 H70 L74 ${base} H-20 Z"/>`,
     // brick courses
     `<path fill="none" stroke="${COUNTER}" stroke-width="1.6" d="${Array.from({ length: 7 }, (_, k) => `M-20 ${36 + k * 16} H${r1(70 + (k * 16 + 16) / 58)}`).join(' ')}"/>`,
@@ -244,8 +273,10 @@ export function cornerSVG() {
     `<path fill="${LEMON}" d="M48 106 C48 100 56 99 56 105 C56 99 64 100 64 106 C64 113 56 118 56 120 C56 118 48 113 48 106 Z"/>`,
     `<path fill="${WINDOW}" fill-opacity=".22" d="M46 ${base} L74 ${base} L120 ${base + 30} L40 ${base + 30} Z"/>`,
     `<path fill="#1B1311" fill-opacity=".35" d="M-20 ${base} H80 L74 ${base + 8} H-20 Z"/>`,
+    `<path fill="url(#gkCylSoft)" d="M-20 20 H70 L74 ${base} H-20 Z" fill-opacity=".6"/>`,
+    '</g>',
   ];
-  return svg('corner-svg', '0 0 1280 342', body.join(''), ' preserveAspectRatio="none"');
+  return svg('corner-svg', `0 0 1280 ${TABLE_Y}`, body.join(''), ' preserveAspectRatio="none"');
 }
 
 export function awningSVG() {
@@ -369,23 +400,29 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
     ? 'M50 232 Q52 204 84 198 L116 198 Q148 204 150 232 L148 300 L164 372 Q100 384 36 372 L52 300 Z'
     : 'M50 232 Q52 204 84 198 L116 198 Q148 204 150 232 L146 346 Q100 354 54 346 Z';
   const parts = [
-    `<path class="wk-shadow" fill="#0A0C18" fill-opacity=".35" stroke="none" d="${ell(100, 476, 62, 9)}"/>`,
+    `<path class="wk-shadow" fill="${G.ao}" stroke="none" d="${ell(100, 476, 70, 12)}"/>`,
     `<g class="wk-body" stroke="${INK}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">`,
     arm('l'),
     leg('l'), leg('r'),
     `<path fill="${shirt}" d="${torso}"/>`,
     `<path fill="${celShade(shirt)}" stroke="none" d="M122 201 Q146 207 150 232 L146 346 Q134 350 120 351 Q132 290 122 201 Z"/>`,
+    // soft volume: the torso as a cylinder lit from the upper left
+    `<path fill="url(#gkCylSoft)" stroke="none" d="${torso}"/>`,
     // a warm rim on the shoulders: the shop light in front of them
     `<path fill="none" stroke="${WARM_RIM}" stroke-opacity=".55" stroke-width="5" d="M58 222 Q66 204 86 200"/>`,
     cut(L, shirt, L.second),
     oke ? `<path fill="${LEMON}" stroke-width="3" d="M86 226 L98 214 L110 226 L104 246 H92 Z"/>` : '',
     `<path fill="${skin}" d="M88 182 H112 V204 Q100 212 88 204 Z"/>`,
+    `<path fill="url(#gkShade)" stroke="none" d="${kEll(100, 192, 20, 9)}"/>`,
     `<g class="wk-arm-rest">${arm('r')}</g>`,
     `<g class="wk-phone"><path fill="${celShade(shirt)}" d="M138 206 Q166 196 170 164 L172 128 Q172 118 162 118 Q152 118 152 128 L150 162 Q146 182 136 192 Z"/>` +
       `<path fill="${skin}" d="${ell(162, 118, 11, 11)}"/><rect x="146" y="70" width="30" height="48" rx="5" fill="${NIGHT_700}"/><rect x="151" y="76" width="20" height="32" fill="#9EE3FF"/>` +
       `<path fill="${GUN}" stroke="none" d="${ell(161, 113, 2.6, 2.6)}"/></g>`,
     '</g>',
     head,
+    // soft volume on the face: cheek blush, a hair highlight from the key light (the cartoon face stays as it is)
+    `<g class="wk-vol" stroke="none"><path fill="url(#gkBlush)" d="${kEll(66, 152, 14, 8)} ${kEll(134, 152, 14, 8)}"/>` +
+      `<path fill="url(#gkHi)" fill-opacity=".55" d="${kEll(80, 54, 30, 13)}"/></g>`,
     // back view (walking away): the back of the head in the hair colour over the face, a collar seam
     `<g class="wk-back" stroke="${INK}" stroke-width="5" stroke-linejoin="round"><path fill="${hairBack}" d="M38 120 Q36 46 100 40 Q164 46 162 120 Q160 178 128 194 Q100 204 72 194 Q40 178 38 120 Z"/>` +
       `<path fill="none" stroke="${mixColor(hairBack, '#FFFFFF', 0.75)}" stroke-width="4" stroke-linecap="round" d="M70 64 Q100 50 130 64"/>` +
@@ -418,6 +455,7 @@ export function helperSVG(level = 1) {
     `<path fill="${skin}" d="${ringPath(56, 148, 7)} ${ringPath(86, 148, 7)}"/>`,
     '</g>',
     head,
+    `<path fill="url(#gkBlush)" d="${kEll(55, 89, 7, 4)} ${kEll(89, 89, 7, 4)}"/><path fill="url(#gkShade)" d="${kEll(71, 104, 12, 5)}"/>`,
     // the cap (Lv2: a gold star on it)
     `<path fill="${GUN}" stroke="${INK}" stroke-width="3" stroke-linejoin="round" d="M38 46 Q42 14 72 14 Q102 14 106 46 Q72 38 38 46 Z M98 42 Q118 40 128 48 Q110 52 96 48 Z"/>`,
     level >= 2 ? `<path fill="${LEMON}" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M72 18 L76 27 L85 27 L78 32 L81 41 L72 36 L63 41 L66 32 L59 27 L68 27 Z"/>` : '',

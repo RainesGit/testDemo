@@ -10,7 +10,9 @@
 //
 //   createShopUI(root, handlers) → ui
 //     handlers: onTake(), onTea(kind), onTopping(kind), onIce(), onSugar(), onCook(), onSelect(w),
-//               onDrop(ref, { type: 'sealer'|'shelf'|'seat'|'trash'|null, slot }), ref = { w } | { shelf },
+//               onMilk(), onFoam(), onLemon(), onSlice(), onShake(), onCookSnack()   (the 10.9 stations, taps)
+//               onDrop(ref, { type: 'sealer'|'shelf'|'shaker'|'bag'|'seat'|'trash'|null, slot }),
+//                 ref = { w } | { shelf } (a cup) | { bag: true } (the carry bag) | { snack: true } (a 雞蛋糕 bag)
 //               onAnswer(slot, key, info), onKey(key), onPause(), onFirstInput(), onToggleLang()
 //     ui.build(shop)            stations, locked spots, slots, shelf, seats and the upgrade props for today
 //     ui.render(state)          per frame: HUD (money ticks up as coins land), walkers (interpolated from the engine's
@@ -19,14 +21,21 @@
 //     ui.say(text, who, key)    a subtitle on the counter lip (clerk lines get the '|' punch half big in the key colour)
 //     ui.guide(step, state)     the finger demo for a guide step (null hides it)
 //     ui.teach(ev | null)       a first-time 奧客: spotlight on it + a finger demo of its best gesture (hold / swipe / 3 taps)
+//     ui.hint(ev | null, state) a station hint (engine 'hint'): a finger demo on the new station, no words, like the guide
 //     ui.dayCard / receipt / upgradeShop / startCard / pauseSheet / voicePrompt / endCard  (cards; resolve via callbacks)
 //     ui.where(name)            viewport centre of a part (tools): 'rack' | 'tea-<k>' | 'top-<k>' | 'sealer' | 'sealer-1' |
-//                               'shelfArea' | 'trash' | 'pot' | 'ice' | 'sugar' | 'cup-<w>' | 'shelf-<i>' | 'seat-<i>'
+//                               'shelfArea' | 'trash' | 'pot' | 'ice' | 'sugar' | 'milk' | 'foam' | 'shaker' | 'lemon' |
+//                               'board' | 'waffle' | 'snack' (the ready bags) | 'bag' (the carry bag) | 'cup-<w>' |
+//                               'shelf-<i>' | 'seat-<i>'
 import {
   cupSVG, teaTankSVG, toppingTraySVG, iceBinSVG, syrupSVG, sealerSVG, potSVG, cupRackSVG, trashSVG, workSlotSVG,
-  coinSVG, tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG,
-  goldenCardSVG, counterLipSVG, lockedSVG, lockBadgeSVG, patienceColor, TEA_COLORS,
+  coinSVG, tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG, lemonTraySVG,
+  goldenCardSVG, counterLipSVG, lockedSVG, lockBadgeSVG, patienceColor, TEA_COLORS, SHOP_DEFS,
 } from './art-shop.js';
+import {
+  milkPumpSVG, foamSVG, shakerSVG, boardSVG, waffleSVG, snackBagSVG, snackSpotSVG, carryBagSVG,
+  fridgeSVG, lightBoxSVG, fanSVG, registerSVG, cashTraySVG, tipJarSVG, towerStandSVG,
+} from './art-bar.js';
 import { streetSVG, cornerSVG, awningSVG, walkerSVG, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG, vehicleSVG, pedSVG, roadLane, farWalk } from './art-street.js';
 import { customerSVG, FINGER_SVG, CLERK_SVG, logoSVG, cupStackSVG, MEGAPHONE_SVG } from '../art.js';
 import { createRecognizer } from '../gesture.js';
@@ -35,11 +44,11 @@ import { okeOf } from './oke.js';
 import { STATIONS, TABS, levelOf, nextLevel, canBuy } from './upgrades.js';
 import { shopText, fmt } from './text.js';
 import {
-  STAGE, LIP_Y, PERSON, PILLAR, BUBBLE, DECOR, streetPoint, lineU, seatPoint, seatColumn, stepPoint, bubbleWidth,
-  stations as stationRects, lockedSpots,
+  STAGE, LIP_Y, TABLE_Y, PERSON, PILLAR, DECOR, streetPoint, lineU, seatPoint, seatColumn, stepPoint, bubbleWidth,
+  stations as stationRects, lockedSpots, TOP_ORDER,
 } from './layout.js';
 
-const TOP_ORDER = ['pearl', 'pudding', 'grass', 'coconut'];
+const CUP_K = 1.5; // cup art height / width (art-shop.js cupSVG viewBox 100×150)
 const KEY_COLOR = { gun: 'var(--gun)', shut: 'var(--shut)', take: 'var(--lemon)' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const stripDir = (s) => String(s ?? '').replace(/（[^（）]*）/g, '').replace(/\([^()]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
@@ -49,6 +58,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
 // the cup tower at a fixed cup size: its svg is as wide as its bottom row (art.js cupStackSVG, at most 5 cups = 89 units)
 const towerHTML = (n) => { const k = clamp(Math.floor(n), 0, 9); const w = Math.max(1, Math.ceil(k / 2)) * 17 + 4; return cupStackSVG(k).replace('<svg ', `<svg style="width:${((w / 89) * 92).toFixed(1)}%" `); };
+const MILK = '#FFF8EC';
+const FOAM_C = '#FFF1CF';
 
 // small UI icons (cards and HUD chrome; no words)
 const ICON = {
@@ -100,6 +111,7 @@ export function createShopUI(root, h = {}) {
   const frame = el('div', 'frame');
   const stage = el('div', 'stage');
   stage.id = 'stage';
+  stage.insertAdjacentHTML('afterbegin', SHOP_DEFS); // the shared depth gradients (art-kit.js), once per page
   app.append(frame);
   frame.append(stage);
   root.append(app);
@@ -195,11 +207,19 @@ export function createShopUI(root, h = {}) {
     walkers.clear();
     st = {};
     const tops = TOP_ORDER.filter((k) => def.toppings.includes(k) || (k === 'coconut' && cfg.coconut));
-    const spec = { teas: def.teas, toppings: tops, ice: def.ice, sugar: def.sugar, workSlots: s.work.length, shelf: s.shelf.length, sealers: cfg.sealers, helper: !!cfg.helperMs };
+    const spec = { teas: def.teas, toppings: tops, ice: def.ice, sugar: def.sugar, workSlots: s.work.length, shelf: s.shelf.length, sealers: cfg.sealers,
+      helper: !!cfg.helperMs, milk: !!def.milkShare, foam: !!def.foamShare, shake: !!def.shake, lemon: !!def.lemon, snack: !!def.snackShare, bag: !!def.bag };
     R = stationRects(spec);
     stage.dataset.seats = String(s.slots.length);
     street.innerHTML = streetSVG({ neon: cfg.fameMult > 1, rail: cfg.queueBonus > 0 });
     hudDay.textContent = String(def.n || 1);
+    // table dressing (decoration only): the drinks fridge, the menu light box, a desk fan, the register, cash, tips
+    prop('decor dc-fridge', fridgeSVG(), DECOR.fridge);
+    prop('decor dc-lightbox', lightBoxSVG(), DECOR.lightbox);
+    prop('decor dc-fan', fanSVG(), DECOR.fan);
+    prop('decor dc-register', registerSVG(), DECOR.register);
+    prop('decor dc-cash', cashTraySVG(), DECOR.cashTray);
+    prop('decor dc-tips', tipJarSVG(), DECOR.tipJar);
     // covered spots for everything not owned / not on the menu yet (the shelf draws its own locks)
     for (const L of lockedSpots(spec)) {
       if (L.kind === 'shelf') continue;
@@ -216,12 +236,18 @@ export function createShopUI(root, h = {}) {
       const xs = def.teas.map((k) => R['tea-' + k]);
       const x0 = Math.min(...xs.map((r) => r.x)) - 4;
       const x1 = Math.max(...xs.map((r) => r.x + r.w)) + 4;
-      const m = prop('manifold', teaManifoldSVG(def.teas.length), { x: x0, y: xs[0].y - 26, w: x1 - x0 });
+      const m = prop('manifold', teaManifoldSVG(def.teas.length), { x: x0, y: xs[0].y - 22, w: x1 - x0 });
       m.style.height = '';
     }
+    if (R.milk) st.milk = station('st-milk', milkPumpSVG({ fast: cfg.milkMs < 500 }), 'milk', null, R.milk);
+    if (R.foam) st.foam = station('st-foam', foamSVG({ fast: cfg.foamMs < 700 }), 'foam', null, R.foam);
     if (def.ice) st.ice = station('st-ice', cfg.iceSmart ? iceDispenserSVG() : iceBinSVG(), 'ice', null, R.ice);
     if (def.sugar) st.sugar = station('st-syrup', syrupSVG(), 'sugar', null, R.sugar);
-    st.tower = station('st-tower', '', null, null, R.tower);
+    if (R.shaker) {
+      st.shaker = station('st-shaker', shakerSVG('idle', { fast: cfg.shakeMs < 900, auto: cfg.autoShake }), 'shake', null, R.shaker);
+      st.shaker.dataset.state = 'idle';
+    }
+    st.tower = station('st-tower', `${towerStandSVG()}<div class="tower-cups"></div>`, null, null, R.tower);
     if (cfg.golden) prop('golden-card', goldenCardSVG(), DECOR.golden);
     for (let k = 0; k < cfg.sealers; k++) {
       const e = station('st-sealer', sealerSVG('idle', { turbo: cfg.sealMs < 800 }), 'sealer', String(k), R['sealer-' + k]);
@@ -230,10 +256,19 @@ export function createShopUI(root, h = {}) {
       st['sealer-' + k] = e;
     }
     st.shelf = station('st-shelf', shelfSVG(s.shelf.length, { autoSeal: cfg.autoSeal }), 'shelf', null, R.shelf);
-    // front row
+    // middle row
     if (cfg.cookMs < 8000 || cfg.autoCook) prop('pot-rig', potRigSVG(cfg.autoCook ? 4 : 3), R.pot);
     st.pot = station(`st-pot${cfg.potMax > 10 ? ' big' : ''}`, potSVG({ scoops: Math.min(10, s.pot.scoops), cookingPct: 0 }), 'cook', null, R.pot);
     tops.forEach((k) => { st['top-' + k] = station('st-top', toppingTraySVG(k, 10), 'topping', k, R['top-' + k]); st['top-' + k].dataset.kind = k; });
+    if (R.lemon) {
+      st.lemon = station('st-lemon', lemonTraySVG(s.lemon.slices, s.lemon.max), 'lemon', null, R.lemon);
+      st.board = station('st-board', boardSVG(), 'slice', null, R.board);
+    }
+    if (R.waffle) {
+      st.waffle = station(`st-waffle${cfg.autoSnack ? ' auto' : ''}`, waffleSVG({ cookingPct: 1, ready: 0, fast: cfg.snackMs < 6000 }), 'snack', null, R.waffle);
+      st.snack = station('st-snack', snackSpotSVG(0), null, null, R.snack);
+    }
+    // front row
     wslots = s.work.map((_, w) => {
       const r = R['slot-' + w];
       const e = el('div', 'wslot', `<div class="plate">${workSlotSVG()}</div>`);
@@ -243,6 +278,7 @@ export function createShopUI(root, h = {}) {
       return e;
     });
     st.trash = station('st-trash', trashSVG(), 'trash', null, R.trash);
+    if (R.bag) st.bag = station('st-bag', carryBagSVG(0), 'bag', null, R.bag);
     if (cfg.helperMs) {
       st.helper = station('st-helper', helperSVG(cfg.helperMs < 8000 ? 2 : 1) + '<div class="helper-cup"></div><i class="helper-bar"><i></i></i>', null, null, R.helper);
     }
@@ -364,7 +400,7 @@ export function createShopUI(root, h = {}) {
   }
 
   // ---- seats (bubbles, patience bars) ----
-  function seatKey(c) { return c ? `${c.uid}|${c.kind}|${c.converted ? 1 : 0}|${(c.got || []).map((g) => (g ? 1 : 0)).join('')}` : ''; }
+  function seatKey(c) { return c ? `${c.uid}|${c.kind}|${c.converted ? 1 : 0}|${(c.got || []).map((g) => (g ? 1 : 0)).join('')}|${c.gotSnack ? 1 : 0}` : ''; }
   function renderSeats(s) {
     s.slots.forEach((c, i) => {
       const se = seats[i];
@@ -378,10 +414,11 @@ export function createShopUI(root, h = {}) {
         se.el.dataset.kind = !c ? '' : isOke ? 'oke' : 'normal';
         se.el.classList.toggle('double', !!(c && c.doublePay));
         const n = c && c.order ? c.order.count : 1;
-        const bw = isOke ? 112 : bubbleWidth(n, se.colW);
+        const snack = !!(c && c.order && c.order.snack);
+        const bw = isOke ? 106 : bubbleWidth(n, se.colW, snack);
         se.bubble.style.width = cq(bw);
         se.bubble.style.marginLeft = cq(isOke ? -bw * 0.32 : -bw / 2);
-        se.bubble.innerHTML = !c ? '' : isOke ? okeBubbleSVG(okeOf(c.oke).prop) : itemsBubbleSVG(c.order, c.got);
+        se.bubble.innerHTML = !c ? '' : isOke ? okeBubbleSVG(okeOf(c.oke).prop) : itemsBubbleSVG(c.order, c.got, { gotSnack: !!c.gotSnack });
         se.bubble.dataset.n = String(n);
         se.pb = se.bubble.querySelector('.pb-fill');
         se.pbw = se.pb ? Number(se.pb.dataset.w) : 0;
@@ -402,19 +439,24 @@ export function createShopUI(root, h = {}) {
   }
 
   // ---- cups ----
+  // where a cup stands (design px): x = centre, y = the cup's bottom, w = its width (height = w × CUP_K)
   function cupPlace(ref, cup) {
     if (ref.shelf != null) {
       const r = R['shelf-' + ref.shelf];
-      const w = Math.min(54, r.w * 0.64);
-      return { x: r.x + r.w / 2, y: r.y + 89, w };
+      const w = Math.min(52, r.w * 0.64);
+      return { x: r.x + r.w / 2, y: r.y + 116, w };
     }
     if (cup.sealingUntil && !cup.sealed && cup.sealer >= 0 && R['sealer-' + cup.sealer]) {
       const r = R['sealer-' + cup.sealer];
-      return { x: r.x + r.w * 0.5, y: r.y + r.h * (136 / 150) + 3, w: r.w * 0.5 };
+      return { x: r.x + r.w * 0.5, y: r.y + r.h * (136 / 150) + 2, w: r.w * 0.5 };
+    }
+    if (cup.shakingUntil && R.shaker) {
+      const r = R.shaker;
+      return { x: r.x + r.w * 0.5, y: r.y + r.h * (104 / 120), w: r.w * 0.5 };
     }
     const r = R['slot-' + ref.w];
-    const w = Math.min(72, r.w * 0.72);
-    return { x: r.x + r.w / 2, y: r.y + r.h - 24, w };
+    const w = Math.min(70, r.w * 0.7);
+    return { x: r.x + r.w / 2, y: r.y + r.h - 20, w };
   }
   function renderCups(s) {
     const live = new Set();
@@ -429,7 +471,8 @@ export function createShopUI(root, h = {}) {
         setTimeout(() => c.el.classList.remove('new'), 30);
       }
       const sealing = !!(cup.sealingUntil && !cup.sealed);
-      const key = `${cup.tea}|${cup.toppings.join(',')}|${cup.ice}|${cup.sugar}|${cup.sealed ? 1 : 0}`;
+      const shaking = !!cup.shakingUntil;
+      const key = `${cup.tea}|${cup.milk ? 1 : 0}|${cup.toppings.join(',')}|${cup.ice}|${cup.sugar}|${cup.foam ? 1 : 0}|${cup.lemon ? 1 : 0}|${cup.shaken ? 1 : 0}|${cup.sealed ? 1 : 0}`;
       if (key !== c.key) { c.key = key; c.el.innerHTML = cupSVG(cup); }
       const refKey = ref.shelf != null ? `s${ref.shelf}` : `w${ref.w}`;
       const pos = cupPlace(ref, cup);
@@ -437,16 +480,17 @@ export function createShopUI(root, h = {}) {
       if (c.posKey !== posKey && !c.el.classList.contains('dragging')) {
         c.posKey = posKey;
         c.el.style.left = cq(pos.x - pos.w / 2);
-        c.el.style.top = cq(pos.y - pos.w * 1.6);
+        c.el.style.top = cq(pos.y - pos.w * CUP_K);
         c.el.style.width = cq(pos.w);
       }
       c.pos = pos;
       c.ref = ref;
       c.el.dataset.ref = refKey;
       c.el.classList.toggle('sealing', sealing);
+      c.el.classList.toggle('shaking', shaking);
       c.el.classList.toggle('sealed', !!cup.sealed);
       c.el.classList.toggle('on-shelf', ref.shelf != null);
-      c.el.classList.toggle('selected', ref.w != null && s.selected === ref.w && !cup.sealed && !sealing);
+      c.el.classList.toggle('selected', ref.w != null && s.selected === ref.w && !cup.sealed && !sealing && !shaking);
     };
     s.work.forEach((cup, w) => { if (cup) put(cup, { w }); });
     s.shelf.forEach((cup, i) => { if (cup) put(cup, { shelf: i }); });
@@ -584,6 +628,38 @@ export function createShopUI(root, h = {}) {
         if (tray) { tray.querySelector('svg').outerHTML = toppingTraySVG('pearl', shownScoops); tray.classList.toggle('empty', s.pot.scoops === 0); }
       }
     }
+    // the 10.9 stations: the shaker, the lemon tray + board, the waffle iron + warmer, the carry bag
+    if (st.shaker) {
+      const busy = s.work.some((c) => c && c.shakingUntil) ? 'busy' : 'idle';
+      if (st.shaker.dataset.state !== busy) { st.shaker.dataset.state = busy; st.shaker.querySelector('svg').outerHTML = shakerSVG(busy, { fast: cfg.shakeMs < 900, auto: cfg.autoShake }); }
+    }
+    if (st.lemon && s.lemon) {
+      const lk = `${s.lemon.slices}|${s.lemon.slicingUntil ? 1 : 0}`;
+      if (st.lemon.dataset.key !== lk) {
+        st.lemon.dataset.key = lk;
+        st.lemon.querySelector('svg').outerHTML = lemonTraySVG(s.lemon.slices, s.lemon.max);
+        st.lemon.classList.toggle('empty', s.lemon.slices === 0);
+        st.board.querySelector('svg').outerHTML = boardSVG({ slicing: !!s.lemon.slicingUntil });
+        st.board.classList.toggle('slicing', !!s.lemon.slicingUntil);
+        st.board.classList.toggle('call', s.lemon.slices === 0 && !s.lemon.slicingUntil);
+      }
+    }
+    if (st.waffle && s.snack) {
+      const pct = s.snack.cookingUntil ? 1 - (s.snack.cookingUntil - s.t) / cfg.snackMs : 1;
+      const wk = `${s.snack.ready}|${s.snack.cookingUntil ? Math.round(pct * 20) : 'x'}`;
+      if (st.waffle.dataset.key !== wk) {
+        st.waffle.dataset.key = wk;
+        st.waffle.querySelector('svg').outerHTML = waffleSVG({ cookingPct: s.snack.cookingUntil ? Math.max(0.02, pct) : 1, ready: s.snack.ready, fast: cfg.snackMs < 6000 });
+        st.waffle.classList.toggle('cooking', !!s.snack.cookingUntil);
+        st.snack.querySelector('svg').outerHTML = snackSpotSVG(s.snack.ready);
+        st.snack.classList.toggle('has', s.snack.ready > 0);
+        st.snack.dataset.ready = String(s.snack.ready);
+      }
+    }
+    if (st.bag && s.bag) {
+      const n = s.bag.cups.length;
+      if (st.bag.dataset.n !== String(n)) { st.bag.dataset.n = String(n); st.bag.querySelector('svg').outerHTML = carryBagSVG(n); st.bag.classList.toggle('has', n > 0); }
+    }
     // the part-timer
     if (st.helper && s.helper) {
       const hp = s.helper.item ? clamp(1 - (s.helper.until - s.t) / cfg.helperMs, 0, 1) : 0;
@@ -600,7 +676,7 @@ export function createShopUI(root, h = {}) {
     if (tower !== lastTower && st.tower) {
       const grew = lastTower >= 0 && tower > lastTower;
       lastTower = tower;
-      st.tower.innerHTML = towerHTML(tower);
+      st.tower.querySelector('.tower-cups').innerHTML = towerHTML(tower);
       if (grew) restart(st.tower, 'grow');
     }
   }
@@ -689,8 +765,8 @@ export function createShopUI(root, h = {}) {
     }
   }
   // the tea stream: a curved ribbon from the tap's spout into the cup
-  function pour(kind, from, to, ms) {
-    const c = TEA_COLORS[kind] ? TEA_COLORS[kind].body : '#C8915C';
+  function pour(kind, from, to, ms, color) {
+    const c = color || (TEA_COLORS[kind] ? TEA_COLORS[kind].body : '#C8915C');
     const mx = (from.x + to.x) / 2;
     const my = Math.min(from.y, to.y) - 40 * K;
     const W = stage.clientWidth;
@@ -715,7 +791,7 @@ export function createShopUI(root, h = {}) {
     const cup = lastState && lastState.work[w];
     const c = cup && cupById(cup.id);
     if (!c || !c.pos) return null;
-    return dp(c.pos.x, c.pos.y - c.pos.w * 1.6 + c.pos.w * 0.3);
+    return dp(c.pos.x, c.pos.y - c.pos.w * CUP_K + c.pos.w * 0.26);
   }
   let clerkT = 0;
   function clerkPop(key) {
@@ -834,7 +910,7 @@ export function createShopUI(root, h = {}) {
           press(tank);
           const r = R['tea-' + ev.kind];
           const to = cupTop(ev.w);
-          if (to) pour(ev.kind, dp(r.x + r.w * 0.5, r.y + r.h * 0.93), to, ev.ms || 600);
+          if (to) pour(ev.kind, dp(r.x + r.w * 0.5, r.y + r.h * 0.88), to, ev.ms || 600);
         }
         break;
       }
@@ -863,6 +939,43 @@ export function createShopUI(root, h = {}) {
         bounceCup(ev.w, 300);
         break;
       }
+      case 'milk': case 'foam': {
+        const e = st[ev.type];
+        if (e) {
+          press(e);
+          const r = R[ev.type];
+          const to = cupTop(ev.w);
+          if (to) pour(ev.type, dp(r.x + r.w * 0.5, r.y + r.h * (ev.type === 'milk' ? 0.88 : 0.82)), to, ev.ms || 500, ev.type === 'milk' ? MILK : FOAM_C);
+        }
+        bounceCup(ev.w, 300);
+        break;
+      }
+      case 'lemon': {
+        if (st.lemon) press(st.lemon);
+        const r = R.lemon;
+        const to = cupTop(ev.w);
+        if (r && to) arcDrop('lemon', dp(r.x + r.w * 0.5, r.y + r.h * 0.4), to, 1);
+        bounceCup(ev.w, 300);
+        break;
+      }
+      case 'sliceStart': if (st.board) { press(st.board); restart(st.board, 'chop'); } break;
+      case 'sliced': if (st.lemon) { restart(st.lemon, 'refill'); const r = rectIn(st.lemon); sparkle(r.cx, r.cy, 5); } break;
+      case 'shakeStart': if (st.shaker) press(st.shaker); break;
+      case 'shaken': {
+        const c = cupById(ev.id);
+        if (c) restart(c.el, 'froth');
+        if (st.shaker && !ev.auto) { const r = rectIn(st.shaker); sparkle(r.cx, r.y + r.h * 0.4, 5); }
+        break;
+      }
+      case 'snackStart': if (st.waffle) press(st.waffle); break;
+      case 'snackReady': if (st.snack) { restart(st.snack, 'refill'); const r = rectIn(st.waffle || st.snack); sparkle(r.cx, r.cy, 6); } break;
+      case 'pack': if (st.bag) { press(st.bag); restart(st.bag, 'refill'); } break;
+      case 'serveBag': case 'serveSnack': {
+        const w = walkers.get(ev.cust.uid);
+        if (w && !ev.done) restart(w.el, 'happy');
+        if (seats[ev.slot]) restart(seats[ev.slot].bubble, 'tickpop');
+        break;
+      }
       case 'cup': press(st.rack); bounceCup(ev.w, 0); break;
       case 'sealStart': if (ev.shelf) press(st.shelf); else press(st['sealer-' + (ev.sealer || 0)]); break;
       case 'sealed': {
@@ -888,8 +1001,12 @@ export function createShopUI(root, h = {}) {
       }
       case 'nope': {
         const target = ev.reason === 'potEmpty' ? st.pot : ev.reason === 'noCup' || ev.reason === 'noSlot' ? st.rack
-          : ev.reason === 'sealerBusy' ? st['sealer-0'] : ev.reason === 'shelfFull' ? st.shelf : null;
+          : ev.reason === 'sealerBusy' ? st['sealer-0'] : ev.reason === 'shelfFull' ? st.shelf
+            : ev.reason === 'notShaken' || ev.reason === 'shakerBusy' ? st.shaker
+              : ev.reason === 'lemonEmpty' ? st.board : ev.reason === 'needsBag' || ev.reason === 'bagFull' || ev.reason === 'bagTooMany' ? st.bag
+                : ev.reason === 'noSnack' || ev.reason === 'snackFull' ? st.waffle : null;
         restart(target, 'nudge');
+        if (ev.reason === 'notShaken' && ev.w != null) { const c = lastState && lastState.work[ev.w] && cupById(lastState.work[ev.w].id); if (c) restart(c.el, 'wobble'); }
         break;
       }
       case 'refuse': {
@@ -980,6 +1097,46 @@ export function createShopUI(root, h = {}) {
     teachTimer = setInterval(placeT, 400);
   }
 
+  // ---- station hints (engine 'hint'): the finger shows the new station once, no words, the day keeps running ----
+  let hintTimer = 0;
+  let hintOn = null;
+  function hint(ev, s0) {
+    clearInterval(hintTimer);
+    hintOn = ev || null;
+    if (!ev) { if (!stage.classList.contains('teaching') && !(lastState && lastState.phase === 'guide')) { finger.hidden = true; finger.className = 'finger'; } return; }
+    const placeH = () => {
+      const s = lastState || s0;
+      if (!s || stage.classList.contains('teaching')) return;
+      const firstCup = (pred) => { const w = s.work.findIndex((c) => c && pred(c)); return w >= 0 ? cupById(s.work[w].id)?.el : null; };
+      const seatOf = () => { const i = ev.cust ? s.slots.findIndex((c) => c && c.uid === ev.cust.uid) : -1; return i >= 0 ? { seat: i } : null; };
+      let a = null;
+      let b = null;
+      const id = ev.id;
+      if (id === 'milk' || id === 'foam' || id === 'lemon') a = st[id];
+      else if (id === 'board') a = st.board;
+      else if (id === 'top-taro' || id === 'top-bean') a = st[id];
+      else if (id === 'shake') { a = firstCup((c) => c.tea && !c.shaken && !c.sealed && !c.sealingUntil && !c.shakingUntil); b = st.shaker; if (!a) a = st.shaker; }
+      else if (id === 'snack') { if (s.snack && s.snack.ready > 0) { a = st.snack; b = seatOf(); } else a = st.waffle; }
+      else if (id === 'bag') {
+        if (s.bag && s.bag.cups.length) { a = st.bag; b = seatOf(); }
+        else { const i = s.shelf.findIndex((c) => c && c.sealed); a = i >= 0 ? cupById(s.shelf[i].id)?.el : firstCup((c) => c.sealed); b = st.bag; if (!a) { a = st.bag; b = null; } }
+      }
+      if (!a) { finger.hidden = true; return; }
+      const ra = a.seat != null ? seatHeadRect(a.seat) : rectIn(a);
+      const rb = b ? (b.seat != null ? seatHeadRect(b.seat) : rectIn(b)) : null;
+      finger.hidden = false;
+      finger.style.setProperty('--x0', `${ra.cx}px`);
+      finger.style.setProperty('--y0', `${ra.cy}px`);
+      if (rb && b !== a) {
+        finger.style.setProperty('--x1', `${rb.cx}px`);
+        finger.style.setProperty('--y1', `${b.seat != null ? rb.y + rb.h * 0.9 : rb.cy}px`);
+        finger.className = 'finger drag hint';
+      } else finger.className = 'finger tap hint';
+    };
+    placeH();
+    hintTimer = setInterval(placeH, 400);
+  }
+
   // ---- input ----
   let drag = null;        // { ref, id, x0, y0, moved, el, cup }
   const gestureSeat = new Map(); // pointer id → slot
@@ -1016,9 +1173,11 @@ export function createShopUI(root, h = {}) {
     for (const n of els) {
       if (!n.closest) continue;
       const se = n.closest('.st-sealer');
-      if (se) return { type: 'sealer', k: Number(se.dataset.k) };
+      if (se && ref && ref.w != null) return { type: 'sealer', k: Number(se.dataset.k) };
       if (n.closest('.st-trash')) return { type: 'trash' };
       if (n.closest('.st-shelf') && ref && ref.w != null) return { type: 'shelf' };
+      if (n.closest('.st-shaker') && ref && ref.w != null) return { type: 'shaker' };
+      if (n.closest('.st-bag') && ref && (ref.w != null || ref.shelf != null)) return { type: 'bag' };
       const seat = n.closest('.seat');
       if (seat) return { type: 'seat', slot: Number(seat.dataset.slot) };
     }
@@ -1064,6 +1223,22 @@ export function createShopUI(root, h = {}) {
       rec.down(e.pointerId, e.clientX, e.clientY, performance.now());
       return;
     }
+    // the carry bag (with cups in it) and a ready 雞蛋糕 bag are dragged like a cup (a ghost follows the finger)
+    const carry = e.target.closest('.st-bag.has, .st-snack.has');
+    if (carry) {
+      e.preventDefault();
+      const isBag = carry.classList.contains('st-bag');
+      const ghost = el('div', `carry-ghost ${isBag ? 'g-bag' : 'g-snack'}`, isBag ? carryBagSVG(lastState && lastState.bag ? lastState.bag.cups.length : 1) : snackBagSVG());
+      const r = rectIn(carry);
+      ghost.style.left = `${r.x}px`;
+      ghost.style.top = `${r.y}px`;
+      ghost.style.width = `${isBag ? r.w : r.w * 0.8}px`;
+      ghost.hidden = true;
+      fx.append(ghost);
+      drag = { ref: isBag ? { bag: true } : { snack: true }, id: e.pointerId, x0: p.x, y0: p.y, moved: false, el: ghost, ghost: true, src: carry };
+      try { stage.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
+      return;
+    }
     const s2 = e.target.closest('.st');
     if (s2) {
       const act = s2.dataset.act;
@@ -1074,6 +1249,13 @@ export function createShopUI(root, h = {}) {
       else if (act === 'sugar') call('onSugar');
       else if (act === 'take') call('onTake');
       else if (act === 'cook') call('onCook');
+      else if (act === 'milk') call('onMilk');
+      else if (act === 'foam') call('onFoam');
+      else if (act === 'lemon') call('onLemon');
+      else if (act === 'slice') call('onSlice');
+      else if (act === 'shake') call('onShake');
+      else if (act === 'snack') call('onCookSnack');
+      else if (act === 'bag' || s2.classList.contains('st-snack')) restart(s2, 'nudge');
       return;
     }
     const lk = e.target.closest('.lock-spot');
@@ -1086,7 +1268,7 @@ export function createShopUI(root, h = {}) {
       const p = pt(e);
       const dx = p.x - drag.x0;
       const dy = p.y - drag.y0;
-      if (!drag.moved && Math.hypot(dx, dy) > 8) { drag.moved = true; drag.el.classList.add('dragging'); }
+      if (!drag.moved && Math.hypot(dx, dy) > 8) { drag.moved = true; drag.el.classList.add('dragging'); if (drag.ghost) { drag.el.hidden = false; drag.src.classList.add('lifted'); } }
       if (drag.moved) drag.el.style.transform = `translate(${dx}px, ${dy}px) scale(1.1) rotate(${clamp(dx / 40, -6, 6).toFixed(1)}deg)`;
       return;
     }
@@ -1099,10 +1281,12 @@ export function createShopUI(root, h = {}) {
       const p = pt(e);
       d.el.classList.remove('dragging');
       d.el.style.transform = '';
-      if (!d.moved) { if (d.ref.w != null) call('onSelect', d.ref.w); return; }
+      if (d.ghost) { d.el.remove(); d.src.classList.remove('lifted'); }
+      if (!d.moved) { if (d.ref.w != null) call('onSelect', d.ref.w); else if (d.ghost) restart(d.src, 'nudge'); return; }
       if (cancel) return;
       const tgt = hitTarget(p.x, p.y, d.ref);
       call('onDrop', d.ref, tgt);
+      if (d.ghost) return;
       // a served / trashed cup disappears where it was dropped (no slide back)
       if (tgt.type === 'seat' || tgt.type === 'trash') {
         for (const [, c] of cupEls) if (c.el === d.el) { c.gone = true; d.el.style.transform = `translate(${p.x - d.x0}px, ${p.y - d.y0}px) scale(.7)`; d.el.classList.add('vanish'); }
@@ -1164,11 +1348,15 @@ export function createShopUI(root, h = {}) {
     if (TOP_ORDER.includes(k)) return `<i class="nc tray">${toppingTraySVG(k, 10)}</i>`;
     if (k === 'ice') return `<i class="nc tray">${iceBinSVG()}</i>`;
     if (k === 'sugar') return `<i class="nc syrup">${syrupSVG()}</i>`;
+    if (k === 'milk') return `<i class="nc tank">${milkPumpSVG()}</i>`;
+    if (k === 'foam') return `<i class="nc tank">${foamSVG()}</i>`;
+    if (k === 'shake') return `<i class="nc tank">${shakerSVG('busy')}</i>`;
+    if (k === 'snack') return `<i class="nc tray">${waffleSVG({ ready: 2 })}</i>`;
     const it = { tea: 'black', toppings: ['pearl'], ice: 0, sugar: 0 };
     const it2 = { tea: 'green', toppings: ['pudding'], ice: 0, sugar: 0 };
     if (k === 'two') return `<i class="nc bub">${itemsBubbleSVG({ items: [it, it2] })}</i>`;
     if (k === 'three') return `<i class="nc bub">${itemsBubbleSVG({ items: [it, it2, { tea: 'jade', toppings: [], ice: 1, sugar: 1 }] })}</i>`;
-    if (k === 'big') return `<i class="nc bub">${itemsBubbleSVG({ items: [it, it2, it, it2], big: true })}</i>`;
+    if (k === 'big') return `<i class="nc bub">${def && def.bag ? carryBagSVG(4) : itemsBubbleSVG({ items: [it, it2, it, it2], big: true })}</i>`;
     const o = okeOf(k);
     if (o) return `<i class="nc oke"><span class="nc-head">${customerSVG({ id: o.cid }, 0, k === 'c250' ? { fixed: 'c250' } : {})}</span><span class="nc-bub">${okeBubbleSVG(o.prop)}</span><span class="nc-gest g-${o.best}">${GESTURE[o.best]}</span></i>`;
     return '';
@@ -1194,7 +1382,7 @@ export function createShopUI(root, h = {}) {
       `<div class="rc-bar"><i style="width:${(clamp(sum.earned / sum.goal, 0, 1) * 100).toFixed(1)}%"></i></div>` +
       `<div class="rc-stars">${starRowSVG(sum.stars)}</div><hr><ul>` +
       row(Rw.sales, money(sales)) + row(Rw.tips, money(sum.tips)) + row(Rw.prepay, money(sum.prepay)) +
-      row(Rw.cups, String(sum.sold), 'hot') + row(Rw.served, String(sum.orders)) + row(Rw.wrong, String(sum.wrong)) + row(Rw.walkouts, String(sum.walkouts)) +
+      row(Rw.cups, String(sum.sold), 'hot') + (sum.snacks ? row(Rw.snacks, String(sum.snacks)) : '') + row(Rw.served, String(sum.orders)) + row(Rw.wrong, String(sum.wrong)) + row(Rw.walkouts, String(sum.walkouts)) +
       row(Rw.oke, String(sum.okeCursed + sum.normalCursed), 'hot') + row(Rw.fans, String(sum.fans)) +
       row(Rw.fame, `${fameD >= 0 ? '+' : ''}${fameD}`, 'hot') +
       `</ul><hr><div class="rc-wallet"><span>${esc(T.wallet)}</span><b>${money(wallet)}</b></div>` +
@@ -1213,6 +1401,11 @@ export function createShopUI(root, h = {}) {
       case 'prep': return `<span class="ui-two">${workSlotSVG()}${cupSVG({ tea: 'black', toppings: ['pearl'] })}</span>`;
       case 'shelf': return shelfSVG(lv >= 3 ? 6 : lv >= 2 ? 5 : 4);
       case 'ice': return lv >= 2 ? iceDispenserSVG() : iceBinSVG();
+      case 'milk': return milkPumpSVG({ fast: lv >= 2 });
+      case 'shaker': return shakerSVG(lv >= 2 ? 'busy' : 'idle', { fast: lv >= 2, auto: lv >= 3 });
+      case 'foam': return foamSVG({ fast: lv >= 2 });
+      case 'lemon': return boardSVG({ slicing: lv >= 2 });
+      case 'snack': return waffleSVG({ ready: 2, fast: lv >= 2 });
       case 'menu': return lv >= 3 ? goldenCardSVG() : toppingTraySVG('coconut', 10);
       case 'staff': return helperSVG(Math.max(1, lv - 1));
       case 'ticket': return ticketMachineSVG();
@@ -1326,6 +1519,7 @@ export function createShopUI(root, h = {}) {
     say,
     guide,
     teach,
+    hint,
     startCard, dayCard, receipt, upgradeShop, endCard, pauseSheet, voicePrompt, hideCards,
     setLang(l) {
       lang = l === 'en' ? 'en' : 'zh';

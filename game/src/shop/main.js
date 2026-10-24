@@ -3,10 +3,10 @@
 // mode (../voice.js + ../mic.js, ?input=voice: a shout at a 奧客 = 滾; the microphone is analysed on the device only).
 //
 // URL parameters: ?lang=zh|en  ?day=N (jump to day N, no guide)  ?reset=1 (clear the save)  ?seed=N  ?len=ms (day
-// length, tools)  ?speed=K (game clock ×K, tools)  ?input=voice  ?mute=1  ?teach=0|1 (first-time 奧客 demos; off by default
-// with ?day so tools are not frozen)
+// length, tools)  ?speed=K (game clock ×K, tools)  ?input=voice  ?mute=1  ?teach=0|1 (first-time 奧客 demos and the station
+// hints; off by default with ?day so tools are not frozen)
 // window.__shop (tools): { state, phase, save, where(name), shop }. Keys J / K / L answer the leftmost 奧客 (engine.keyTarget).
-import { createShop, keyTarget } from './engine.js';
+import { createShop, keyTarget, HINT_IDS } from './engine.js';
 import { dayDef, MAX_DAY } from './days.js';
 import { okeLine, normalLine, customerSays, okeOf, OKE } from './oke.js';
 import { loadSave, writeSave, clearSave, afterDay, buyUpgrade, freshSave } from './save.js';
@@ -55,16 +55,35 @@ const ui = createShopUI(document.getElementById('root'), {
   onIce: () => act(() => shop.tapIce()),
   onSugar: () => act(() => shop.tapSugar()),
   onCook: () => act(() => shop.cook()),
+  onMilk: () => act(() => shop.addMilk()),
+  onFoam: () => act(() => shop.addFoam()),
+  onLemon: () => act(() => { const r = shop.addLemon(); return r.ok || r.reason !== 'lemonEmpty' ? r : shop.slice(); }), // an empty tray: slice
+  onSlice: () => act(() => shop.slice()),
+  onShake: () => act(() => shop.shake()),
+  onCookSnack: () => act(() => shop.cookSnack()),
   onSelect: (w) => act(() => shop.select(w)),
   onDrop: (ref, tgt) => act(() => {
+    if (ref.bag) {
+      if (tgt.type === 'seat') return shop.serveBag(tgt.slot);
+      if (tgt.type === 'trash') return shop.trashBag();
+      return null;
+    }
+    if (ref.snack) {
+      if (tgt.type === 'seat') return shop.serveSnack(tgt.slot);
+      if (tgt.type === 'trash') return shop.trashSnack();
+      return null;
+    }
     if (ref.shelf != null) {
       if (tgt.type === 'trash') return shop.trashShelf(ref.shelf);
       if (tgt.type === 'seat') return shop.serveShelf(ref.shelf, tgt.slot);
+      if (tgt.type === 'bag') return shop.pack({ shelf: ref.shelf });
       return null;
     }
     const w = ref.w;
     if (tgt.type === 'sealer') return shop.seal(w);
     if (tgt.type === 'shelf') return shop.seal(w, { toShelf: true });
+    if (tgt.type === 'shaker') return shop.shake(w);
+    if (tgt.type === 'bag') return shop.pack({ w });
     if (tgt.type === 'trash') return shop.trash(w);
     if (tgt.type === 'seat') return shop.serve(w, tgt.slot);
     return null;
@@ -122,7 +141,10 @@ function handle(ev) {
       if (ev.best) audio.sfx('cheer', { delay: 0.25 });
       break;
     }
+    case 'serveBag': audio.sfx('slap', { intensity: 0.5 }); break;
+    case 'serveSnack': if (!ev.done) audio.sfx('ding', { intensity: 0.5 }); break;
     case 'serve':
+      if (ev.bag) break;
       if (!ev.correct) audio.sfx('huh');
       else if (!ev.done) audio.sfx('ding', { intensity: 0.5 });
       if (ev.correct && ev.golden) { const line = content.system.opening && content.system.opening.r4b; if (line) { ui.say(line, 'clerk', 'take'); audio.playClerk(line, {}); } }
@@ -146,6 +168,18 @@ function handle(ev) {
     case 'sealed': audio.sfx('slap', { intensity: 0.45 }); break;
     case 'trash': audio.sfx('scratch'); break;
     case 'cookStart': audio.sfx('tick'); break;
+    case 'milk': audio.sfx('whoosh', { duration: 0.4, intensity: 0.2 }); break;
+    case 'foam': audio.sfx('whoosh', { duration: 0.5, intensity: 0.18 }); break;
+    case 'lemon': audio.sfx('pop'); break;
+    case 'sliceStart': audio.sfx('scratch', { intensity: 0.5 }); break;
+    case 'sliced': audio.sfx('ding', { intensity: 0.35 }); break;
+    case 'shakeStart': audio.sfx('scratch', { intensity: 0.35 }); break;
+    case 'shaken': audio.sfx('tap', { intensity: 0.6 }); break;
+    case 'snackStart': audio.sfx('press'); break;
+    case 'snackReady': audio.sfx('bell'); break;
+    case 'pack': audio.sfx('tap', { intensity: 0.55 }); break;
+    case 'hint': ui.hint(ev, s); break;
+    case 'hintDone': ui.hint(null); if (ev.why !== 'gone' && ev.why !== 'close') { save = { ...save, hinted: [...new Set([...(save.hinted || []), ev.id])] }; writeSave(store, save); } break;
     case 'cooked': audio.sfx('bell'); break;
     case 'potEmpty': audio.sfx('tick', { intensity: 0.6 }); break;
     case 'nope': audio.sfx('tap', { intensity: 0.25 }); break;
@@ -190,7 +224,9 @@ function beginDay(n) {
   const guide = n === 1 && !save.guideDone;
   const taught = new Set([...(save.taught || []), ...(guide ? ['one'] : [])]); // the day 1 guide teaches 一杯就好 itself
   const teach = teachOn ? OKE.map((o) => o.type).filter((t) => !taught.has(t)) : [];
-  shop = createShop({ day: n, fame: save.fame, upgrades: save.upgrades, seed, guide, teach, def });
+  const hinted = new Set(save.hinted || []);
+  const hints = teachOn ? HINT_IDS.filter((h) => !hinted.has(h)) : [];
+  shop = createShop({ day: n, fame: save.fame, upgrades: save.upgrades, seed, guide, teach, hints, def });
   ui.build(shop);
   ui.render(shop.state);
   phase = 'card';
@@ -207,6 +243,7 @@ function onClose(sum) {
   phase = 'closing';
   ui.guide(null);
   ui.teach(null);
+  ui.hint(null);
   const line = pick(content.system.closing);
   ui.say(line, 'clerk', 'take');
   audio.playClerk(line, {});

@@ -28,17 +28,19 @@ function wellFormed(s) {
 
 const cups = [];
 for (const tea of [null, ...TEA_KINDS]) {
-  for (const toppings of [[], ['pearl'], ['coconut', 'grass'], ['pearl', 'pudding', 'grass'], ['grass', 'coconut', 'pearl', 'pudding']]) {
+  for (const toppings of [[], ['pearl'], ['coconut', 'grass'], ['pearl', 'pudding', 'grass'], ['taro', 'bean'], ['grass', 'coconut', 'pearl', 'pudding']]) {
     for (const ice of [0, 1, 2]) for (const sugar of [0, 2]) for (const sealed of [false, true]) cups.push({ tea, toppings, ice, sugar, sealed });
+    for (const extra of [{ milk: true }, { foam: true }, { lemon: true }, { shaken: true }, { milk: true, foam: true, shaken: true, lemon: true }]) cups.push({ tea, toppings, ice: 1, sugar: 1, ...extra });
   }
 }
 
-test('cupSVG: every combination is well formed, 1:1.6, ≤ 60 nodes, deterministic', () => {
+test('cupSVG: every combination is well formed, 1:1.5 (three-quarter view), ≤ 60 nodes, deterministic', () => {
   let max = 0;
   for (const c of cups) {
     const s = cupSVG(c);
     wellFormed(s);
-    assert.match(s, /viewBox="0 0 100 160"/);
+    assert.match(s, /viewBox="0 0 100 150"/);
+    assert.match(s, /url\(#gkGlass\)/, 'clear plastic shading');
     max = Math.max(max, nodes(s));
     assert.equal(s, cupSVG(c));
   }
@@ -55,6 +57,12 @@ test('cupSVG: tea colours, toppings, lid show up', () => {
   assert.notEqual(cupSVG({ tea: 'black', ice: 0 }), cupSVG({ tea: 'black', ice: 2 }));
   assert.notEqual(cupSVG({ tea: 'black', sugar: 0 }), cupSVG({ tea: 'black', sugar: 1 }));
   assert.notEqual(cupSVG({ tea: 'black', toppings: ['pearl', 'coconut'] }), cupSVG({ tea: 'black', toppings: ['coconut', 'pearl'] }));
+  // the 10.9 specs show on the cup: milk tea colour, the foam cap, the lemon wheel, froth after shaking
+  assert.ok(cupSVG({ tea: 'black', milk: true }).includes(TEA_COLORS.black.milk));
+  assert.notEqual(cupSVG({ tea: 'black', foam: true }), cupSVG({ tea: 'black' }));
+  assert.notEqual(cupSVG({ tea: 'jade', lemon: true }), cupSVG({ tea: 'jade' }));
+  assert.notEqual(cupSVG({ tea: 'green', shaken: true }), cupSVG({ tea: 'green' }));
+  assert.notEqual(cupSVG({ tea: 'green', toppings: ['taro'] }), cupSVG({ tea: 'green', toppings: ['bean'] }));
   // at most three scoops are drawn
   assert.equal(cupSVG({ toppings: ['pearl', 'pearl', 'pearl', 'pudding'] }), cupSVG({ toppings: ['pearl', 'pearl', 'pearl'] }));
 });
@@ -73,7 +81,7 @@ test('stations: well formed, ≤ 40 nodes, Traditional labels', () => {
     assert.ok(nodes(s) <= 40, `${s.slice(0, 50)}: ${nodes(s)} nodes`);
   }
   for (const [k, name] of [['black', '紅茶'], ['green', '綠茶'], ['jade', '翡翠檸檬']]) assert.ok(teaTankSVG(k).includes(name), name);
-  for (const [k, name] of [['pearl', '珍珠'], ['coconut', '椰果'], ['pudding', '布丁'], ['grass', '仙草']]) assert.ok(toppingTraySVG(k).includes(name), name);
+  for (const [k, name] of [['pearl', '珍珠'], ['coconut', '椰果'], ['pudding', '布丁'], ['grass', '仙草'], ['taro', '芋圓'], ['bean', '紅豆']]) assert.ok(toppingTraySVG(k).includes(name), name);
   assert.ok(syrupSVG().includes('果糖'));
   assert.match(sealerSVG('busy'), /data-state="busy"/);
   assert.match(sealerSVG(), /data-state="idle"/);
@@ -106,4 +114,32 @@ test('patience ring colour runs green → yellow → red', () => {
 
 test('version export', () => {
   assert.equal(typeof ART_SHOP_VERSION, 'number');
+});
+
+test('depth kit: one shared defs block (no filters), every prop shaded with it and given a soft contact shadow', async () => {
+  const { SHOP_DEFS, G } = await import('../src/shop/art-kit.js');
+  assert.ok(!/filter|blur|<image|href=/i.test(SHOP_DEFS));
+  for (const ref of Object.values(G)) assert.ok(SHOP_DEFS.includes(`id="${ref.slice(5, -1)}"`), ref);
+  for (const s of [teaTankSVG('black'), toppingTraySVG('pearl'), syrupSVG(), sealerSVG(), potSVG(), cupRackSVG(), trashSVG(), workSlotSVG(), cupSVG({ tea: 'black' })]) {
+    assert.match(s, /url\(#gkAO\)/, 'a soft radial contact shadow');
+    assert.match(s, /url\(#gk(Cyl|CylSoft|Steel|SteelTop|Top|Front|Glass|Inner|Liquid|Box|Chrome)\)/, 'body shading');
+  }
+});
+
+test('bar stations and table dressing (art-bar.js): well formed, pictures only, states change the art', async () => {
+  const bar = await import('../src/shop/art-bar.js');
+  const all = [bar.milkPumpSVG(), bar.milkPumpSVG({ fast: true }), bar.foamSVG(), bar.foamSVG({ fast: true }), bar.shakerSVG(), bar.shakerSVG('busy', { fast: true, auto: true }),
+    bar.boardSVG(), bar.boardSVG({ slicing: true }), bar.waffleSVG(), bar.waffleSVG({ cookingPct: 0.4 }), bar.waffleSVG({ ready: 3, fast: true }), bar.snackBagSVG(),
+    ...[0, 1, 2, 3].map((n) => bar.snackSpotSVG(n)), ...[0, 1, 4].map((n) => bar.carryBagSVG(n)), bar.fridgeSVG(), bar.lightBoxSVG(), bar.fanSVG(), bar.registerSVG(),
+    bar.cashTraySVG(), bar.tipJarSVG(), bar.towerStandSVG()];
+  for (const s of all) {
+    wellFormed(s);
+    assert.ok(!/\p{Script=Han}/u.test(s), 'no words on the bar art');
+    assert.ok(nodes(s) <= 70, `${s.slice(0, 40)}: ${nodes(s)} nodes`);
+  }
+  assert.match(bar.shakerSVG('busy'), /data-state="busy"/);
+  assert.match(bar.waffleSVG({ cookingPct: 0.5 }), /as-waffle-timer/);
+  assert.ok(!bar.waffleSVG({ ready: 2 }).includes('as-waffle-timer'));
+  assert.match(bar.carryBagSVG(3), /data-n="3"/);
+  assert.notEqual(bar.boardSVG(), bar.boardSVG({ slicing: true }));
 });

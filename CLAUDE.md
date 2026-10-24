@@ -15,7 +15,7 @@ docs/
   game-design.md        Full game design document (Simplified Chinese) — source of truth for rules
   gameplay-v3-shop.md   Gameplay v3 (current direction): Shawarma Legend-style drink-making shop + 奧客 to curse away;
                         section 10 = the landscape version (customers walk in from afar, cursing brings crowds, more cups;
-                        10.6 numbers, 10.7 the station upgrade tree); written in Traditional
+                        10.6 numbers, 10.7 the station upgrade tree, 10.8 first-time 奧客 demos); written in Traditional
   gameplay-v2.md        Gameplay v2 (2026-10-05 expert panel): feel, rage rework, 7 daily rules, meta; wins over
                         first-minute-spec.md 4.2/7 and game-design.md on gameplay (the day 1 opening script stays);
                         stage 1 (jab/next, speed multiplier, rage rework, forced politeness) and stage 2 (preview + fast
@@ -91,7 +91,7 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         Taiwan Traditional at the source
   src/main.js           Wires everything together (start → opening → days)
   shop.html, shop.css   Gameplay v3 landscape page (tokens / fonts copied from style.css + the layout); URL params ?lang ?day=N
-                        ?reset=1 ?seed ?len=ms ?speed ?input=voice ?mute=1
+                        ?reset=1 ?seed ?len=ms ?speed ?input=voice ?mute=1 ?teach=0|1
   test/*.test.mjs       node:test unit tests (engine, days, opening, art, huazi, audio, ui, integration, events, stage2, gesture,
                         voice, art-shop, shop-engine, shop-data, shop-layout)
   tools/                Playwright smoke/QA scripts, the day 1 pace measurement and the 4-bot balance harness (bots.mjs);
@@ -139,7 +139,9 @@ Run from `game/`:
   "play anyway", voice mode with a fake microphone, 16:9 frame bounds, no Simplified, no console errors
   (`tools/shots/shop-*.png` or `--out=dir`): `node tools/check-shop.mjs`; art-review screenshots of a busy day driven
   through `window.__shop` (`--day=N --w --h --up=ids --t=ms`, `tools/shots/shop-look-*.png`): `node tools/shot-shop.mjs`;
-  v3 balance sim (no browser; rookie / new / normal / expert players through days 1–5 with upgrades; `--curse` compares
+  first-time 奧客 demos (the day freezes on a new pest, spotlight + a finger demo of its best gesture; the 250-cup customer
+  taught with a hold and stamped by a real press-and-hold; not frozen again once taught; day card gesture badges;
+  `tools/shots/teach-*.png` or `--out=dir`): `node tools/check-teach.mjs`; v3 balance sim (no browser; rookie / new / normal / expert players through days 1–5 with upgrades; `--curse` compares
   cursing styles; numbers in `docs/gameplay-v3-shop.md` 9 and 10.6): `node tools/shop-sim.mjs [--seeds=20] [--curse]`. All take the base URL as an argument. These use the globally installed Playwright
   and the preinstalled Chromium; do not run `playwright install`. Stop the server with
   `pkill -f "m http.server 876[5]"` (the bracket keeps pkill from matching its own shell).

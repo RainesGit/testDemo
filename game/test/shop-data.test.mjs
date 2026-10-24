@@ -157,3 +157,12 @@ test('balance sim: a first-time player makes day 1 comfortably; day 3 is busier;
   const bought = career.map((d) => d.bought.length);
   assert.ok(bought.reduce((a, b) => a + b, 0) >= 5 && bought.reduce((a, b) => a + b, 0) <= 14, `upgrades per day ${bought}`);
 });
+
+test('save: the taught 奧客 list survives a round trip and junk is dropped', async () => {
+  const { loadSave, writeSave, freshSave } = await import('../src/shop/save.js');
+  const mem = new Map();
+  const store = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  assert.deepEqual(freshSave().taught, []);
+  writeSave(store, { ...freshSave(), taught: ['c250', 'one', 'c250', 3, null] });
+  assert.deepEqual(loadSave(store).taught, ['c250', 'one']);
+});

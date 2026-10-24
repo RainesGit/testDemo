@@ -9,7 +9,9 @@
 // patience starts). Rendering maps u to the screen (layout.js) and interpolates the step.
 //   customer.phase: 'walk' → 'queued' → 'step' → 'counter'; customer.u, spawnT, queuedT, counterT
 //
-//   createShop({ day, fame, upgrades, seed, guide }) → shop
+//   createShop({ day, fame, upgrades, seed, guide, teach }) → shop
+//     teach            奧客 types to teach on their first time at the counter (the player has never answered one):
+//                      the day freezes (s.teach) with a finger demo of the best gesture until that customer is answered
 //     state            the live state (read-only by convention): see the object `s` below
 //     tick(dt)         advance dt ms: timers (pour, sealers, pearl pot, helper), walking, arrivals, patience, the day's end
 //     takeCup()                       a new empty cup on the first free work slot (it becomes the selected cup)
@@ -91,13 +93,14 @@ export function keyTarget(state) {
   return oke >= 0 ? oke : slots.findIndex(Boolean);
 }
 
-export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide = false, def: defIn } = {}) {
+export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide = false, teach = [], def: defIn } = {}) {
   const def = defIn || dayDef(day);
   const cfg = applyUpgrades(upgrades);
   const rnd = mulberry32(fnv1a(`shop:${def.n}:${seed}`));
   const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
   const range = ([a, b]) => a + Math.floor(rnd() * (b - a + 1));
   let uid = 0;
+  const toTeach = new Set(teach);
   let cupId = 0;
   const events = [];
   const emit = (type, data = {}) => { events.push({ type, t: s.t, ...data }); };
@@ -122,6 +125,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     nextArrival: 300,
     scriptDone: [],
     okeSeen: [],
+    teach: null,   // { uid, slot, oke, key }: the day is frozen on a first-time 奧客 until it is answered
     guide: guide ? { step: 0, custUid: null, custSeated: false, okeAt: 0, okeUid: null } : null,
     stats: { served: 0, correct: 0, wrong: 0, walkouts: 0, refused: 0, trashed: 0, prepay: 0, orders: 0, bigOrders: 0,
       golden: 0, helperCups: 0, oke: { gun: 0, shut: 0, take: 0 }, okeBest: 0, normalCursed: 0, fans: 0, maxQueue: 0, spawned: 0 },
@@ -260,6 +264,11 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     if (c.kind === 'oke') c.nagAt = s.t + NAG_MS;
     if (s.guide && c.uid === s.guide.custUid) s.guide.custSeated = true;
     emit('arrive', { slot: i, cust: c });
+    if (c.kind === 'oke' && toTeach.has(c.oke) && !s.teach && s.phase === 'open') {
+      toTeach.delete(c.oke);
+      s.teach = { uid: c.uid, slot: i, oke: c.oke, key: okeOf(c.oke).best };
+      emit('teach', { ...s.teach, cust: c });
+    }
   }
   function leave(i, reason, extra = {}) {
     const c = s.slots[i];
@@ -548,6 +557,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
       }
       const fans = addFans(range(best ? FANS.best : FANS.oke) + also.length);
       emit('answer', { slot, key, best, oke: c.oke, cid: c.cid, fame: fameD, prepay, also, cust: c, fans });
+      if (s.teach && s.teach.uid === c.uid) { emit('teachDone', { oke: c.oke, key, best }); s.teach = null; }
       guideCheck(c.uid);
       return { ok: true, best, fame: fameD, prepay, oke: c.oke, fans };
     }
@@ -615,6 +625,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
 
   function tick(dt) {
     if (s.phase === 'closed' || !(dt > 0)) return;
+    if (s.teach) return; // frozen on a first-time 奧客 until the player answers it
     s.t += dt;
     for (let w = 0; w < s.work.length; w++) {
       const cup = s.work[w];
@@ -695,7 +706,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     get cfg() { return cfg; },
     tick, takeCup, select, addTea, addTopping, tapIce, tapSugar, seal, serve, serveShelf, trash, trashShelf, cook: () => cook(false), answer, summary,
     /** Shut the shop now (pause sheet "close up", tests). */
-    close() { if (s.phase !== 'closed') closeDay(); },
+    close() { s.teach = null; if (s.phase !== 'closed') closeDay(); },
     drain() { return events.splice(0, events.length); },
     /** The cup the stations act on right now (null = none). */
     get target() { return target(); },

@@ -3,11 +3,12 @@
 // mode (../voice.js + ../mic.js, ?input=voice: a shout at a 奧客 = 滾; the microphone is analysed on the device only).
 //
 // URL parameters: ?lang=zh|en  ?day=N (jump to day N, no guide)  ?reset=1 (clear the save)  ?seed=N  ?len=ms (day
-// length, tools)  ?speed=K (game clock ×K, tools)  ?input=voice  ?mute=1
+// length, tools)  ?speed=K (game clock ×K, tools)  ?input=voice  ?mute=1  ?teach=0|1 (first-time 奧客 demos; off by default
+// with ?day so tools are not frozen)
 // window.__shop (tools): { state, phase, save, where(name), shop }. Keys J / K / L answer the leftmost 奧客 (engine.keyTarget).
 import { createShop, keyTarget } from './engine.js';
 import { dayDef, MAX_DAY } from './days.js';
-import { okeLine, normalLine, customerSays, okeOf } from './oke.js';
+import { okeLine, normalLine, customerSays, okeOf, OKE } from './oke.js';
 import { loadSave, writeSave, clearSave, afterDay, buyUpgrade, freshSave } from './save.js';
 import { createShopUI } from './ui.js';
 import { getContent } from '../content.js';
@@ -27,6 +28,8 @@ const nav = (navigator.languages && navigator.languages[0]) || navigator.languag
 let lang = params.get('lang') === 'en' || params.get('lang') === 'zh' ? params.get('lang') : (/^zh/i.test(nav) ? 'zh' : 'en');
 let content = getContent(lang);
 const voiceMode = params.get('input') === 'voice';
+// first-time 奧客 demos (the day freezes on a new pest until the player answers it with its gesture)
+const teachOn = params.get('teach') ? params.get('teach') !== '0' : !params.get('day');
 const lenOverride = Number(params.get('len')) || 0;
 const speed = Math.max(0.1, Number(params.get('speed')) || 1);
 let seed = Number(params.get('seed')) || (Date.now() % 100000);
@@ -67,16 +70,17 @@ const ui = createShopUI(document.getElementById('root'), {
     return null;
   }),
   // keyboard J / K / L = 滾 / 閉嘴 / 收 on the leftmost unanswered 奧客 at the counter (else the leftmost customer)
-  onKey: (key) => act(() => { const slot = keyTarget(shop.state); return slot >= 0 ? shop.answer(slot, key) : null; }),
-  onAnswer: (slot, key) => act(() => shop.answer(slot, key)),
+  onKey: (key) => act(() => { const slot = shop.state.teach ? shop.state.teach.slot : keyTarget(shop.state); return slot >= 0 ? shop.answer(slot, key) : null; }, true),
+  onAnswer: (slot, key) => act(() => shop.answer(slot, key), true),
   onPause: () => pause(),
   onToggleLang: () => { setLang(lang === 'zh' ? 'en' : 'zh'); showStart(); },
   onFirstInput: () => audio.unlock(),
 });
 ui.setLang(lang);
 
-function act(fn) {
+function act(fn, answering = false) {
   if (!shop || phase !== 'play') return;
+  if (shop.state.teach && !answering) return; // while a new 奧客 is being taught, only answering it does anything
   fn();
   pump();
 }
@@ -147,7 +151,9 @@ function handle(ev) {
     case 'nope': audio.sfx('tap', { intensity: 0.25 }); break;
     case 'star': audio.sfx('milestone'); audio.sfx('cheer', { delay: 0.2 }); break;
     case 'guide': ui.guide(ev.step, s); break;
-    case 'guideDone': ui.guide(null); save = { ...save, guideDone: true }; writeSave(store, save); break;
+    case 'guideDone': ui.guide(null); save = { ...save, guideDone: true, taught: [...new Set([...(save.taught || []), 'one'])] }; writeSave(store, save); break;
+    case 'teach': ui.teach(ev); audio.sfx('dingdong'); break;
+    case 'teachDone': ui.teach(null); save = { ...save, taught: [...new Set([...(save.taught || []), ev.oke])] }; writeSave(store, save); break;
     case 'close': onClose(ev.summary); break;
     default: break;
   }
@@ -181,7 +187,10 @@ function beginDay(n) {
     def.script = (def.script || []).map((x) => ({ ...x, at: Math.min(x.at, Math.max(2000, x.at * k)) }));
   }
   seed += 1;
-  shop = createShop({ day: n, fame: save.fame, upgrades: save.upgrades, seed, guide: n === 1 && !save.guideDone, def });
+  const guide = n === 1 && !save.guideDone;
+  const taught = new Set([...(save.taught || []), ...(guide ? ['one'] : [])]); // the day 1 guide teaches 一杯就好 itself
+  const teach = teachOn ? OKE.map((o) => o.type).filter((t) => !taught.has(t)) : [];
+  shop = createShop({ day: n, fame: save.fame, upgrades: save.upgrades, seed, guide, teach, def });
   ui.build(shop);
   ui.render(shop.state);
   phase = 'card';
@@ -197,6 +206,7 @@ function beginDay(n) {
 function onClose(sum) {
   phase = 'closing';
   ui.guide(null);
+  ui.teach(null);
   const line = pick(content.system.closing);
   ui.say(line, 'clerk', 'take');
   audio.playClerk(line, {});

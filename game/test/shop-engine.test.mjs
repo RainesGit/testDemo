@@ -444,3 +444,35 @@ test('deterministic with the same seed', () => {
   assert.deepEqual(a.state.slots.map((c) => c && c.order), b.state.slots.map((c) => c && c.order));
   assert.deepEqual(a.state.queue.map((c) => c.u), b.state.queue.map((c) => c.u));
 });
+
+test('teach: a first-time 奧客 freezes the day with its best gesture until it is answered; then it is never taught again', () => {
+  const shop = createShop({ day: 1, seed: 3, teach: ['c250'] });
+  const s = untilSeated(shop, (c) => c.oke === 'c250', 150000);
+  assert.ok(s >= 0);
+  const ev = shop.drain().find((e) => e.type === 'teach');
+  assert.ok(ev, 'a teach event');
+  assert.equal(ev.key, 'take', 'the 250-cup customer is taught with 收 (hold)');
+  assert.equal(ev.slot, s);
+  const clock = shop.state.clock;
+  run(shop, 5000);
+  assert.equal(shop.state.clock, clock, 'the day is frozen while teaching');
+  assert.ok(shop.state.teach);
+  const r = shop.answer(s, 'take');
+  assert.ok(r.ok && r.best && r.prepay > 0);
+  assert.ok(shop.drain().some((e) => e.type === 'teachDone' && e.oke === 'c250'));
+  assert.equal(shop.state.teach, null);
+  run(shop, 1000);
+  assert.ok(shop.state.clock > clock, 'the day runs again');
+});
+
+test('teach: types not in the list are never frozen on; any answer ends the demo', () => {
+  const plain = createShop({ day: 1, seed: 3 });
+  assert.ok(untilSeated(plain, (c) => c.oke === 'c250', 150000) >= 0);
+  assert.ok(!plain.drain().some((e) => e.type === 'teach'));
+  assert.equal(plain.state.teach, null);
+  const shop = createShop({ day: 1, seed: 3, teach: ['c250'] });
+  const s = untilSeated(shop, (c) => c.oke === 'c250', 150000);
+  assert.ok(shop.state.teach);
+  assert.ok(shop.answer(s, 'gun').ok);
+  assert.equal(shop.state.teach, null, 'a swipe also ends it (no wrong answers)');
+});

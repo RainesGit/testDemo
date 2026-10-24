@@ -24,9 +24,11 @@ const PROPS = {
   // 一杯就好: one tiny cup, a raised index finger
   one: `<path fill="#DDEFF7" stroke="${INK}" stroke-width="2.4" d="M28 30 H46 L43 66 H31 Z"/><path fill="#C8915C" d="M29.4 42 H44.6 L43 66 H31 Z"/>` +
     `<text x="78" y="64" ${NUM} font-size="46" text-anchor="middle" fill="${INK}">1</text>`,
-  // 250 杯客: the gold number
-  c250: `<text x="60" y="60" ${NUM} font-size="42" text-anchor="middle" fill="${TAKE}" stroke="${INK}" stroke-width="3" paint-order="stroke">250</text>` +
-    `<path fill="none" stroke="${INK}" stroke-width="2" d="M24 68 H96"/>`,
+  // 250 杯客: a number ticket "250" with a red round stamp on it (the answer is to stamp it: 收)
+  c250: `<path fill="${INK}" fill-opacity=".2" d="M22 26 H90 V76 H22 Z" transform="translate(3 3) rotate(-6 56 51)"/>` +
+    `<g transform="rotate(-6 56 51)"><path fill="${PAPER}" stroke="${INK}" stroke-width="2.6" d="M22 26 H90 V76 H22 Z"/><path fill="${TAKE}" d="M22 26 H90 V36 H22 Z"/>` +
+    `<path fill="none" stroke="${INK}" stroke-width="2.6" d="M22 36 H90"/><text x="56" y="68" ${NUM} font-size="30" text-anchor="middle" fill="${INK}">250</text></g>` +
+    `<circle cx="92" cy="70" r="15" fill="${GUN}" fill-opacity=".9" stroke="${INK}" stroke-width="2.4"/><circle cx="92" cy="70" r="10" fill="none" stroke="${PAPER}" stroke-width="2" stroke-dasharray="3 2"/>`,
   // 試喝: a cup and a sticking-out tongue
   taste: `<path fill="#DDEFF7" stroke="${INK}" stroke-width="2.4" d="M22 24 H48 L44 70 H26 Z"/><path fill="#C8915C" d="M23.6 36 H46.4 L44 70 H26 Z"/>` +
     `<path fill="${INK}" d="M64 36 Q82 30 98 36 Q96 46 81 48 Q66 46 64 36 Z"/><path fill="${PINK}" stroke="${INK}" stroke-width="2.2" d="M72 44 Q81 46 90 44 Q92 64 81 66 Q70 64 72 44 Z"/><path fill="none" stroke="${INK}" stroke-width="1.6" d="M81 48 V60"/>`,

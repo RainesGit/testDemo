@@ -2,7 +2,7 @@
 // blocked storage and previews must still play, just without a save). Pure apart from the storage object passed in.
 //
 //   SAVE_KEY = '250cups.shop.v1'
-//   freshSave() → { v, day, wallet, fame, upgrades, best, guideDone }
+//   freshSave() → { v, day, wallet, fame, upgrades, best, guideDone, taught }   taught: 奧客 types already taught
 //   loadSave(storage) → save (fresh when missing / broken)
 //   writeSave(storage, save) → bool
 //   clearSave(storage)
@@ -14,7 +14,7 @@ import { UPGRADES, UPGRADE_IDS, OLD_IDS, canBuy } from './upgrades.js';
 export const SAVE_KEY = '250cups.shop.v1';
 
 export function freshSave() {
-  return { v: 1, day: 1, wallet: 0, fame: 0, upgrades: [], best: {}, guideDone: false };
+  return { v: 1, day: 1, wallet: 0, fame: 0, upgrades: [], best: {}, guideDone: false, taught: [] };
 }
 
 /** Old ids (the first version's flat list) → their closest tree level; unknown ids dropped; no duplicates. */
@@ -40,6 +40,7 @@ function sane(x) {
     upgrades: migrateUpgrades(x.upgrades),
     best: x.best && typeof x.best === 'object' ? { ...x.best } : {},
     guideDone: !!x.guideDone,
+    taught: Array.isArray(x.taught) ? [...new Set(x.taught.filter((t) => typeof t === 'string'))] : [],
   };
 }
 

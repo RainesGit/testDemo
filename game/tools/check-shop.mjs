@@ -1,4 +1,5 @@
 // check-shop.mjs — gameplay v3 landscape shop page (shop.html) with real pointer input in Chromium (Playwright).
+// (first-time 奧客 demos are off here, ?teach=0: tools/check-teach.mjs covers them)
 //   844x390 (a phone in landscape; the full run):
 //     1. the day 1 hands-on guide by doing what the finger shows (tap the cup rack → tea → pearls → drag to the sealer →
 //        the sealed cup lands on the shelf → drag it to the customer → swipe the 奧客)
@@ -292,7 +293,7 @@ async function playDay(page, flags, { untilCorrect = Infinity, untilMulti = fals
 {
   const tag = '844';
   const { context, page } = await newPage(844, 390, tag);
-  await page.goto(`${base}/shop.html?reset=1&seed=7&lang=zh&mute=1&len=95000`);
+  await page.goto(`${base}/shop.html?teach=0&reset=1&seed=7&lang=zh&mute=1&len=95000`);
   await page.waitForSelector('.start-card .go');
   await shot(page, `${tag}-start`);
   await frameCheck(page, `${tag} start`);
@@ -356,7 +357,7 @@ async function playDay(page, flags, { untilCorrect = Infinity, untilMulti = fals
 for (const day of [3, 4, 5]) {
   const tag = `844-d${day}`;
   const { context, page } = await newPage(844, 390, tag);
-  await page.goto(`${base}/shop.html?reset=1&day=${day}&seed=${day}&lang=zh&mute=1`);
+  await page.goto(`${base}/shop.html?teach=0&reset=1&day=${day}&seed=${day}&lang=zh&mute=1`);
   await page.waitForSelector('.start-card .go');
   await clickSel(page, '.start-card .go');
   await page.waitForSelector('.day-card .go');
@@ -386,7 +387,7 @@ for (const day of [3, 4, 5]) {
 {
   const tag = '640';
   const { context, page } = await newPage(640, 360, tag);
-  await page.goto(`${base}/shop.html?reset=1&seed=11&mute=1&len=60000`);
+  await page.goto(`${base}/shop.html?teach=0&reset=1&seed=11&mute=1&len=60000`);
   await page.waitForSelector('.start-card .go');
   await shot(page, `${tag}-start`);
   await frameCheck(page, `${tag} start`);
@@ -406,7 +407,7 @@ for (const day of [3, 4, 5]) {
   const tag = '1280';
   const save = { v: 1, day: 2, wallet: 30000, fame: 320, upgrades: [], best: {}, guideDone: true };
   const { context, page } = await newPage(1280, 720, tag, { save });
-  await page.goto(`${base}/shop.html?seed=5&lang=zh&mute=1`);
+  await page.goto(`${base}/shop.html?teach=0&seed=5&lang=zh&mute=1`);
   await clickSel(page, '.start-card .go');
   await clickSel(page, '.day-card .go');
   await sleep(4000);
@@ -461,7 +462,7 @@ for (const day of [3, 4, 5]) {
 {
   const tag = '390p';
   const { context, page } = await newPage(390, 844, tag);
-  await page.goto(`${base}/shop.html?reset=1&seed=3&lang=zh&mute=1`);
+  await page.goto(`${base}/shop.html?teach=0&reset=1&seed=3&lang=zh&mute=1`);
   await page.waitForSelector('.rotate:not([hidden]) .rot-go');
   await shot(page, `${tag}-rotate`);
   const txt = await page.evaluate(() => document.querySelector('.rotate').textContent);
@@ -493,7 +494,7 @@ await browser.close();
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`voice pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`voice console: ${m.text()}`); });
-  await page.goto(`${base}/shop.html?reset=1&seed=7&lang=zh&input=voice`);
+  await page.goto(`${base}/shop.html?teach=0&reset=1&seed=7&lang=zh&input=voice`);
   await clickSel(page, '.start-card .go');
   await page.waitForSelector('.voice-card .allow');
   await shot(page, 'voice-card');

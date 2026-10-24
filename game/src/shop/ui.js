@@ -18,6 +18,7 @@
 //     ui.onEvent(ev, ctx)       visuals of one engine event
 //     ui.say(text, who, key)    a subtitle on the counter lip (clerk lines get the '|' punch half big in the key colour)
 //     ui.guide(step, state)     the finger demo for a guide step (null hides it)
+//     ui.teach(ev | null)       a first-time 奧客: spotlight on it + a finger demo of its best gesture (hold / swipe / 3 taps)
 //     ui.dayCard / receipt / upgradeShop / startCard / pauseSheet / voicePrompt / endCard  (cards; resolve via callbacks)
 //     ui.where(name)            viewport centre of a part (tools): 'rack' | 'tea-<k>' | 'top-<k>' | 'sealer' | 'sealer-1' |
 //                               'shelfArea' | 'trash' | 'pot' | 'ice' | 'sugar' | 'cup-<w>' | 'shelf-<i>' | 'seat-<i>'
@@ -64,6 +65,13 @@ const ICON = {
   mic: '<svg viewBox="0 0 60 90" aria-hidden="true"><rect x="16" y="4" width="28" height="50" rx="14" fill="#BCC3CE" stroke="#1B1311" stroke-width="4"/><path d="M22 18 H38 M22 28 H38 M22 38 H38" stroke="#737C8C" stroke-width="3" stroke-linecap="round"/><path d="M8 40 Q8 66 30 66 Q52 66 52 40" fill="none" stroke="#1B1311" stroke-width="4" stroke-linecap="round"/><path d="M30 66 V82 M18 84 H42" stroke="#1B1311" stroke-width="4" stroke-linecap="round"/><path d="M20 10 Q19 20 20 30" stroke="#F2F4F7" stroke-width="3" stroke-linecap="round" fill="none"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 L10 17 L19 7" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   arrow: '<svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 8 H18 M13 3 L19 8 L13 13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+// the three answer gestures as pictures (day card badges): swipe = 滾, three taps = 閉嘴, hold = 收
+const GESTURE = {
+  gun: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 26 Q18 12 32 10" fill="none" stroke="#FFF7E6" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="2 5"/><path d="M26 5 L34 9 L28 16" fill="none" stroke="#FFF7E6" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="28" r="5" fill="#FFF7E6"/></svg>',
+  shut: '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="5" fill="#FFF7E6"/><circle cx="20" cy="20" r="10" fill="none" stroke="#FFF7E6" stroke-width="2.4" opacity=".75"/><circle cx="20" cy="20" r="15.5" fill="none" stroke="#FFF7E6" stroke-width="2.2" opacity=".45"/></svg>',
+  take: '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="none" stroke="rgb(255 247 230 / .3)" stroke-width="4"/><path d="M20 6 A14 14 0 1 1 6.7 24.3" fill="none" stroke="#FFD84A" stroke-width="4" stroke-linecap="round"/><circle cx="20" cy="20" r="6" fill="#FFF7E6"/></svg>',
 };
 
 function el(tag, cls, html) {
@@ -115,6 +123,8 @@ export function createShopUI(root, h = {}) {
   const subs = el('div', 'subs');
   const finger = el('div', 'finger', FINGER_SVG);
   finger.hidden = true;
+  const spot = el('div', 'spot');
+  spot.hidden = true;
   const hud = el('div', 'hud');
   hud.innerHTML = `<button class="hud-pause" aria-label="pause"><i></i><i></i></button>` +
     `<div class="hud-day">${ICON.cal}<b class="hud-dayn">1</b></div>` +
@@ -122,7 +132,7 @@ export function createShopUI(root, h = {}) {
     `<div class="hud-timer">${ICON.clock}<b class="ht-num"></b></div>` +
     `<div class="hud-stars"></div>`;
   const cards = el('div', 'cards');
-  stage.append(fx, clerkCut, subs, finger, hud, cards);
+  stage.append(fx, clerkCut, subs, spot, finger, hud, cards);
   const rotate = el('div', 'rotate');
   rotate.hidden = true;
   app.append(rotate);
@@ -941,6 +951,35 @@ export function createShopUI(root, h = {}) {
     guideTimer = setInterval(placeF, 400);
   }
 
+  // ---- first-time 奧客: spotlight + a finger demo of the best gesture (the engine freezes the day meanwhile) ----
+  let teachTimer = 0;
+  function teach(ev) {
+    clearInterval(teachTimer);
+    stage.classList.toggle('teaching', !!ev);
+    if (!ev) { spot.hidden = true; finger.hidden = true; finger.className = 'finger'; return; }
+    const cls = { take: 'hold', gun: 'swipe', shut: 'taps' }[ev.key] || 'hold';
+    const placeT = () => {
+      const r = seatHeadRect(ev.slot);
+      spot.hidden = false;
+      spot.style.setProperty('--x', `${r.cx}px`);
+      spot.style.setProperty('--y', `${r.cy}px`);
+      spot.style.setProperty('--r', `${Math.max(r.w, r.h) * 0.62}px`);
+      finger.hidden = false;
+      finger.className = `finger teach ${cls}`;
+      if (cls === 'swipe') {
+        finger.style.setProperty('--x0', `${r.x}px`);
+        finger.style.setProperty('--y0', `${r.cy}px`);
+        finger.style.setProperty('--x1', `${r.x + r.w * 1.1}px`);
+        finger.style.setProperty('--y1', `${r.cy - r.h * 0.2}px`);
+      } else {
+        finger.style.setProperty('--x0', `${r.cx}px`);
+        finger.style.setProperty('--y0', `${r.cy}px`);
+      }
+    };
+    placeT();
+    teachTimer = setInterval(placeT, 400);
+  }
+
   // ---- input ----
   let drag = null;        // { ref, id, x0, y0, moved, el, cup }
   const gestureSeat = new Map(); // pointer id → slot
@@ -957,7 +996,7 @@ export function createShopUI(root, h = {}) {
         if (slot != null && seats[slot] && seats[slot].uid != null) { const r = seatHeadRect(slot); floatNum('啪', r.cx + (e.n - 2) * 14 * K, r.y + r.h * 0.5, 'pa'); }
       } else if (e.type === 'holdStart') {
         const slot = gestureSeat.get(e.id);
-        if (slot != null && seats[slot]) seats[slot].el.classList.add('holding');
+        if (slot != null && seats[slot]) restart(seats[slot].el, 'holding');
       } else if (e.type === 'holdLevel' && e.level === 1) {
         const slot = gestureSeat.get(e.id);
         if (slot != null) { if (seats[slot]) seats[slot].el.classList.remove('holding'); call('onAnswer', slot, 'take', { holdMs: 300 }); gestureSeat.delete(e.id); }
@@ -1131,7 +1170,7 @@ export function createShopUI(root, h = {}) {
     if (k === 'three') return `<i class="nc bub">${itemsBubbleSVG({ items: [it, it2, { tea: 'jade', toppings: [], ice: 1, sugar: 1 }] })}</i>`;
     if (k === 'big') return `<i class="nc bub">${itemsBubbleSVG({ items: [it, it2, it, it2], big: true })}</i>`;
     const o = okeOf(k);
-    if (o) return `<i class="nc oke"><span class="nc-head">${customerSVG({ id: o.cid }, 0, k === 'c250' ? { fixed: 'c250' } : {})}</span><span class="nc-bub">${okeBubbleSVG(o.prop)}</span></i>`;
+    if (o) return `<i class="nc oke"><span class="nc-head">${customerSVG({ id: o.cid }, 0, k === 'c250' ? { fixed: 'c250' } : {})}</span><span class="nc-bub">${okeBubbleSVG(o.prop)}</span><span class="nc-gest g-${o.best}">${GESTURE[o.best]}</span></i>`;
     return '';
   }
   function dayCard(d, _opts, onOpen) {
@@ -1286,6 +1325,7 @@ export function createShopUI(root, h = {}) {
     onEvent,
     say,
     guide,
+    teach,
     startCard, dayCard, receipt, upgradeShop, endCard, pauseSheet, voicePrompt, hideCards,
     setLang(l) {
       lang = l === 'en' ? 'en' : 'zh';

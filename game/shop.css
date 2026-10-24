@@ -224,8 +224,14 @@ button { font: inherit; color: inherit; border: 0; }
   content: ''; position: absolute; right: -10%; top: -6%; width: 34%; aspect-ratio: 1.6;
   background: radial-gradient(circle at 30% 50%, var(--take) 0 28%, #A85F00 29% 33%, transparent 34%), radial-gradient(circle at 68% 50%, var(--take) 0 28%, #A85F00 29% 33%, transparent 34%);
 }
-.seat.holding::after { content: ''; position: absolute; left: 50%; bottom: 6cqw; width: 9cqw; aspect-ratio: 1; margin-left: -4.5cqw; border: .5cqw dashed var(--gun); border-radius: 50%; animation: holdSpin 600ms linear infinite; }
-@keyframes holdSpin { to { rotate: 360deg; } }
+.seat.holding::after { /* 收: a gold ring fills while the finger stays down (it completes at 0.3 s) */
+  content: ''; position: absolute; left: 50%; bottom: 6cqw; width: 9cqw; aspect-ratio: 1; margin-left: -4.5cqw; border-radius: 50%;
+  background: conic-gradient(var(--lemon) calc(var(--hp) * 1%), rgb(255 247 230 / .25) 0); box-shadow: 0 0 0 .3cqw var(--ink);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%);
+  animation: holdFill 120ms linear forwards;
+}
+@property --hp { syntax: '<number>'; inherits: false; initial-value: 0; }
+@keyframes holdFill { from { --hp: 25; } to { --hp: 100; } }
 
 /* ---------- the counter: wood + steel lip, the work table (bottom 55%) ---------- */
 .counter { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
@@ -392,6 +398,31 @@ button { font: inherit; color: inherit; border: 0; }
 .finger.tap { animation: fTap 900ms ease-in-out infinite; }
 .finger.drag { animation: fDrag 1600ms ease-in-out infinite; }
 .finger.swipe { animation: fSwipe 1100ms cubic-bezier(.5, 0, .5, 1) infinite; }
+/* first-time 奧客: dim everything but the customer, and demo the gesture (hold = press + gold ring, 3 taps, swipe) */
+.spot { position: absolute; inset: 0; z-index: 38; pointer-events: none; animation: spotIn 260ms ease-out;
+  background: radial-gradient(circle at var(--x) var(--y), transparent var(--r), rgb(14 17 32 / .72) calc(var(--r) + 2.4cqw)); }
+@keyframes spotIn { from { opacity: 0; } }
+.spot::after { content: ''; position: absolute; left: var(--x); top: var(--y); width: calc(var(--r) * 2); height: calc(var(--r) * 2); translate: -50% -50%;
+  border-radius: 50%; border: .4cqw dashed var(--lemon); animation: spotRing 1.2s ease-in-out infinite alternate; }
+@keyframes spotRing { to { scale: 1.06; rotate: 20deg; } }
+.finger.teach { width: 6cqw; }
+.finger.hold { animation: fHold 1500ms ease-in-out infinite; }
+.finger.hold::before { content: ''; position: absolute; left: -3.4cqw; top: -3.4cqw; width: 7cqw; aspect-ratio: 1; border-radius: 50%;
+  background: conic-gradient(var(--lemon) calc(var(--hp) * 1%), rgb(255 247 230 / .25) 0); box-shadow: 0 0 0 .3cqw var(--ink);
+  -webkit-mask: radial-gradient(circle, transparent 56%, #000 58%); mask: radial-gradient(circle, transparent 56%, #000 58%);
+  animation: fHoldRing 1500ms linear infinite; }
+@keyframes fHold { 0% { transform: translate(var(--x0), var(--y0)) translate(1.5cqw, -2.5cqw); opacity: 0; } 15% { opacity: 1; transform: translate(var(--x0), var(--y0)) translate(1.5cqw, -2.5cqw); }
+  28%, 78% { transform: translate(var(--x0), var(--y0)) scale(.9); } 92%, 100% { transform: translate(var(--x0), var(--y0)) translate(1.5cqw, -2.5cqw); opacity: 0; } }
+@keyframes fHoldRing { 0%, 28% { --hp: 0; opacity: 0; } 30% { opacity: 1; } 62%, 80% { --hp: 100; opacity: 1; } 92%, 100% { --hp: 100; opacity: 0; } }
+.finger.taps { animation: fTaps 1500ms ease-in-out infinite; }
+@keyframes fTaps { 0%, 60%, 100% { transform: translate(var(--x0), var(--y0)) translate(.8cqw, -1.4cqw); }
+  8%, 24%, 40% { transform: translate(var(--x0), var(--y0)) scale(.88); } 16%, 32% { transform: translate(var(--x0), var(--y0)) translate(.8cqw, -1.4cqw); } }
+.stage.teaching .hud { opacity: .5; }
+/* day card: the new 奧客's best gesture as a badge */
+.nc-gest { position: absolute; right: -10%; bottom: -10%; width: 44%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  border: .24cqw solid var(--ink); box-shadow: 0 .25cqw 0 rgb(0 0 0 / .3); }
+.nc-gest svg { width: 78% !important; height: auto !important; max-width: none !important; max-height: none !important; }
+.nc-gest.g-gun { background: var(--gun); } .nc-gest.g-shut { background: var(--shut); } .nc-gest.g-take { background: var(--take-deep); }
 @keyframes fTap { 0%, 100% { transform: translate(var(--x0), var(--y0)); } 50% { transform: translate(calc(var(--x0) + .6cqw), calc(var(--y0) + .6cqw)) scale(.92); } }
 @keyframes fDrag { 0%, 15% { transform: translate(var(--x0), var(--y0)) scale(.92); opacity: 0; } 22% { opacity: 1; } 75% { transform: translate(var(--x1), var(--y1)) scale(.92); opacity: 1; } 90%, 100% { transform: translate(var(--x1), var(--y1)); opacity: 0; } }
 @keyframes fSwipe { 0%, 10% { transform: translate(var(--x0), var(--y0)); opacity: 0; } 20% { opacity: 1; } 60% { transform: translate(var(--x1), var(--y1)) rotate(-20deg); opacity: 1; } 75%, 100% { transform: translate(var(--x1), var(--y1)) rotate(-20deg); opacity: 0; } }

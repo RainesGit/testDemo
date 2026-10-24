@@ -166,3 +166,23 @@ test('save: the taught 奧客 list survives a round trip and junk is dropped', a
   writeSave(store, { ...freshSave(), taught: ['c250', 'one', 'c250', 3, null] });
   assert.deepEqual(loadSave(store).taught, ['c250', 'one']);
 });
+
+test('save v2: a v1 save (no hinted list) loads with nothing hinted and keeps its upgrades; the new levels survive a round trip', async () => {
+  const { loadSave, writeSave, SAVE_V } = await import('../src/shop/save.js');
+  const mem = new Map();
+  const store = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  mem.set(SAVE_KEY, JSON.stringify({ v: 1, day: 4, wallet: 2500, fame: 400, upgrades: ['pot2', 'bigPot', 'seat4'], best: { 3: 1500 }, guideDone: true, taught: ['one', 'c250'] }));
+  const sv = loadSave(store);
+  assert.equal(sv.v, SAVE_V);
+  assert.deepEqual(sv.hinted, []);
+  assert.deepEqual(sv.upgrades, ['pot2', 'seat5']);
+  assert.deepEqual(sv.taught, ['one', 'c250']);
+  writeSave(store, { ...sv, upgrades: [...sv.upgrades, 'milk2', 'shaker2', 'shaker3', 'snack2', 'lemon2', 'foam2', 'snack3'], hinted: ['milk', 'shake', 'milk', 7] });
+  const back = loadSave(store);
+  assert.deepEqual(back.hinted, ['milk', 'shake']);
+  assert.ok(['milk2', 'shaker3', 'snack3', 'lemon2', 'foam2'].every((id) => back.upgrades.includes(id)));
+  const cfg = applyUpgrades(back.upgrades);
+  assert.ok(cfg.autoShake && cfg.autoSnack && cfg.lemonMax === 12 && cfg.milkMs === 200 && cfg.foamMs === 250);
+  assert.ok(!canBuy('shaker3', [], 1e6) && canBuy('shaker3', ['shaker2'], 1e6), 'the auto shaker needs the fast one first');
+  assert.equal(STATIONS.filter((st) => st.tab === 'bar').map((st) => st.id).join(), 'milk,shaker,foam,lemon,snack');
+});

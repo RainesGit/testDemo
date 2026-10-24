@@ -4,7 +4,8 @@
 // Pure data + helpers. No DOM. Names / one-line effects live in text.js (upgrades[levelId]).
 //
 //   STATIONS: [{ id, tab, levels: [{ id, cost, set: { tuning changes } }] }]   (Lv1 = the base, not listed)
-//     tab: 'equip' (設備) | 'menu' (菜單・員工・罵人道具) | 'shop' (店面)
+//     tab: 'equip' (設備) | 'bar' (吧台: the 10.9 milk pump, shaker, foam, lemon board, waffle iron) | 'menu' (菜單・員工・罵人道具)
+//          | 'shop' (店面)
 //   LEVELS: every level, flat, in tree order; UPGRADES = LEVELS (old name); UPGRADE_IDS
 //   BASE_TUNING: the engine tuning with nothing bought
 //   applyUpgrades(owned: string[]) → tuning (BASE_TUNING with every owned level's `set` applied in tree order)
@@ -35,6 +36,17 @@ export const BASE_TUNING = {
   helperMs: 0,        // part-timer: one cup per helperMs (0 = no helper)
   prepayMult: 1,      // 收 prepay (ticket machine)
   megaphone: false,   // 滾 sends every 奧客 at the counter flying
+  // the 10.9 stations
+  milkMs: 500,        // the 鮮奶 pump pour (blocks sealing like the tea pour)
+  shakeMs: 900,       // the 搖杯機: one cup at a time
+  autoShake: false,   // the sealer shakes the cup too (no shaking by hand)
+  foamMs: 700,        // the 奶蓋機 pour
+  lemonMax: 6,        // lemon slices on the tray after one round of slicing
+  sliceMs: 1200,      // slicing a lemon on the board
+  snackMs: 6000,      // the 雞蛋糕 iron: one batch
+  snackBatch: 2,      // bags per batch
+  snackCap: 3,        // ready bags kept warm at most
+  autoSnack: false,   // a new batch starts by itself when the warmer is empty
 };
 
 export const STATIONS = [
@@ -64,6 +76,24 @@ export const STATIONS = [
   { id: 'ice', tab: 'equip', levels: [
     { id: 'ice2', cost: 1100, set: { iceSmart: true } },      // ice dispenser: one tap = the ordered level
   ] },
+  // ---- the 10.9 stations (they come with the days; their levels speed them up or automate them) ----
+  { id: 'milk', tab: 'bar', levels: [
+    { id: 'milk2', cost: 700, set: { milkMs: 200 } },         // fast pump
+  ] },
+  { id: 'shaker', tab: 'bar', levels: [
+    { id: 'shaker2', cost: 900, set: { shakeMs: 400 } },      // fast shaker
+    { id: 'shaker3', cost: 2400, set: { autoShake: true } },  // auto shaker: the sealer shakes the cup too
+  ] },
+  { id: 'foam', tab: 'bar', levels: [
+    { id: 'foam2', cost: 1000, set: { foamMs: 250 } },        // fast foam
+  ] },
+  { id: 'lemon', tab: 'bar', levels: [
+    { id: 'lemon2', cost: 800, set: { lemonMax: 12, sliceMs: 600 } }, // big board: 12 slices, slices twice as fast
+  ] },
+  { id: 'snack', tab: 'bar', levels: [
+    { id: 'snack2', cost: 1100, set: { snackMs: 3000 } },     // double iron
+    { id: 'snack3', cost: 2600, set: { autoSnack: true } },   // auto iron: a new batch when the warmer is empty
+  ] },
   // ---- 菜單・員工・罵人道具 (menu expansion, staff; our curse twist) ----
   { id: 'menu', tab: 'menu', levels: [
     { id: 'menu2', cost: 1100, set: { coconut: true } },      // 椰果
@@ -83,7 +113,7 @@ export const STATIONS = [
   { id: 'seat', tab: 'shop', levels: [{ id: 'seat5', cost: 2400, set: { seats: 5 } }] },
 ];
 
-export const TABS = ['equip', 'menu', 'shop'];
+export const TABS = ['equip', 'bar', 'menu', 'shop'];
 export const LEVELS = STATIONS.flatMap((st) => st.levels.map((l, i) => ({ ...l, station: st.id, tab: st.tab, lv: i + 2, of: st.levels.length + 1 })));
 export const UPGRADES = LEVELS;
 export const UPGRADE_IDS = LEVELS.map((u) => u.id);

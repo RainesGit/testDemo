@@ -12,31 +12,44 @@
 //   createShop({ day, fame, upgrades, seed, guide, teach }) → shop
 //     teach            奧客 types to teach on their first time at the counter (the player has never answered one):
 //                      the day freezes (s.teach) with a finger demo of the best gesture until that customer is answered
+//     hints            station hints still to show (HINT_IDS): the first time an order at the counter needs a new station,
+//                      s.hint = { id, uid, until } and a 'hint' event (a finger demo, no freeze) until it is used ('hintDone')
 //     state            the live state (read-only by convention): see the object `s` below
 //     tick(dt)         advance dt ms: timers (pour, sealers, pearl pot, helper), walking, arrivals, patience, the day's end
 //     takeCup()                       a new empty cup on the first free work slot (it becomes the selected cup)
 //     select(w)                       the cup the stations act on
 //     addTea(kind) / addTopping(kind) / tapIce() / tapSugar()     act on the selected cup (or the first editable one)
-//     seal(w, { toShelf })  drag cup w to a sealer (needs tea, the pour done, a free sealer); toShelf with the auto
-//                      sealer (seal4): the cup goes to a free shelf spot and seals itself there
+//     addMilk() / addFoam() / addLemon()   the 10.9 stations on the same cup: 鮮奶 (milk tea), 奶蓋 (cheese foam), a lemon
+//                      slice from the tray (the tray runs low: slice() refills it on the cutting board, sliceMs)
+//     shake(w?)        the 搖杯機 (day 3 on every drink must be shaken before it is sealed): cup w (or the target) shakes
+//                      for shakeMs; with the auto shaker (shaker3) the sealer shakes it
+//     seal(w, { toShelf })  drag cup w to a sealer (needs tea, the pours done, shaken when the day asks, a free sealer);
+//                      toShelf with the auto sealer (seal4): the cup goes to a free shelf spot and seals itself there
 //     serve(w, slot) / serveShelf(i, slot)   a sealed cup to the customer in slot: one cup of the order (ticked);
-//                      the customer pays when every cup is in (a wrong cup: half price, no tip, a complaint)
+//                      the customer pays when every cup (and the snack) is in (a wrong cup: half price, no tip, a complaint);
+//                      a big order on a bag day takes its cups in the carry bag only (needsBag)
+//     pack(ref) / serveBag(slot) / trashBag()   提袋: a sealed cup ({ w } | { shelf }) into the carry bag (BIG_CUPS at
+//                      most); the bag to a customer hands over every cup in it at once
+//     cookSnack() / serveSnack(slot) / trashSnack()   雞蛋糕: start a batch on the iron (snackMs → snackBatch bags in the
+//                      warmer, snackCap at most); a bag to a customer whose order has the snack card
 //     trash(w) / trashShelf(i)        drop a cup in the bin (costs CUP_COST)
 //     cook()           start a fresh pot of pearls
 //     answer(slot, key)  a gesture on a customer: 'gun' 滾 (swipe) | 'shut' 閉嘴 (3 taps) | 'take' 收 (hold)
 //     drain() → events[]   { type, ... } (see emit() calls), oldest first
 //     summary() → the day's receipt
 //   Exported helpers: starsOf, priceMult, arrivalGap, orderPrice, itemPrice, sameDrink, queueCap, keyTarget, patienceFor,
-//   FAME_STARS, PRICE, FANS, QUEUE_CAP, SPOT, SPAWN_U, WALK_MS, STEP_MS ...
+//   hintsFor, FAME_STARS, PRICE, SNACK_PRICE, FANS, QUEUE_CAP, SPOT, SPAWN_U, WALK_MS, STEP_MS, HINT_IDS ...
+//   An order item: { tea, milk, toppings, ice, sugar, foam, lemon, shake } (+ golden); an order: { items, count, big, snack }.
 import { fnv1a, mulberry32 } from '../art.js';
 import { dayDef } from './days.js';
 import { applyUpgrades } from './upgrades.js';
 import { OKE_CIDS, okeOf, okePool } from './oke.js';
 
 export const TEAS = ['black', 'green', 'jade'];
-export const TOPPINGS = ['pearl', 'coconut', 'pudding', 'grass'];
-export const PRICE = { black: 30, green: 30, jade: 40, pearl: 10, coconut: 15, pudding: 15, grass: 10 };
-export const GOLDEN = { tea: 'jade', toppings: ['coconut', 'pudding'], ice: 0, sugar: 0, golden: true }; // 黃金比例特調
+export const TOPPINGS = ['pearl', 'coconut', 'pudding', 'grass', 'taro', 'bean'];
+export const PRICE = { black: 30, green: 30, jade: 40, pearl: 10, coconut: 15, pudding: 15, grass: 10, taro: 15, bean: 15, milk: 10, foam: 20 };
+export const SNACK_PRICE = 30;       // a bag of 雞蛋糕
+export const GOLDEN = { tea: 'jade', milk: false, toppings: ['coconut', 'pudding'], ice: 0, sugar: 0, foam: false, lemon: true, golden: true }; // 黃金比例特調
 export const GOLDEN_PRICE = 150;
 export const GOLDEN_SHARE = 0.15;    // share of drinks that are the golden recipe once it is on the menu (needs 翡翠 + 布丁)
 export const BIG_CUPS = 4;
@@ -61,6 +74,11 @@ export const OKE_DRAIN = 0.5;        // each unanswered 奧客 makes everyone el
 export const PATIENCE_PER_CUP = 0.45; // each extra cup of an order adds 45% patience
 export const TIP_SHARE = 0.5;        // a perfect, instant serve tips 50% of the price
 export const GUIDE_STEPS = ['cup', 'tea', 'topping', 'seal', 'serve', 'oke'];
+export const SNACK_PATIENCE = 0.15;  // a snack bag adds 15% patience
+/** Station hints (a finger demo the first time an order needs the station): milk, foam, lemon, the two new toppings,
+ *  shaking, the snack and the carry bag; 'board' = the first empty lemon tray. */
+export const HINT_IDS = ['milk', 'shake', 'lemon', 'board', 'top-taro', 'bag', 'foam', 'snack', 'top-bean'];
+export const HINT_MS = 12000;        // a hint nobody follows goes away after this long
 
 export function starsOf(fame) {
   let s = 1;
@@ -75,15 +93,35 @@ export const arrivalGap = (def, stars) => def.arriveMs / (1 + 0.15 * (clampStars
 /** People waiting outside at most (natural arrivals; fans may add FAN_OVER more). */
 export const queueCap = (stars, bonus = 0) => QUEUE_CAP[clampStars(stars) - 1] + (bonus | 0);
 export const itemPrice = (item) => (item && item.golden ? GOLDEN_PRICE
-  : (PRICE[item && item.tea] || 0) + ((item && item.toppings) || []).reduce((a, k) => a + (PRICE[k] || 0), 0));
-/** Base price of a whole order ({ items }) or of one drink. */
-export const orderPrice = (order) => (order && Array.isArray(order.items) ? order.items.reduce((a, it) => a + itemPrice(it), 0) : itemPrice(order));
-export const patienceFor = (def, cups, cfg = {}) => def.patienceMs * (1 + PATIENCE_PER_CUP * (Math.max(1, cups) - 1)) * (cfg.patienceMult || 1);
+  : (PRICE[item && item.tea] || 0) + ((item && item.toppings) || []).reduce((a, k) => a + (PRICE[k] || 0), 0) +
+    (item && item.milk ? PRICE.milk : 0) + (item && item.foam ? PRICE.foam : 0));
+/** Base price of a whole order ({ items, snack }) or of one drink. */
+export const orderPrice = (order) => (order && Array.isArray(order.items)
+  ? order.items.reduce((a, it) => a + itemPrice(it), 0) + (order.snack ? SNACK_PRICE : 0) : itemPrice(order));
+export const patienceFor = (def, cups, cfg = {}, snack = false) =>
+  def.patienceMs * (1 + PATIENCE_PER_CUP * (Math.max(1, cups) - 1) + (snack ? SNACK_PATIENCE : 0)) * (cfg.patienceMult || 1);
 const sortKey = (arr) => [...(arr || [])].sort().join(',');
-export const drinkKey = (d) => (d ? `${d.tea}|${sortKey(d.toppings)}|${d.ice | 0}|${d.sugar | 0}` : '');
+export const drinkKey = (d) => (d ? `${d.tea}|${d.milk ? 'm' : ''}|${sortKey(d.toppings)}|${d.ice | 0}|${d.sugar | 0}|${d.foam ? 'f' : ''}|${d.lemon ? 'l' : ''}` : '');
+/** Same drink: tea, milk, toppings (any order), ice, sugar, foam and lemon (shaking is a step, not a taste). */
 export function sameDrink(cup, item) {
   return !!cup && !!item && cup.tea === item.tea && sortKey(cup.toppings) === sortKey(item.toppings) &&
-    (cup.ice | 0) === (item.ice | 0) && (cup.sugar | 0) === (item.sugar | 0);
+    (cup.ice | 0) === (item.ice | 0) && (cup.sugar | 0) === (item.sugar | 0) &&
+    !!cup.milk === !!item.milk && !!cup.foam === !!item.foam && !!cup.lemon === !!item.lemon;
+}
+/** The station hints an order needs (HINT_IDS order); cfg: the auto shaker needs no shaking hint. */
+export function hintsFor(order, def = {}, cfg = {}) {
+  const out = new Set();
+  if (!order || !Array.isArray(order.items)) return [];
+  for (const it of order.items) {
+    if (it.milk) out.add('milk');
+    if (it.shake && !cfg.autoShake) out.add('shake');
+    if (it.lemon) out.add('lemon');
+    if (it.foam) out.add('foam');
+    for (const k of it.toppings || []) if (k === 'taro' || k === 'bean') out.add(`top-${k}`);
+  }
+  if (order.big && def.bag) out.add('bag');
+  if (order.snack) out.add('snack');
+  return HINT_IDS.filter((h) => out.has(h));
 }
 const wantsCups = (c) => !!c && !!c.order && (c.kind === 'normal' || c.converted);
 /** Keyboard J/K/L target: the leftmost unanswered 奧客 at the counter, else the leftmost customer; -1 = nobody. */
@@ -93,7 +131,7 @@ export function keyTarget(state) {
   return oke >= 0 ? oke : slots.findIndex(Boolean);
 }
 
-export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide = false, teach = [], def: defIn } = {}) {
+export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide = false, teach = [], hints = [], def: defIn } = {}) {
   const def = defIn || dayDef(day);
   const cfg = applyUpgrades(upgrades);
   const rnd = mulberry32(fnv1a(`shop:${def.n}:${seed}`));
@@ -101,6 +139,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
   const range = ([a, b]) => a + Math.floor(rnd() * (b - a + 1));
   let uid = 0;
   const toTeach = new Set(teach);
+  const toHint = new Set(hints);
   let cupId = 0;
   const events = [];
   const emit = (type, data = {}) => { events.push({ type, t: s.t, ...data }); };
@@ -121,6 +160,10 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     shelf: Array(cfg.shelf).fill(null),
     selected: null,
     pot: { scoops: cfg.potMax, max: cfg.potMax, cookingUntil: 0 },
+    lemon: def.lemon ? { slices: cfg.lemonMax, max: cfg.lemonMax, slicingUntil: 0 } : null,   // the lemon tray + board
+    snack: def.snackShare ? { ready: 0, cookingUntil: 0 } : null,                             // the 雞蛋糕 iron + warmer
+    bag: def.bag ? { cups: [] } : null,                                                       // the carry bag (提袋)
+    hint: null,    // { id, uid, until }: a station hint (finger demo) is showing
     helper: cfg.helperMs ? { item: null, until: 0, idleUntil: 0 } : null,
     nextArrival: 300,
     scriptDone: [],
@@ -128,14 +171,16 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     teach: null,   // { uid, slot, oke, key }: the day is frozen on a first-time 奧客 until it is answered
     guide: guide ? { step: 0, custUid: null, custSeated: false, okeAt: 0, okeUid: null } : null,
     stats: { served: 0, correct: 0, wrong: 0, walkouts: 0, refused: 0, trashed: 0, prepay: 0, orders: 0, bigOrders: 0,
-      golden: 0, helperCups: 0, oke: { gun: 0, shut: 0, take: 0 }, okeBest: 0, normalCursed: 0, fans: 0, maxQueue: 0, spawned: 0 },
+      golden: 0, helperCups: 0, oke: { gun: 0, shut: 0, take: 0 }, okeBest: 0, normalCursed: 0, fans: 0, maxQueue: 0, spawned: 0,
+      milk: 0, foam: 0, lemon: 0, shaken: 0, sliced: 0, snacks: 0, bags: 0 },
   };
 
   // ---- orders ----
   const menuToppings = () => def.toppings.concat(cfg.coconut ? ['coconut'] : []);
   const goldenOn = () => cfg.golden && def.teas.includes('jade') && def.toppings.includes('pudding') && menuToppings().includes('coconut');
+  const chance = (p) => (p > 0 ? rnd() < p : false); // no draw when the share is 0 (earlier days keep their sequences)
   function genItem() {
-    if (goldenOn() && rnd() < GOLDEN_SHARE) return { ...GOLDEN, toppings: [...GOLDEN.toppings] };
+    if (goldenOn() && rnd() < GOLDEN_SHARE) return { ...GOLDEN, toppings: [...GOLDEN.toppings], lemon: !!def.lemon, shake: !!def.shake };
     const tea = pick(def.teas);
     const pool = menuToppings();
     let toppings = [];
@@ -149,7 +194,9 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     } else toppings = [pick(pool)];
     const ice = def.ice ? Math.floor(rnd() * 3) : 0;
     const sugar = def.sugar ? Math.floor(rnd() * 3) : 0;
-    return { tea, toppings, ice, sugar };
+    const milk = tea !== 'jade' && chance(def.milkShare || 0);
+    const foam = chance(def.foamShare || 0);
+    return { tea, milk, toppings, ice, sugar, foam, lemon: !!def.lemon && tea === 'jade', shake: !!def.shake };
   }
   function genOrder({ single = false } = {}) {
     let count = 1;
@@ -162,11 +209,12 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
       else if (r < (def.bigShare || 0) + p3 + p2) count = 2;
     }
     const items = Array.from({ length: count }, genItem);
-    return { items, count, big };
+    const snack = !single && !big && chance(def.snackShare || 0);
+    return { items, count, big, snack };
   }
   function custBase(kind, cid, order) {
-    const pm = order ? patienceFor(def, order.count, cfg) : 1;
-    return { uid: ++uid, kind, cid, visit: kind === 'normal' ? uid : 0, order, got: order ? order.items.map(() => false) : [],
+    const pm = order ? patienceFor(def, order.count, cfg, !!order.snack) : 1;
+    return { uid: ++uid, kind, cid, visit: kind === 'normal' ? uid : 0, order, got: order ? order.items.map(() => false) : [], gotSnack: false,
       bill: 0, tipBill: 0, wrongCups: 0, patience: pm, patienceMax: pm, oke: null, converted: false, doublePay: false,
       phase: 'walk', u: SPAWN_U, speed: 1 / WALK_MS, run: false, cut: false, fan: false, spawnT: s.t, queuedT: 0, counterT: 0 };
   }
@@ -293,8 +341,14 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
   }
 
   // ---- cups ----
-  const newCup = () => ({ id: ++cupId, tea: null, toppings: [], ice: 0, sugar: 0, sealed: false, pourUntil: 0, sealingUntil: 0, sealer: -1 });
-  const editable = (cup) => !!cup && !cup.sealed && !cup.sealingUntil;
+  const newCup = () => ({ id: ++cupId, tea: null, milk: false, toppings: [], ice: 0, sugar: 0, foam: false, lemon: false, shaken: false,
+    sealed: false, pourUntil: 0, sealingUntil: 0, sealer: -1, shakingUntil: 0 });
+  const editable = (cup) => !!cup && !cup.sealed && !cup.sealingUntil && !cup.shakingUntil;
+  const needsShake = (cup) => !!def.shake && !cup.shaken && !cfg.autoShake;
+  function hintUsed(id) {
+    if (s.hint && s.hint.id === id) { emit('hintDone', { id, why: 'used' }); s.hint = null; }
+    toHint.delete(id);
+  }
   function target() {
     if (s.selected != null && editable(s.work[s.selected])) return s.selected;
     const i = s.work.findIndex(editable);
@@ -349,8 +403,85 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     cup.toppings.push(kind);
     emit('topping', { w, kind, scoops: s.pot.scoops });
     if (kind === 'pearl' && s.pot.scoops === 0) { emit('potEmpty', {}); if (cfg.autoCook) cook(true); }
+    if (kind === 'taro' || kind === 'bean') hintUsed(`top-${kind}`);
     guideCheck();
     return { ok: true, w };
+  }
+  // ---- the 10.9 stations: milk, cheese foam, lemon slices (+ the board), the shaker ----
+  function addMilk() {
+    if (!def.milkShare) return fail('locked');
+    const w = target();
+    if (w == null) return fail('noCup', { station: 'milk' });
+    const cup = s.work[w];
+    if (cup.milk) return fail('hasMilk', { w });
+    cup.milk = true;
+    cup.pourUntil = Math.max(cup.pourUntil, s.t + cfg.milkMs);
+    s.stats.milk += 1;
+    emit('milk', { w, ms: cfg.milkMs });
+    hintUsed('milk');
+    return { ok: true, w };
+  }
+  function addFoam() {
+    if (!def.foamShare) return fail('locked');
+    const w = target();
+    if (w == null) return fail('noCup', { station: 'foam' });
+    const cup = s.work[w];
+    if (cup.foam) return fail('hasFoam', { w });
+    cup.foam = true;
+    cup.pourUntil = Math.max(cup.pourUntil, s.t + cfg.foamMs);
+    s.stats.foam += 1;
+    emit('foam', { w, ms: cfg.foamMs });
+    hintUsed('foam');
+    return { ok: true, w };
+  }
+  function addLemon() {
+    if (!s.lemon) return fail('locked');
+    const w = target();
+    if (w == null) return fail('noCup', { station: 'lemon' });
+    const cup = s.work[w];
+    if (cup.lemon) return fail('hasLemon', { w });
+    if (s.lemon.slices <= 0) return fail('lemonEmpty', { w });
+    s.lemon.slices -= 1;
+    cup.lemon = true;
+    s.stats.lemon += 1;
+    emit('lemon', { w, slices: s.lemon.slices });
+    hintUsed('lemon');
+    if (s.lemon.slices === 0) {
+      emit('lemonEmpty', {});
+      if (toHint.has('board') && !s.hint && s.phase === 'open') { toHint.delete('board'); s.hint = { id: 'board', uid: null, until: s.t + HINT_MS }; emit('hint', { id: 'board' }); }
+    }
+    return { ok: true, w };
+  }
+  function slice() {
+    if (!s.lemon) return fail('locked');
+    if (s.lemon.slicingUntil) return fail('slicing');
+    if (s.lemon.slices >= s.lemon.max) return fail('lemonFull');
+    s.lemon.slicingUntil = s.t + cfg.sliceMs;
+    emit('sliceStart', { ms: cfg.sliceMs });
+    hintUsed('board');
+    return { ok: true };
+  }
+  const shakingNow = () => s.work.findIndex((c) => c && c.shakingUntil);
+  function shake(wIn) {
+    if (!def.shake) return fail('locked');
+    let pickW = wIn;
+    if (pickW == null) {
+      // a tap on the shaker: the selected cup if it is ready to shake, else the first one that is
+      const ready = (c) => editable(c) && c.tea && !c.shaken;
+      pickW = s.selected != null && ready(s.work[s.selected]) ? s.selected : s.work.findIndex(ready);
+      if (pickW < 0) pickW = target() ?? -1;
+    }
+    const cup = s.work[pickW];
+    if (!editable(cup)) return fail(cup && cup.shakingUntil ? 'shaking' : 'noCup', { station: 'shaker' });
+    if (!cup.tea) return fail('noTea', { w: pickW, station: 'shaker' });
+    if (s.t < cup.pourUntil) return fail('pouring', { w: pickW });
+    if (cup.shaken) return fail('shaken', { w: pickW });
+    if (shakingNow() >= 0) return fail('shakerBusy', { w: pickW });
+    cup.shakingUntil = s.t + cfg.shakeMs;
+    if (s.selected === pickW) s.selected = null;
+    emit('shakeStart', { w: pickW, ms: cfg.shakeMs, id: cup.id });
+    hintUsed('shake');
+    return { ok: true, w: pickW };
   }
   /** Pending drinks at the counter (not yet delivered), as items with their customer. */
   function pendingItems() {
@@ -381,10 +512,13 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     if (!editable(cup)) return fail(cup && cup.sealed ? 'sealed' : 'noCup');
     if (!cup.tea) return fail('noTea', { w });
     if (s.t < cup.pourUntil) return fail('pouring', { w });
+    if (needsShake(cup)) return fail('notShaken', { w });
+    const autoShake = () => { if (def.shake && !cup.shaken) { cup.shaken = true; s.stats.shaken += 1; emit('shaken', { w, id: cup.id, auto: true }); } };
     if (toShelf) {
       if (!cfg.autoSeal) return fail('noAutoSeal', { w });
       const i = s.shelf.findIndex((x) => !x);
       if (i < 0) return fail('shelfFull', { w });
+      autoShake();
       s.work[w] = null;
       if (s.selected === w) s.selected = null;
       cup.sealingUntil = s.t + cfg.sealMs;
@@ -395,6 +529,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     const busy = sealingNow();
     if (busy.length >= cfg.sealers) return fail('sealerBusy', { w });
     const used = new Set(busy.map((c) => c.sealer));
+    autoShake();
     cup.sealer = [0, 1].find((k) => !used.has(k));
     cup.sealingUntil = s.t + cfg.sealMs;
     if (s.selected === w) s.selected = null;
@@ -440,25 +575,29 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     }
   }
 
-  function serveCup(cup, slot, remove, from) {
+  // a customer who can take something now: { c } or { res } (no customer / an unanswered 奧客 refuses it)
+  function taker(slot, from) {
     const c = s.slots[slot];
-    if (!cup || !cup.sealed) return fail('notSealed', from);
-    if (!c) return fail('noCustomer');
+    if (!c) return { res: fail('noCustomer') };
     if (c.kind === 'oke' && !c.converted) {
       s.stats.refused += 1;
       emit('refuse', { ...from, slot, cust: c });
-      return { ok: false, reason: 'oke' };
+      return { res: { ok: false, reason: 'oke' } };
     }
+    return { c };
+  }
+  const orderDone = (c) => c.got.every(Boolean) && (!c.order.snack || c.gotSnack);
+  const patienceFrac = (c) => (Number.isFinite(c.patienceMax) ? Math.max(0, Math.min(1, c.patience / c.patienceMax)) : 1);
+  // one cup into the customer's order (matched to the first unfilled item it is; else a wrong cup): bills it, no leave
+  function deliver(c, cup, slot, from) {
     let k = c.order.items.findIndex((it, j) => !c.got[j] && sameDrink(cup, it));
     const correct = k >= 0;
     if (!correct) k = c.got.findIndex((g) => !g);
-    if (k < 0) return fail('noNeed', from);
     const item = c.order.items[k];
-    const frac = Number.isFinite(c.patienceMax) ? Math.max(0, Math.min(1, c.patience / c.patienceMax)) : 1;
+    const frac = patienceFrac(c);
     const price = itemPrice(item) * priceMult(s.stars) * (c.doublePay ? 2 : 1) * (c.order.big ? BIG_PAY : 1);
     const pay = Math.round(correct ? price : price / 2);
     const tip = correct ? Math.round(price * TIP_SHARE * frac * cfg.tipMult) : 0;
-    remove();
     c.got[k] = true;
     c.bill += pay;
     c.tipBill += tip;
@@ -468,21 +607,112 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     if (correct && item.golden) s.stats.golden += 1;
     let fameD = 0;
     if (correct) fameD = addFame(frac > 0.6 ? FAME.serveFast : FAME.serve, 'serve');
-    const done = c.got.every(Boolean);
-    emit('serve', { ...from, slot, k, correct, golden: !!item.golden, fame: fameD, cust: c, frac, done, pay, tip });
-    if (done) {
-      s.earned += c.bill + c.tipBill;
-      s.tips += c.tipBill;
-      s.stats.orders += 1;
-      if (c.order.big) s.stats.bigOrders += 1;
-      emit('pay', { slot, pay: c.bill, tip: c.tipBill, cust: c, wrong: c.wrongCups });
-      leave(slot, c.wrongCups ? 'wrong' : 'served', { pay: c.bill, tip: c.tipBill });
-    }
+    emit('serve', { ...from, slot, k, correct, golden: !!item.golden, fame: fameD, cust: c, frac, done: orderDone(c), pay, tip });
+    return { k, correct, pay, tip };
+  }
+  // everything in: pay and leave
+  function settle(c, slot) {
+    if (!orderDone(c)) return false;
+    s.earned += c.bill + c.tipBill;
+    s.tips += c.tipBill;
+    s.stats.orders += 1;
+    if (c.order.big) s.stats.bigOrders += 1;
+    emit('pay', { slot, pay: c.bill, tip: c.tipBill, cust: c, wrong: c.wrongCups });
+    leave(slot, c.wrongCups ? 'wrong' : 'served', { pay: c.bill, tip: c.tipBill });
+    return true;
+  }
+  function serveCup(cup, slot, remove, from) {
+    if (!cup || !cup.sealed) return fail('notSealed', from);
+    const { c, res } = taker(slot, from);
+    if (!c) return res;
+    if (!c.got.some((g) => !g)) return fail('noNeed', { ...from, slot });
+    if (c.order.big && s.bag) return fail('needsBag', { ...from, slot }); // a big order goes out in the carry bag
+    remove();
+    const r = deliver(c, cup, slot, from);
+    const done = settle(c, slot);
     guideCheck();
-    return { ok: true, correct, pay: done ? c.bill : 0, tip: done ? c.tipBill : 0, done, k };
+    return { ok: true, correct: r.correct, pay: done ? c.bill : 0, tip: done ? c.tipBill : 0, done, k: r.k };
   }
   const serve = (w, slot) => serveCup(s.work[w], slot, () => { s.work[w] = null; if (s.selected === w) s.selected = null; }, { w });
   const serveShelf = (i, slot) => serveCup(s.shelf[i], slot, () => { s.shelf[i] = null; }, { shelf: i });
+
+  // ---- 提袋: pack sealed cups into the carry bag, hand the bag over ----
+  function pack(ref = {}) {
+    if (!s.bag) return fail('locked');
+    const fromShelf = ref.shelf != null;
+    const cup = fromShelf ? s.shelf[ref.shelf] : s.work[ref.w];
+    if (!cup || !cup.sealed) return fail(cup ? 'notSealed' : 'noCup', ref);
+    if (s.bag.cups.length >= BIG_CUPS) return fail('bagFull', ref);
+    if (fromShelf) s.shelf[ref.shelf] = null;
+    else { s.work[ref.w] = null; if (s.selected === ref.w) s.selected = null; }
+    s.bag.cups.push(cup);
+    emit('pack', { ...ref, n: s.bag.cups.length, id: cup.id });
+    return { ok: true, n: s.bag.cups.length };
+  }
+  function serveBag(slot) {
+    if (!s.bag) return fail('locked');
+    if (!s.bag.cups.length) return fail('bagEmpty');
+    const { c, res } = taker(slot, { bag: true });
+    if (!c) return res;
+    const need = c.got.filter((g) => !g).length;
+    if (!need) return fail('noNeed', { bag: true, slot });
+    if (s.bag.cups.length > need) return fail('bagTooMany', { bag: true, slot, need });
+    const cups = s.bag.cups.splice(0);
+    let correct = 0;
+    for (const cup of cups) if (deliver(c, cup, slot, { bag: true }).correct) correct += 1;
+    s.stats.bags += 1;
+    emit('serveBag', { slot, n: cups.length, correct, cust: c });
+    const done = settle(c, slot);
+    hintUsed('bag');
+    return { ok: true, n: cups.length, correct, done, pay: done ? c.bill : 0, tip: done ? c.tipBill : 0 };
+  }
+  function trashBag() {
+    if (!s.bag || !s.bag.cups.length) return fail('bagEmpty');
+    const n = s.bag.cups.length;
+    s.bag.cups.length = 0;
+    s.earned -= CUP_COST * n;
+    s.stats.trashed += n;
+    emit('trash', { bag: true, n, cost: CUP_COST * n });
+    return { ok: true };
+  }
+
+  // ---- 雞蛋糕: the waffle-ball iron (a side snack, like Shawarma's fries) ----
+  function cookSnack(auto = false) {
+    if (!s.snack) return fail('locked');
+    if (s.snack.cookingUntil) return fail('cooking', { station: 'snack' });
+    if (s.snack.ready >= cfg.snackCap) return fail('snackFull');
+    s.snack.cookingUntil = s.t + cfg.snackMs;
+    emit('snackStart', { ms: cfg.snackMs, auto: !!auto });
+    return { ok: true };
+  }
+  function serveSnack(slot) {
+    if (!s.snack) return fail('locked');
+    if (s.snack.ready <= 0) return fail('noSnack');
+    const { c, res } = taker(slot, { snack: true });
+    if (!c) return res;
+    if (!c.order.snack || c.gotSnack) return fail('noNeed', { snack: true, slot });
+    s.snack.ready -= 1;
+    c.gotSnack = true;
+    const frac = patienceFrac(c);
+    const price = SNACK_PRICE * priceMult(s.stars) * (c.doublePay ? 2 : 1);
+    const pay = Math.round(price);
+    const tip = Math.round(price * TIP_SHARE * frac * cfg.tipMult);
+    c.bill += pay;
+    c.tipBill += tip;
+    s.stats.snacks += 1;
+    emit('serveSnack', { slot, cust: c, pay, tip, done: orderDone(c), ready: s.snack.ready });
+    const done = settle(c, slot);
+    hintUsed('snack');
+    if (cfg.autoSnack && s.snack.ready === 0) cookSnack(true);
+    return { ok: true, done, pay: done ? c.bill : 0, tip: done ? c.tipBill : 0 };
+  }
+  function trashSnack() {
+    if (!s.snack || s.snack.ready <= 0) return fail('noSnack');
+    s.snack.ready -= 1;
+    s.earned -= CUP_COST;
+    emit('trash', { snack: true, cost: CUP_COST });
+    return { ok: true };
+  }
 
   // ---- the part-timer (staff1/2): slowly makes the most wanted pending drink and puts it on the shelf ----
   function helperTick() {
@@ -492,7 +722,9 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
       if (s.t < h.until) return;
       const i = s.shelf.findIndex((x) => !x);
       if (i < 0) return; // waits with the cup until there is room
-      const cup = { ...newCup(), tea: h.item.tea, toppings: [...h.item.toppings], ice: h.item.ice | 0, sugar: h.item.sugar | 0, sealed: true };
+      const it = h.item;
+      const cup = { ...newCup(), tea: it.tea, milk: !!it.milk, toppings: [...it.toppings], ice: it.ice | 0, sugar: it.sugar | 0, foam: !!it.foam,
+        lemon: !!it.lemon, shaken: !!def.shake, sealed: true };
       s.shelf[i] = cup;
       s.stats.helperCups += 1;
       emit('helperCup', { i, id: cup.id });
@@ -505,7 +737,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     // count what is wanted and not covered yet by a cup on the table, on the shelf or in the helper's hands
     const want = new Map();
     for (const { it } of pendingItems()) { const k = drinkKey(it); want.set(k, { it, n: (want.get(k)?.n || 0) + 1 }); }
-    const have = [...s.work, ...s.shelf].filter(Boolean);
+    const have = [...s.work, ...s.shelf, ...(s.bag ? s.bag.cups : [])].filter(Boolean);
     for (const cup of have) { const k = drinkKey(cup); if (want.has(k)) want.get(k).n -= 1; }
     let best = null;
     for (const v of want.values()) if (v.n > 0 && (!best || v.n > best.n)) best = v;
@@ -614,12 +846,33 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     if (g.step !== before) emit('guide', { step: GUIDE_STEPS[g.step], i: g.step });
   }
 
+  // ---- station hints: the first order that needs a new station gets a finger demo (no freeze) ----
+  function hintTick() {
+    if (s.hint) {
+      const gone = s.hint.uid != null && findSlot(s.hint.uid) < 0;
+      if (gone || s.t >= s.hint.until) { emit('hintDone', { id: s.hint.id, why: gone ? 'gone' : 'timeout' }); s.hint = null; }
+      return;
+    }
+    if (!toHint.size || s.teach) return;
+    for (let i = 0; i < s.slots.length; i++) {
+      const c = s.slots[i];
+      if (!wantsCups(c)) continue;
+      const id = hintsFor(c.order, def, cfg).find((h) => toHint.has(h));
+      if (!id) continue;
+      toHint.delete(id);
+      s.hint = { id, uid: c.uid, until: s.t + HINT_MS };
+      emit('hint', { id, slot: i, cust: c });
+      return;
+    }
+  }
+
   // ---- time ----
   function closeDay() {
     s.phase = 'closed';
     s.slots.forEach((c, i) => { if (c) leave(i, 'close'); });
     s.incoming.fill(null);
     s.queue.length = 0;
+    if (s.hint) { emit('hintDone', { id: s.hint.id, why: 'close' }); s.hint = null; }
     emit('close', { summary: summary() });
   }
 
@@ -638,6 +891,15 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
       const cup = s.shelf[i];
       if (cup && cup.sealingUntil && !cup.sealed && s.t >= cup.sealingUntil) { cup.sealed = true; emit('sealed', { shelf: i, id: cup.id }); }
     }
+    for (let w = 0; w < s.work.length; w++) {
+      const cup = s.work[w];
+      if (cup && cup.shakingUntil && s.t >= cup.shakingUntil) {
+        cup.shakingUntil = 0;
+        cup.shaken = true;
+        s.stats.shaken += 1;
+        emit('shaken', { w, id: cup.id });
+      }
+    }
     shelve();
     if (s.pot.cookingUntil && s.t >= s.pot.cookingUntil) {
       s.pot.cookingUntil = 0;
@@ -645,6 +907,20 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
       emit('cooked', { scoops: s.pot.scoops });
     }
     if (cfg.autoCook && s.pot.scoops === 0 && !s.pot.cookingUntil) cook(true);
+    if (s.lemon && s.lemon.slicingUntil && s.t >= s.lemon.slicingUntil) {
+      s.lemon.slicingUntil = 0;
+      s.lemon.slices = s.lemon.max;
+      s.stats.sliced += 1;
+      emit('sliced', { slices: s.lemon.slices });
+    }
+    if (s.snack) {
+      if (s.snack.cookingUntil && s.t >= s.snack.cookingUntil) {
+        s.snack.cookingUntil = 0;
+        s.snack.ready = Math.min(cfg.snackCap, s.snack.ready + cfg.snackBatch);
+        emit('snackReady', { ready: s.snack.ready });
+      }
+      if (cfg.autoSnack && s.snack.ready === 0 && !s.snack.cookingUntil && s.phase === 'open') cookSnack(true);
+    }
     if (s.phase === 'guide') {
       if (s.guide.custUid == null) guideStart();
       walk(dt);
@@ -668,6 +944,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     walk(dt);
     stepUps();
     helperTick();
+    hintTick();
     const drain = 1 + OKE_DRAIN * angryOke();
     for (let i = 0; i < s.slots.length; i++) {
       const c = s.slots[i];
@@ -697,6 +974,8 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
       okeShut: s.stats.oke.shut, okeTake: s.stats.oke.take, okeBest: s.stats.okeBest, normalCursed: s.stats.normalCursed,
       prepay: s.stats.prepay, trashed: s.stats.trashed, fans: s.stats.fans, maxQueue: s.stats.maxQueue,
       fameStart: s.fameStart, fame: s.fame, starsStart: s.starsStart, stars: s.stars,
+      milk: s.stats.milk, foam: s.stats.foam, lemon: s.stats.lemon, shaken: s.stats.shaken, sliced: s.stats.sliced,
+      snacks: s.stats.snacks, bags: s.stats.bags,
     };
   }
 
@@ -705,6 +984,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     get def() { return def; },
     get cfg() { return cfg; },
     tick, takeCup, select, addTea, addTopping, tapIce, tapSugar, seal, serve, serveShelf, trash, trashShelf, cook: () => cook(false), answer, summary,
+    addMilk, addFoam, addLemon, slice, shake: (w) => shake(w), pack, serveBag, trashBag, cookSnack: () => cookSnack(false), serveSnack, trashSnack,
     /** Shut the shop now (pause sheet "close up", tests). */
     close() { s.teach = null; if (s.phase !== 'closed') closeDay(); },
     drain() { return events.splice(0, events.length); },
@@ -712,5 +992,7 @@ export function createShop({ day = 1, fame = 0, upgrades = [], seed = 1, guide =
     get target() { return target(); },
     /** Pending drinks at the counter: [{ it, slot, k }] (tools, the helper). */
     pending: () => pendingItems(),
+    /** Counter spots whose order still waits for its snack bag (tools). */
+    pendingSnacks: () => s.slots.map((c, i) => (wantsCups(c) && c.order.snack && !c.gotSnack ? i : -1)).filter((i) => i >= 0),
   };
 }

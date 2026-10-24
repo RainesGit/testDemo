@@ -3,6 +3,8 @@
 // carrying fame and money over and buying upgrades between days like a player would (BUY_ORDER, while affordable).
 // No browser.
 //
+// The 10.9 stations are part of every recipe: milk, lemon (slicing the board when the tray is empty), foam, shaking (until
+// the auto shaker), the carry bag for big orders (pack each cup, then one drag of the bag) and the snack (cook, hand over).
 // Players (one action per reaction time; a drag counts as one action):
 //   rookie  1300 ms per action, 8% slips, answers a 奧客 after 4 s, best answer 40% (a first-time player)
 //   new     900 ms per action, 6% slips (a wrong topping / tap), answers a 奧客 after 3 s, best answer half the time
@@ -33,8 +35,9 @@ export const BOT = {
   expert: { react: 420, slip: 0.01, okeDelay: 900, bestP: 1 },
 };
 // the order a player buys upgrades in (cheap capacity / speed first, automation late)
-export const BUY_ORDER = ['pot2', 'seal2', 'shelf2', 'tea2', 'rail', 'prep2', 'ice2', 'menu2', 'sound', 'seal3', 'pot3', 'aircon',
-  'ticket', 'neon', 'shelf3', 'prep3', 'mega', 'seat5', 'menu3', 'staff1', 'tea3', 'pot4', 'seal4', 'staff2'];
+export const BUY_ORDER = ['pot2', 'milk2', 'seal2', 'shaker2', 'shelf2', 'tea2', 'lemon2', 'rail', 'prep2', 'ice2', 'foam2', 'snack2',
+  'menu2', 'sound', 'seal3', 'pot3', 'aircon', 'ticket', 'neon', 'shelf3', 'prep3', 'shaker3', 'mega', 'seat5', 'menu3', 'staff1',
+  'snack3', 'tea3', 'pot4', 'seal4', 'staff2'];
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -62,14 +65,21 @@ export function playDay({ day, fame, upgrades, seed, bot, guide = false, def, cu
 
   function stepsFor(item) {
     const st = [['tea', item.tea]];
+    if (item.milk) st.push(['milk']);
     for (const k of item.toppings) st.push(['top', k]);
+    if (item.lemon) st.push(['lemon']);
     if (cfg.iceSmart) { if (item.ice) st.push(['ice']); } else for (let i = 0; i < item.ice; i++) st.push(['ice']);
     for (let i = 0; i < item.sugar; i++) st.push(['sugar']);
+    if (item.foam) st.push(['foam']);
     // a slip: one extra tap of something (the bot notices only when serving: it serves anyway, half pay)
     if (r() < b.slip * st.length) st.push(s.def.ice ? ['ice'] : ['top', s.def.toppings[0]]);
+    if (s.def.shake && !cfg.autoShake) st.push(['shake']);
     st.push(['seal']);
     return st;
   }
+  // 提袋: the customer whose cups are in the bag (one customer at a time)
+  let bagOwner = null;
+  const bigBag = (slot) => slot >= 0 && s.bag && s.slots[slot] && s.slots[slot].order && s.slots[slot].order.big;
   function serveTarget(cup) {
     const j = jobs.get(cup.id);
     if (j) { const slot = custAt(j.uid); if (slot >= 0 && !s.slots[slot].got[j.k]) return slot; }
@@ -78,24 +88,48 @@ export function playDay({ day, fame, upgrades, seed, bot, guide = false, def, cu
   }
 
   function act() {
-    // 1. serve a sealed cup (shelf first, then a sealed cup still on the table)
-    for (let i = 0; i < s.shelf.length; i++) {
-      const cup = s.shelf[i];
-      if (!cup || !cup.sealed) continue;
+    // 0. the carry bag: hand it over once it holds every cup its customer still needs (or bin it if they left)
+    if (s.bag && s.bag.cups.length) {
+      const slot = custAt(bagOwner);
+      const unbag = () => { for (const [id, j] of jobs) if (j.bagged) jobs.delete(id); bagOwner = null; };
+      if (slot < 0) { shop.trashBag(); unbag(); return true; }
+      const need = s.slots[slot].got.filter((g) => !g).length;
+      if (s.bag.cups.length >= need) { shop.serveBag(slot); unbag(); return true; }
+    } else bagOwner = null;
+    // 1. serve a sealed cup (shelf first, then a sealed cup still on the table); a big order's cups go into the bag
+    const give = (cup, ref) => {
       const slot = serveTarget(cup);
-      if (slot < 0) { if (!jobs.has(cup.id) || custAt(jobs.get(cup.id).uid) < 0) { shop.trashShelf(i); jobs.delete(cup.id); return true; } continue; }
-      shop.serveShelf(i, slot);
+      if (slot < 0) {
+        if (ref.shelf != null && jobs.has(cup.id) && custAt(jobs.get(cup.id).uid) >= 0) return false;
+        if (ref.shelf != null) shop.trashShelf(ref.shelf); else shop.trash(ref.w);
+        jobs.delete(cup.id);
+        return true;
+      }
+      if (bigBag(slot)) {
+        const uid = s.slots[slot].uid;
+        if (bagOwner != null && bagOwner !== uid) return false; // the bag is busy with someone else's order
+        if (!shop.pack(ref).ok) return false;
+        bagOwner = uid;
+        if (jobs.has(cup.id)) jobs.get(cup.id).bagged = true; // still covers its item until the bag goes out
+        return true;
+      }
+      if (ref.shelf != null) shop.serveShelf(ref.shelf, slot); else shop.serve(ref.w, slot);
       jobs.delete(cup.id);
       return true;
+    };
+    for (let i = 0; i < s.shelf.length; i++) {
+      const cup = s.shelf[i];
+      if (cup && cup.sealed && give(cup, { shelf: i })) return true;
     }
     for (let w = 0; w < s.work.length; w++) {
       const cup = s.work[w];
-      if (!cup || !cup.sealed) continue;
-      const slot = serveTarget(cup);
-      if (slot < 0) { shop.trash(w); jobs.delete(cup.id); return true; }
-      shop.serve(w, slot);
-      jobs.delete(cup.id);
-      return true;
+      if (cup && cup.sealed && give(cup, { w })) return true;
+    }
+    // 1b. snacks: hand a ready bag to whoever ordered one; keep the iron going while someone waits for one
+    if (s.snack) {
+      const want = shop.pendingSnacks();
+      if (want.length && s.snack.ready > 0) { shop.serveSnack(want[0]); return true; }
+      if (want.length > s.snack.ready && !s.snack.cookingUntil && !cfg.autoSnack) { shop.cookSnack(); return true; }
     }
     // 2. a 奧客 waiting long enough (or a normal customer the curse-happy player picks on)
     for (let i = 0; i < s.slots.length; i++) {
@@ -116,25 +150,33 @@ export function playDay({ day, fame, upgrades, seed, bot, guide = false, def, cu
     // 4. continue a job
     for (let w = 0; w < s.work.length; w++) {
       const cup = s.work[w];
-      if (!cup || cup.sealed || cup.sealingUntil) continue;
+      if (!cup || cup.sealed || cup.sealingUntil || cup.shakingUntil) continue;
       const j = jobs.get(cup.id);
       if (!j) continue;
       if (custAt(j.uid) < 0) { shop.trash(w); jobs.delete(cup.id); return true; }
       const step = j.steps[0];
       if (!step) continue;
       if (step[0] === 'tea' && cup.tea) { j.steps.shift(); continue; } // the manifold filled it already
+      if (step[0] === 'lemon' && s.lemon && s.lemon.slices <= 0) {
+        if (!s.lemon.slicingUntil) { shop.slice(); return true; } // refill the tray on the board
+        continue;
+      }
       shop.select(w);
       let res;
       if (step[0] === 'tea') res = shop.addTea(step[1]);
+      else if (step[0] === 'milk') res = shop.addMilk();
       else if (step[0] === 'top') res = shop.addTopping(step[1]);
+      else if (step[0] === 'lemon') res = shop.addLemon();
       else if (step[0] === 'ice') res = shop.tapIce();
       else if (step[0] === 'sugar') res = shop.tapSugar();
+      else if (step[0] === 'foam') res = shop.addFoam();
+      else if (step[0] === 'shake') res = shop.shake(w);
       else if (step[0] === 'seal') {
         res = shop.seal(w);
         if (!res.ok && res.reason === 'sealerBusy' && cfg.autoSeal) res = shop.seal(w, { toShelf: true });
       }
       if (res && res.ok) { j.steps.shift(); return true; }
-      if (res && (res.reason === 'pouring' || res.reason === 'sealerBusy' || res.reason === 'potEmpty' || res.reason === 'shelfFull')) continue;
+      if (res && (res.reason === 'pouring' || res.reason === 'sealerBusy' || res.reason === 'potEmpty' || res.reason === 'shelfFull' || res.reason === 'shakerBusy')) continue;
       j.steps.shift();
       return true;
     }

@@ -22,10 +22,14 @@ function make(shop, item) {
   const r = shop.takeCup();
   assert.ok(r.ok, 'a free work slot');
   shop.addTea(item.tea);
+  if (item.milk) assert.ok(shop.addMilk().ok);
   for (const k of item.toppings) shop.addTopping(k);
+  if (item.lemon) { if (shop.state.lemon.slices <= 0) { shop.slice(); run(shop, shop.cfg.sliceMs + 50); } assert.ok(shop.addLemon().ok); }
   for (let i = 0; i < item.ice; i++) shop.tapIce();
   for (let i = 0; i < item.sugar; i++) shop.tapSugar();
-  run(shop, 700);
+  if (item.foam) assert.ok(shop.addFoam().ok);
+  run(shop, 750);
+  if (shop.def.shake && !shop.cfg.autoShake) { assert.ok(shop.shake(r.w).ok); run(shop, shop.cfg.shakeMs + 50); }
   assert.ok(shop.seal(r.w).ok);
   run(shop, 900);
   const i = shop.state.shelf.findIndex((c) => c && c.sealed && !c._seen);
@@ -155,6 +159,8 @@ test('wrong drink: half pay, no tip, the customer leaves; a 2-cup order pays whe
   const cu = two.state.slots[k];
   assert.equal(cu.order.count, 2);
   assert.equal(cu.patienceMax, patienceFor(dayDef(2), 2));
+  // two different drinks (a milk tea and a plain one), so "any order" is visible
+  cu.order.items = [{ tea: 'black', milk: false, toppings: ['pearl'], ice: 0, sugar: 0 }, { tea: 'green', milk: true, toppings: ['pudding'], ice: 0, sugar: 0 }];
   const r1 = give(two, make(two, cu.order.items[1]), k);
   assert.ok(r1.correct && !r1.done && r1.pay === 0, 'no pay yet');
   assert.deepEqual(cu.got, [false, true], 'the second cup is ticked (any order)');
@@ -179,15 +185,18 @@ test('multi-cup orders by day: none on day 1, 2 cups from day 2, 3 from day 4, b
   const d2 = sizes(2); assert.ok(d2.has(2) && !d2.has(3) && !d2.has('big'));
   const d3 = sizes(3); assert.ok(d3.has('big') && !d3.has(3));
   const d4 = sizes(4); assert.ok(d4.has(3) && d4.has('big'));
-  // big orders pay more per cup
+  // big orders pay more per cup; on a bag day they go out in the carry bag (one cup straight to them is refused)
   const shop = createShop({ day: 3, seed: 4, def: plainDay(3, { bigShare: 1 }) });
   const k = untilSeated(shop, (x) => x.kind === 'normal');
   const c = shop.state.slots[k];
   assert.equal(c.order.count, 4);
   assert.ok(c.order.items.every((it) => it.tea));
-  let last = null;
-  for (const it of c.order.items) last = give(shop, make(shop, it), k);
-  assert.ok(last.done);
+  const first = make(shop, c.order.items[0]);
+  assert.equal(give(shop, first, k).reason, 'needsBag');
+  assert.ok(shop.pack(first).ok);
+  for (const it of c.order.items.slice(1)) assert.ok(shop.pack(make(shop, it)).ok);
+  const last = shop.serveBag(k);
+  assert.ok(last.ok && last.done && last.n === 4 && last.correct === 4);
   assert.equal(last.pay, c.order.items.reduce((a, it) => a + Math.round(itemPrice(it) * BIG_PAY), 0));
 });
 
@@ -377,7 +386,7 @@ test('upgrades change the shop: work slots, counter spots, shelf, megaphone clea
 });
 
 test('station automation: second sealer, auto-seal on the shelf, tea manifold, ice dispenser, auto pot', () => {
-  const shop = createShop({ day: 4, seed: 1, upgrades: ['seal2', 'seal3', 'seal4', 'tea2', 'tea3', 'ice2', 'pot2', 'pot3', 'pot4'], def: plainDay(4) });
+  const shop = createShop({ day: 4, seed: 1, upgrades: ['seal2', 'seal3', 'seal4', 'tea2', 'tea3', 'ice2', 'pot2', 'pot3', 'pot4', 'shaker2', 'shaker3'], def: plainDay(4) });
   const s = shop.state;
   // tea manifold: one tap fills every empty cup
   shop.takeCup(); shop.takeCup(); shop.takeCup();

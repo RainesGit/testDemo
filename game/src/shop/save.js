@@ -2,7 +2,8 @@
 // blocked storage and previews must still play, just without a save). Pure apart from the storage object passed in.
 //
 //   SAVE_KEY = '250cups.shop.v1'
-//   freshSave() → { v, day, wallet, fame, upgrades, best, guideDone, taught }   taught: 奧客 types already taught
+//   freshSave() → { v, day, wallet, fame, upgrades, best, guideDone, taught, hinted }   taught: 奧客 types already taught;
+//                hinted: station hints already shown (engine HINT_IDS). v1 saves (no hinted) load as v2 with nothing hinted.
 //   loadSave(storage) → save (fresh when missing / broken)
 //   writeSave(storage, save) → bool
 //   clearSave(storage)
@@ -13,8 +14,9 @@ import { UPGRADES, UPGRADE_IDS, OLD_IDS, canBuy } from './upgrades.js';
 
 export const SAVE_KEY = '250cups.shop.v1';
 
+export const SAVE_V = 2;
 export function freshSave() {
-  return { v: 1, day: 1, wallet: 0, fame: 0, upgrades: [], best: {}, guideDone: false, taught: [] };
+  return { v: SAVE_V, day: 1, wallet: 0, fame: 0, upgrades: [], best: {}, guideDone: false, taught: [], hinted: [] };
 }
 
 /** Old ids (the first version's flat list) → their closest tree level; unknown ids dropped; no duplicates. */
@@ -32,15 +34,17 @@ function sane(x) {
   const f = freshSave();
   if (!x || typeof x !== 'object') return f;
   const num = (v, d) => (Number.isFinite(v) ? v : d);
+  const strs = (a) => (Array.isArray(a) ? [...new Set(a.filter((t) => typeof t === 'string'))] : []);
   return {
-    v: 1,
+    v: SAVE_V,
     day: Math.max(1, Math.floor(num(x.day, 1))),
     wallet: Math.max(0, Math.round(num(x.wallet, 0))),
     fame: Math.max(0, Math.round(num(x.fame, 0))),
     upgrades: migrateUpgrades(x.upgrades),
     best: x.best && typeof x.best === 'object' ? { ...x.best } : {},
     guideDone: !!x.guideDone,
-    taught: Array.isArray(x.taught) ? [...new Set(x.taught.filter((t) => typeof t === 'string'))] : [],
+    taught: strs(x.taught),
+    hinted: strs(x.hinted),
   };
 }
 

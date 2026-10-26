@@ -251,6 +251,9 @@ button { font: inherit; color: inherit; border: 0; }
 @keyframes press { 0% { transform: none; } 35% { transform: scale(1.07, .88); } 70% { transform: scale(.97, 1.04); } 100% { transform: none; } }
 .st.nudge, .lock-spot.nudge { animation: nudge 320ms ease-in-out; }
 @keyframes nudge { 25% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } 75% { transform: rotate(-3deg); } }
+/* locked spots stay quiet ghosts (the table reads full without a wall of grey covers); a tap brings one up */
+.lock-spot { opacity: .34; transition: opacity 200ms; }
+.lock-spot.nudge { opacity: .8; }
 .lock-spot .lk { transform-box: fill-box; transform-origin: 50% 50%; }
 .lock-spot.nudge .lk { animation: lockJiggle 320ms ease-in-out; }
 @keyframes lockJiggle { 30% { transform: scale(1.25) rotate(-10deg); } 60% { transform: scale(1.15) rotate(8deg); } }

@@ -28,6 +28,7 @@
 import { PALETTE, mixColor, celShade, ringPath, mulberry32, fnv1a, customerSVG, customerLook } from '../art.js';
 import { streetPoint, TABLE_Y } from './layout.js';
 import { G, ell as kEll } from './art-kit.js';
+import { hasPic, picIds, picSet, picSrc } from './pics.js';
 
 const { INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, SHUT, TAKE, LEMON, GOLD_HI, RIM, NIGHT_900, NIGHT_700, NIGHT_500,
   STEEL_HI, STEEL, STEEL_LO, COUNTER_HI, COUNTER, COUNTER_LO, WARM_RIM, WOOD_DK_HI } = PALETTE;
@@ -375,7 +376,32 @@ function cut(L, shirt, second) {
   }
 }
 
+/** The picture set a person uses (pics.js, docs/art-ai-brief.md) or null (drawn): a 奧客's own 'oke-<type>', a content
+ *  customer's 'cust-<cid>', else one of the regulars 'reg-<n>' picked by uid. A 奧客 without its own picture stays drawn
+ *  (it has to be recognisable). */
+export function walkerPicName({ cid = 1, oke = null, uid = null, fixed } = {}) {
+  const o = oke || (fixed === 'c250' ? 'c250' : null);
+  if (o) return hasPic(`oke-${o}`) ? `oke-${o}` : null;
+  if (hasPic(`cust-${cid}`)) return `cust-${cid}`;
+  const regs = picIds().filter((k) => /^reg-\d+$/.test(k)).sort((a, b) => a.slice(4) - b.slice(4));
+  return regs.length ? regs[(((uid == null ? cid : uid) * 7 + cid) % regs.length + regs.length) % regs.length] : null;
+}
+
+// a person as pictures: front (px-base), happy, mad (sent off), back; the far silhouette is the front picture's shape
+// filled with the night colour (an alpha mask), faded in by --far like the drawn one
+function walkerPicSVG(name, cid) {
+  const vb = [0, 0, 200, 480];
+  const href = picSrc(name).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const sil = `<mask id="pm-${name}" mask-type="alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="480">` +
+    `<image href="${href}" x="0" y="0" width="200" height="480" preserveAspectRatio="xMidYMax meet"/></mask>` +
+    `<rect class="wk-sil" x="0" y="0" width="200" height="480" fill="${NIGHT_500}" mask="url(#pm-${name})"/>`;
+  return picSet(name, svg('walker-svg', vb.join(' '), '', ` data-cid="${cid}"`), ['happy', 'mad', 'back'],
+    { before: `<path class="wk-shadow" fill="${G.ao}" stroke="none" d="${ell(100, 476, 70, 12)}"/>`, after: sil + SIGN });
+}
+
 export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } = {}) {
+  const P = walkerPicName({ cid, oke, uid, fixed });
+  if (P) return walkerPicSVG(P, cid);
   const L = walkerLook({ cid, visit, oke, uid });
   const shirt = cool(L.shirt);
   const pants = cool(L.pants);

@@ -683,3 +683,21 @@ html:lang(en) .rotate :is(p, .btn-gold, .ribbon span) { font-family: var(--font-
   .shaker.shake, .btn-gold, .walker .wk-inner, .walker .wk-leg-l, .walker .wk-leg-r, .wk-tag, .start-card .rays, .up.can .up-buy, .hud-timer.late,
   .walker .cust .f-up, .vehicle svg { animation: none !important; }
 }
+
+/* ─── bitmap pictures over the drawn art (src/shop/pics.js, docs/art-ai-brief.md) ─────────────────────── */
+/* a person: front picture, the happy / sent-off / back pictures swapped in by the same classes the drawn faces use */
+.walker-svg[data-pic] .px { display: none; }
+.walker-svg[data-pic] .px-base { display: inline; }
+.walker:is(.happy, .has-ticket, [data-exit="gun"], .back) .walker-svg[data-pic] .px-base { display: none; }
+.walker:is(.happy, .has-ticket) .px-happy, .walker[data-exit="gun"] .px-mad, .walker.back .px-back { display: inline; }
+.walker.back :is(.px-happy, .px-mad) { display: none; }
+/* the clerk panel: one picture per mood */
+.clerk[data-pic] .px { display: none; }
+.clerk[data-pic]:is([data-mood=idle], [data-mood=over], [data-mood=rage]) .px-base,
+.clerk[data-pic][data-mood=hit] .px-hit, .clerk[data-pic][data-mood=perfect] .px-perfect, .clerk[data-pic][data-mood=polite] .px-polite { display: inline; }
+/* a station picture has no moving parts: the whole picture presses / shakes while the station works */
+.st-sealer[data-state="busy"] .pic { animation: picPress 260ms ease-out both; transform-box: fill-box; transform-origin: 50% 100%; }
+.st-shaker[data-state="busy"] .pic { animation: picShake 110ms ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes picPress { 40% { transform: scale(1.04, .9); } }
+@keyframes picShake { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+.pic-head { display: block; width: 100%; height: auto; }

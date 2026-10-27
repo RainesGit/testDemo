@@ -2,6 +2,7 @@
 // window.__shop (no real input, the full recipes incl. milk, lemon, foam and shaking) to a busy moment of a given day and
 // saves tools/shots/shop-look-*.png.
 // Usage: (serve game/ first) node tools/shot-shop.mjs [baseUrl] [--day=3] [--w=844] [--h=390] [--up=a,b] [--t=20000]
+//   [--pics=art/_test] (another picture set, docs/art-ai-brief.md; shots get a -pics suffix)
 import { mkdirSync } from 'node:fs';
 const pw = (await import('./pw.mjs')).default;
 const arg = (k, d) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : d; };
@@ -11,6 +12,7 @@ const W = Number(arg('w', 844));
 const H = Number(arg('h', 390));
 const ups = arg('up', '');
 const T = Number(arg('t', 20000));
+const pics = arg('pics', '');
 const out = new URL('./shots/', import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 const browser = await pw.chromium.launch();
@@ -19,10 +21,10 @@ const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 await page.addInitScript((u) => { try { localStorage.setItem('250cups.shop.v1', JSON.stringify({ v: 1, day: 1, wallet: 0, fame: 300, upgrades: u ? u.split(',') : [], best: {}, guideDone: true })); } catch { /* */ } }, ups);
-await page.goto(`${base}/shop.html?day=${day}&seed=4&mute=1&lang=${arg('lang', 'zh')}`);
+await page.goto(`${base}/shop.html?day=${day}&seed=4&mute=1&lang=${arg('lang', 'zh')}${pics ? `&pics=${encodeURIComponent(pics)}` : ''}`);
 await page.click('.start-card .go', { force: true });
 await page.waitForSelector('.day-card .go');
-await page.screenshot({ path: `${out}shop-look-d${day}-card.png` });
+await page.screenshot({ path: `${out}shop-look-d${day}${pics ? '-pics' : ''}-card.png` });
 await page.click('.day-card .go', { force: true });
 // a scripted helper: make whatever is ordered via the engine (no pointer input), so the screen fills up
 await page.evaluate((T) => new Promise((res) => {
@@ -54,12 +56,12 @@ await page.evaluate((T) => new Promise((res) => {
   };
   loop();
 }), T);
-await page.screenshot({ path: `${out}shop-look-d${day}.png` });
+await page.screenshot({ path: `${out}shop-look-d${day}${pics ? '-pics' : ''}.png` });
 const slot = await page.evaluate(() => { const s = window.__shop.state.slots; const i = s.findIndex((c) => c && c.kind === 'oke'); return i >= 0 ? i : s.findIndex(Boolean); });
 if (slot >= 0) {
   await page.evaluate((i) => { window.__shop.shop.answer(i, 'gun'); }, slot);
   await page.waitForTimeout(900);
-  await page.screenshot({ path: `${out}shop-look-d${day}-fans.png` });
+  await page.screenshot({ path: `${out}shop-look-d${day}${pics ? '-pics' : ''}-fans.png` });
 }
 console.log(errs.length ? errs.join('\n') : 'no errors');
 await browser.close();

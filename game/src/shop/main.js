@@ -4,19 +4,24 @@
 //
 // URL parameters: ?lang=zh|en  ?day=N (jump to day N, no guide)  ?reset=1 (clear the save)  ?seed=N  ?len=ms (day
 // length, tools)  ?speed=K (game clock ×K, tools)  ?input=voice  ?mute=1  ?teach=0|1 (first-time 奧客 demos and the station
-// hints; off by default with ?day so tools are not frozen)
+// hints; off by default with ?day so tools are not frozen)  ?pics=0 (drawn art only) | ?pics=<dir> (another picture set
+// than art/shop/, docs/art-ai-brief.md)
 // window.__shop (tools): { state, phase, save, where(name), shop }. Keys J / K / L answer the leftmost 奧客 (engine.keyTarget).
 import { createShop, keyTarget, HINT_IDS } from './engine.js';
 import { dayDef, MAX_DAY } from './days.js';
 import { okeLine, normalLine, customerSays, okeOf, OKE } from './oke.js';
 import { loadSave, writeSave, clearSave, afterDay, buyUpgrade, freshSave } from './save.js';
 import { createShopUI } from './ui.js';
+import { loadPics } from './pics.js';
 import { getContent } from '../content.js';
 import { createAudio } from '../audio.js';
 import { createShoutDetector, createCalibrator } from '../voice.js';
 import { createMic } from '../mic.js';
 
 const params = new URLSearchParams(location.search);
+// the pictures have to be known before the screen is built (the clerk panel is made once)
+const picDir = params.get('pics');
+if (picDir !== '0') await loadPics(`${picDir && /^[\w-][\w./-]*$/.test(picDir) && !picDir.includes('..') ? picDir.replace(/\/?$/, '/') : 'art/shop/'}manifest.json`);
 const store = (() => { try { return window.localStorage; } catch { return null; } })();
 if (params.get('reset') === '1') clearSave(store);
 let save = loadSave(store);

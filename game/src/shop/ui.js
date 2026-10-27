@@ -27,17 +27,17 @@
 //                               'shelfArea' | 'trash' | 'pot' | 'ice' | 'sugar' | 'milk' | 'foam' | 'shaker' | 'lemon' |
 //                               'board' | 'waffle' | 'snack' (the ready bags) | 'bag' (the carry bag) | 'cup-<w>' |
 //                               'shelf-<i>' | 'seat-<i>'
+import { cupSVG, itemsBubbleSVG, lockedSVG, lockBadgeSVG, patienceColor, TEA_COLORS, SHOP_DEFS } from './art-shop.js';
+import { walkerSVG, rotateIconSVG, pedSVG, roadLane, farWalk } from './art-street.js';
+// everything that can be a picture (art/shop/manifest.json) comes through art-pics.js
 import {
-  cupSVG, teaTankSVG, toppingTraySVG, iceBinSVG, syrupSVG, sealerSVG, potSVG, cupRackSVG, trashSVG, workSlotSVG,
-  coinSVG, tableSVG, shelfSVG, itemsBubbleSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG, lemonTraySVG,
-  goldenCardSVG, counterLipSVG, lockedSVG, lockBadgeSVG, patienceColor, TEA_COLORS, SHOP_DEFS,
-} from './art-shop.js';
-import {
+  teaTankSVG, toppingTraySVG, iceBinSVG, syrupSVG, sealerSVG, potSVG, cupRackSVG, trashSVG, workSlotSVG,
+  coinSVG, tableSVG, shelfSVG, teaManifoldSVG, iceDispenserSVG, potRigSVG, lemonTraySVG, goldenCardSVG, counterLipSVG,
   milkPumpSVG, foamSVG, shakerSVG, boardSVG, waffleSVG, snackBagSVG, snackSpotSVG, carryBagSVG,
   fridgeSVG, lightBoxSVG, fanSVG, registerSVG, cashTraySVG, tipJarSVG, towerStandSVG,
-} from './art-bar.js';
-import { streetSVG, cornerSVG, awningSVG, walkerSVG, helperSVG, acSVG, speakerSVG, ticketMachineSVG, rotateIconSVG, vehicleSVG, pedSVG, roadLane, farWalk } from './art-street.js';
-import { customerSVG, FINGER_SVG, CLERK_SVG, logoSVG, cupStackSVG, MEGAPHONE_SVG } from '../art.js';
+  streetSVG, cornerSVG, awningSVG, helperSVG, acSVG, speakerSVG, ticketMachineSVG, vehicleSVG, clerkSVG, okeHeadSVG,
+} from './art-pics.js';
+import { customerSVG, FINGER_SVG, logoSVG, cupStackSVG, MEGAPHONE_SVG } from '../art.js';
 import { createRecognizer } from '../gesture.js';
 import { okeBubbleSVG, STAMP_SVG, starRowSVG } from './oke-art.js';
 import { okeOf } from './oke.js';
@@ -131,7 +131,7 @@ export function createShopUI(root, h = {}) {
   shaker.append(street, traffic, walkersEl, corner, awning, pillar, seatsEl, counter);
   counter.append(cupsEl);
   const fx = el('div', 'fx');
-  const clerkCut = el('div', 'clerk-cut', `<div class="cc-burst"></div><div class="cc-clerk">${CLERK_SVG}</div>`);
+  const clerkCut = el('div', 'clerk-cut', `<div class="cc-burst"></div><div class="cc-clerk">${clerkSVG()}</div>`);
   const subs = el('div', 'subs');
   const finger = el('div', 'finger', FINGER_SVG);
   finger.hidden = true;
@@ -1358,7 +1358,7 @@ export function createShopUI(root, h = {}) {
     if (k === 'three') return `<i class="nc bub">${itemsBubbleSVG({ items: [it, it2, { tea: 'jade', toppings: [], ice: 1, sugar: 1 }] })}</i>`;
     if (k === 'big') return `<i class="nc bub">${def && def.bag ? carryBagSVG(4) : itemsBubbleSVG({ items: [it, it2, it, it2], big: true })}</i>`;
     const o = okeOf(k);
-    if (o) return `<i class="nc oke"><span class="nc-head">${customerSVG({ id: o.cid }, 0, k === 'c250' ? { fixed: 'c250' } : {})}</span><span class="nc-bub">${okeBubbleSVG(o.prop)}</span><span class="nc-gest g-${o.best}">${GESTURE[o.best]}</span></i>`;
+    if (o) return `<i class="nc oke"><span class="nc-head">${okeHeadSVG(o, customerSVG({ id: o.cid }, 0, k === 'c250' ? { fixed: 'c250' } : {}))}</span><span class="nc-bub">${okeBubbleSVG(o.prop)}</span><span class="nc-gest g-${o.best}">${GESTURE[o.best]}</span></i>`;
     return '';
   }
   function dayCard(d, _opts, onOpen) {

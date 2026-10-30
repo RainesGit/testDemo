@@ -114,8 +114,10 @@ button { font: inherit; color: inherit; border: 0; }
 .stage { position: absolute; inset: 0; container-type: size; touch-action: none; }
 .shop-defs { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .shaker { position: absolute; inset: 0; }
-.shaker.shake { animation: shake 220ms ease-out; }
-@keyframes shake { 20% { translate: var(--sh) 0; } 45% { translate: calc(var(--sh) * -.6) 0; } 70% { translate: calc(var(--sh) * .3) 0; } }
+/* screen shake (art direction 8.1): two decaying swings along (--shx, --shy); only this wrapper moves, never the stage */
+.shaker.shake { animation: shake var(--shms, 220ms) ease-out; }
+@keyframes shake { 15% { translate: var(--shx, 4px) var(--shy, 0px); } 38% { translate: calc(var(--shx, 4px) * -.62) calc(var(--shy, 0px) * -.62); }
+  60% { translate: calc(var(--shx, 4px) * .34) calc(var(--shy, 0px) * .34); } 80% { translate: calc(var(--shx, 4px) * -.14) calc(var(--shy, 0px) * -.14); } }
 
 /* ---------- the street (top 45%) ---------- */
 .street, .corner { position: absolute; left: 0; top: 0; width: 100cqw; height: 22.1875cqw; pointer-events: none; }
@@ -169,40 +171,67 @@ button { font: inherit; color: inherit; border: 0; }
 .walker.m-counter .cust .h-all { transform: rotate(-3deg); }
 .m-walk .wk-leg-l, .m-walk .wk-arm-r { animation: swingA 520ms ease-in-out infinite alternate; }
 .m-walk .wk-leg-r, .m-walk .wk-arm-l { animation: swingB 520ms ease-in-out infinite alternate; }
-.m-walk .wk-inner { animation: bob 260ms ease-in-out infinite alternate; }
+.m-walk .wk-inner { animation: walkBounce 520ms ease-in-out infinite; }
 .m-run .wk-leg-l, .m-run .wk-arm-r { animation: swingA 300ms ease-in-out infinite alternate; --sw: 28deg; }
 .m-run .wk-leg-r, .m-run .wk-arm-l { animation: swingB 300ms ease-in-out infinite alternate; --sw: 28deg; }
-.m-run .wk-inner { animation: runBob 150ms ease-in-out infinite alternate; }
+.m-run .wk-inner { animation: runBounce 300ms ease-in-out infinite; }
 .m-swag .wk-leg-l, .m-swag .wk-arm-r { animation: swingA 700ms ease-in-out infinite alternate; --sw: 12deg; }
 .m-swag .wk-leg-r, .m-swag .wk-arm-l { animation: swingB 700ms ease-in-out infinite alternate; --sw: 12deg; }
 .m-swag .wk-inner { animation: swag 700ms ease-in-out infinite alternate; }
-.m-idle .wk-inner { animation: breathe2 2.4s ease-in-out infinite; animation-delay: var(--sway, 0s); }
-/* at the counter: an idle sway on each person's own beat, and blinking */
-.m-counter .wk-inner { animation: sway 3s ease-in-out infinite; animation-delay: var(--sway, 0s); }
+/* the head bobs a beat behind the body while walking / running (a sad customer shuffles off without it) */
+.walker:not(.sad):is(.m-walk, .m-swag) .cust .h-all { animation: headBob 520ms ease-in-out 70ms infinite; }
+.walker:not(.sad).m-run .cust .h-all { animation: headBob 300ms ease-in-out 40ms infinite; --hb: 1.5; }
+/* in line: a slow weight shift from foot to foot, and breathing (the svg) on each person's own beat */
+.m-idle .wk-inner { animation: weightShift 3.2s ease-in-out infinite; animation-delay: var(--sway, 0s); }
+.walker:is(.m-idle, .m-counter) .walker-svg { transform-origin: 50% 100%; animation: breathe2 2.3s ease-in-out infinite; animation-delay: var(--blink, 0s); }
+/* at the counter: an idle sway on each person's own beat, and blinking; squashes / jumps pivot where the counter lip cuts
+   the body (≈ 56% down the person, layout.js SEAT_HEAD_TOP / SEAT_S / LIP_Y), not at the hidden feet */
+.m-counter .wk-inner { animation: sway 3s ease-in-out infinite; animation-delay: var(--sway, 0s); transform-origin: 50% 56%; }
 .walker:is(.m-counter, .m-idle) .cust .f-up { transform-origin: 100px 112px; animation: blink 4.2s linear infinite; animation-delay: var(--blink, 0s); }
 .walker.oke-live .wk-inner { animation: okeFidget 1.4s ease-in-out infinite; }
 @keyframes swingA { from { transform: rotate(calc(var(--sw, 18deg) * -1)); } to { transform: rotate(var(--sw, 18deg)); } }
 @keyframes swingB { from { transform: rotate(var(--sw, 18deg)); } to { transform: rotate(calc(var(--sw, 18deg) * -1)); } }
-@keyframes bob { to { transform: translateY(-2.5%); } }
-@keyframes runBob { from { transform: rotate(7deg) translateY(0); } to { transform: rotate(7deg) translateY(-4%); } }
+/* a step: squash on the contact, stretch at the top of the bounce (one bounce per leg swing) */
+@keyframes walkBounce { 0%, 100% { transform: translateY(0) scale(1.035, .965); } 18% { transform: translateY(-1%) scale(1, 1); }
+  50% { transform: translateY(-4%) scale(.975, 1.03); } 82% { transform: translateY(-.6%) scale(1, 1); } }
+/* a fan running in: leaning into the run, higher bounces, a harder landing */
+@keyframes runBounce { 0%, 100% { transform: rotate(calc(var(--dir, 1) * 9deg)) translateY(0) scale(1.06, .93); }
+  40% { transform: rotate(calc(var(--dir, 1) * 9deg)) translateY(-7%) scale(.95, 1.06); } 60% { transform: rotate(calc(var(--dir, 1) * 9deg)) translateY(-6%) scale(.97, 1.04); } }
+@keyframes headBob { 0%, 100% { transform: translateY(calc(var(--hb, 1) * 3px)) rotate(calc(var(--hb, 1) * -1.6deg)); } 50% { transform: translateY(calc(var(--hb, 1) * -3px)) rotate(calc(var(--hb, 1) * 1.6deg)); } }
 @keyframes swag { from { transform: rotate(-5deg) translateY(0); } to { transform: rotate(5deg) translateY(-2%); } }
-@keyframes breathe2 { 50% { transform: scale(1.01, .99); } }
-@keyframes sway { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg) translateY(-.6%); } }
+@keyframes breathe2 { 50% { transform: scale(1.018, .986); } }
+@keyframes weightShift { 0%, 100% { transform: rotate(-1.4deg) translateX(-.8%); } 45% { transform: rotate(1.4deg) translateX(.8%); } 52% { transform: rotate(1.2deg) translateX(.8%) translateY(-.5%); } }
+@keyframes sway { 0%, 100% { transform: rotate(-1.6deg) translateX(-.4%); } 25% { transform: rotate(0deg) translateY(-.5%); } 50% { transform: rotate(1.6deg) translateX(.4%); } 75% { transform: rotate(0deg) translateY(-.3%); } }
 @keyframes blink { 0%, 93%, 100% { transform: none; } 95% { transform: scaleY(.08); } }
-@keyframes okeFidget { 50% { transform: translateY(-1%) rotate(-2deg); } }
-/* served: a happy double hop with a big grin */
-.walker.happy .wk-inner { animation: happy 380ms cubic-bezier(.3, 1.6, .6, 1) 2; }
+/* a 奧客 at the counter: impatient little bounces from foot to foot */
+@keyframes okeFidget { 0%, 40%, 100% { transform: none; } 15% { transform: translateY(-1.8%) rotate(-2.4deg); } 22% { transform: scale(1.02, .98); }
+  62% { transform: translateY(-1.4%) rotate(2deg); } 70% { transform: scale(1.02, .98); } }
+/* served: a real jump with a big grin (anticipation squash → jump with a stretch → land squash → settle) */
+.walker.happy .wk-inner { animation: happy 540ms linear; }
 .walker.happy .x-take { display: inline; } .walker.happy .x-ticket { display: none; } .walker.happy :is(.f-up, .f-mouth) { display: none; }
-@keyframes happy { 0%, 100% { transform: none; } 30% { transform: translateY(-5%) scale(.98, 1.03); } 60% { transform: translateY(0) scale(1.04, .96); } }
+@keyframes happy { 0% { transform: none; animation-timing-function: ease-out; } 18% { transform: scale(1.12, .86); animation-timing-function: cubic-bezier(.2, .8, .4, 1); }
+  48% { transform: translateY(-15%) scale(.92, 1.1); animation-timing-function: cubic-bezier(.5, 0, .9, .5); } 72% { transform: translateY(0) scale(1.14, .86); animation-timing-function: ease-out; }
+  86% { transform: scale(.97, 1.04); } 100% { transform: none; } }
 /* the 奧客 tag while walking / waiting (a small jagged red bubble with its request) */
 .wk-tag { position: absolute; left: 46%; top: -26%; width: 62%; transform-origin: 20% 100%; animation: tagBob 900ms ease-in-out infinite alternate; }
 .wk-tag svg { display: block; width: 100%; height: auto; }
 .walker.m-counter .wk-tag, .walker.leaving .wk-tag, .walker.fly .wk-tag, .walker.back .wk-tag { display: none; }
 @keyframes tagBob { to { transform: translateY(-6%) rotate(4deg); } }
-.walker.fly .wk-inner { animation: flyGun 640ms cubic-bezier(.3, 0, .8, .4) forwards; }
-@keyframes flyGun { to { transform: translate(-260%, -150%) rotate(-560deg) scale(.6); } }
-.walker.squash .wk-inner { animation: squash 460ms ease-out; }
-@keyframes squash { 30% { transform: scale(1.18, .72); } 100% { transform: none; } }
+/* 滾: a recoil (anticipation), a stretched launch, then a spinning flight off the screen toward --fd (1 = right, -1 = left) */
+.walker.fly .wk-inner { animation: flyGun 720ms linear forwards; }
+@keyframes flyGun { 0% { transform: none; animation-timing-function: ease-out; }
+  14% { transform: translate(calc(var(--fd, -1) * -7%), 2%) rotate(calc(var(--fd, -1) * -9deg)) scale(1.14, .84); animation-timing-function: cubic-bezier(.2, .9, .4, 1); }
+  24% { transform: translate(calc(var(--fd, -1) * 14%), -14%) rotate(calc(var(--fd, -1) * 40deg)) scale(.86, 1.16); animation-timing-function: cubic-bezier(.3, 0, .8, .5); }
+  86% { opacity: 1; }
+  100% { transform: translate(calc(var(--fd, -1) * 420%), -250%) rotate(calc(var(--fd, -1) * 760deg)) scale(.45); opacity: 0; } }
+/* 閉嘴: a big squash with an overshooting rebound */
+.walker.squash .wk-inner { animation: squash 520ms linear; }
+@keyframes squash { 0% { transform: none; animation-timing-function: cubic-bezier(.2, .9, .4, 1); } 18% { transform: scale(1.3, .64); animation-timing-function: ease-in-out; }
+  42% { transform: scale(.88, 1.14); animation-timing-function: ease-in-out; } 62% { transform: scale(1.07, .94); } 80% { transform: scale(.98, 1.02); } 100% { transform: none; } }
+/* 收: the stamp lands on the head (at ~190 ms): a thump squash, then a pleased little hop with the ticket */
+.walker.thump .wk-inner { animation: thump 560ms linear; }
+@keyframes thump { 0%, 33% { transform: none; animation-timing-function: cubic-bezier(.2, .9, .4, 1); } 39% { transform: scale(1.12, .82); animation-timing-function: cubic-bezier(.2, .8, .4, 1); }
+  56% { transform: translateY(-9%) scale(.94, 1.08); animation-timing-function: cubic-bezier(.5, 0, .9, .5); } 75% { transform: translateY(0) scale(1.1, .88); } 90% { transform: scale(.98, 1.02); } 100% { transform: none; } }
 .walker.wobble .wk-inner { animation: custWobble 450ms ease-in-out; }
 @keyframes custWobble { 0%, 100% { transform: none; } 25% { transform: rotate(-5deg); } 50% { transform: rotate(4deg); } 75% { transform: rotate(-2deg); } }
 .walker.sad .cust .h-all { transform: rotate(8deg) translateY(4px); }
@@ -246,9 +275,10 @@ button { font: inherit; color: inherit; border: 0; }
 .st[data-act] { cursor: pointer; }
 .st svg, .prop svg, .lock-spot svg { display: block; width: 100%; height: auto; overflow: visible; }
 .st, .lock-spot { transform-origin: 50% 100%; }
-/* press: squash and stretch on every station */
-.st.press { animation: press 220ms cubic-bezier(.3, 1.5, .6, 1); }
-@keyframes press { 0% { transform: none; } 35% { transform: scale(1.07, .88); } 70% { transform: scale(.97, 1.04); } 100% { transform: none; } }
+/* press: squash, stretch with an overshoot, settle (≤ 260 ms, so a station is still again right away) */
+.st.press { animation: press 260ms linear; }
+@keyframes press { 0% { transform: none; animation-timing-function: cubic-bezier(.2, .9, .4, 1); } 26% { transform: scale(1.11, .83); animation-timing-function: cubic-bezier(.3, 0, .5, 1); }
+  52% { transform: scale(.94, 1.09); animation-timing-function: ease-in-out; } 76% { transform: scale(1.025, .98); } 100% { transform: none; } }
 .st.nudge, .lock-spot.nudge { animation: nudge 320ms ease-in-out; }
 @keyframes nudge { 25% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } 75% { transform: rotate(-3deg); } }
 /* locked spots stay quiet ghosts (the table reads full without a wall of grey covers); a tap brings one up */
@@ -291,10 +321,20 @@ button { font: inherit; color: inherit; border: 0; }
 .st-helper.busy .helper-svg { animation: helperWork 600ms ease-in-out infinite alternate; transform-origin: 50% 100%; }
 @keyframes helperWork { to { transform: translateY(-1.5%) rotate(-1.5deg); } }
 /* the 10.9 stations */
-.st-shaker[data-state="busy"] .as-shaker-arm { animation: shakeArm 110ms ease-in-out infinite alternate; transform-box: view-box; transform-origin: 50px 92px; }
-@keyframes shakeArm { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
-.cup.shaking { pointer-events: none; animation: cupShake 110ms ease-in-out infinite alternate; transform-origin: 50% 90%; }
-@keyframes cupShake { from { transform: rotate(-6deg) translateX(-4%); } to { transform: rotate(6deg) translateX(4%); } }
+.st-shaker[data-state="busy"] .as-shaker-arm { animation: shakeArm 90ms ease-in-out infinite alternate; transform-box: view-box; transform-origin: 50px 92px; }
+@keyframes shakeArm { from { transform: rotate(-6deg) translateY(-1px); } to { transform: rotate(6deg) translateY(1px); } }
+.cup.shaking { pointer-events: none; animation: cupShake 90ms ease-in-out infinite alternate; transform-origin: 50% 90%; }
+@keyframes cupShake { from { transform: rotate(-11deg) translateX(-7%) translateY(-2%); } to { transform: rotate(11deg) translateX(7%) translateY(1%); } }
+/* motion lines either side of the shaker while it works (pseudo-elements: the station box itself never moves) */
+.st-shaker[data-state="busy"]::before, .st-shaker[data-state="busy"]::after {
+  content: ''; position: absolute; top: 18%; width: 30%; height: 56%; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 60'%3E%3Cg fill='none' stroke='%23FFF7E6' stroke-width='3.2' stroke-linecap='round'%3E%3Cpath d='M22 8 Q12 30 22 52'/%3E%3Cpath d='M12 16 Q5 30 12 44' stroke-opacity='.7'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+  animation: motionL 180ms ease-in-out infinite alternate;
+}
+.st-shaker[data-state="busy"]::before { left: -16%; }
+.st-shaker[data-state="busy"]::after { right: -16%; transform: scaleX(-1); animation-name: motionR; }
+@keyframes motionL { from { opacity: .35; translate: 2% 0; } to { opacity: 1; translate: -10% 0; } }
+@keyframes motionR { from { opacity: 1; translate: 10% 0; } to { opacity: .35; translate: -2% 0; } }
 .cup.froth { animation: froth 360ms cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes froth { 40% { transform: scale(1.08, .92); } }
 .st-board.slicing .as-knife { animation: chop 180ms ease-in-out infinite alternate; transform-box: view-box; transform-origin: 96px 16px; }
@@ -324,7 +364,7 @@ button { font: inherit; color: inherit; border: 0; }
 .cup.new { opacity: 0; transform: translateY(-1.2cqw); }
 .cup.selected::before { content: ''; position: absolute; left: -14%; right: -14%; bottom: -6%; height: 24%; border-radius: 50%; border: .5cqw solid var(--lemon); box-shadow: 0 0 0 .25cqw rgb(27 19 17 / .6); animation: selPulse 900ms ease-in-out infinite alternate; }
 @keyframes selPulse { to { transform: scale(1.06); } }
-.cup.dragging { z-index: 50; transition: none; cursor: grabbing; pointer-events: none; }
+.cup.dragging { z-index: 50; transition: none; cursor: grabbing; pointer-events: none; animation: none; }
 .cup.dragging::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: -14%; height: 10%; border-radius: 50%; background: rgb(0 0 0 / .25); }
 .cup.sealing { pointer-events: none; }
 .cup.vanish { opacity: 0; transition: opacity 220ms, transform 220ms; }
@@ -334,11 +374,17 @@ button { font: inherit; color: inherit; border: 0; }
 @keyframes shelfIn { 0% { transform: translateY(-1.4cqw) scale(.9); } 60% { transform: translateY(0) scale(1.06, .95); } }
 .cup.pour .as-cup > path:nth-child(4) { transform-box: fill-box; transform-origin: 50% 100%; animation: pour 600ms ease-out; }
 @keyframes pour { from { transform: scaleY(0); } }
-.cup.bounce { animation: cupBounce 240ms cubic-bezier(.3, 1.6, .6, 1); }
-@keyframes cupBounce { 40% { transform: scale(1.08, .9); } 75% { transform: scale(.97, 1.04); } }
+/* a topping / ice / slice landing: the cup squashes, rebounds a little higher and settles */
+.cup.bounce { animation: cupBounce 280ms linear; }
+@keyframes cupBounce { 0% { transform: none; animation-timing-function: cubic-bezier(.2, .9, .4, 1); } 28% { transform: scale(1.13, .85); animation-timing-function: ease-in-out; }
+  55% { transform: translateY(-5%) scale(.95, 1.07); animation-timing-function: ease-in; } 78% { transform: scale(1.03, .97); } 100% { transform: none; } }
+/* sealed: the finished cup pops (over the shelf landing) */
+.cups .cup.popdone { animation: cupPop 320ms linear; }
+@keyframes cupPop { 0% { transform: none; animation-timing-function: cubic-bezier(.2, .9, .4, 1); } 25% { transform: scale(1.18, .82); animation-timing-function: cubic-bezier(.3, 0, .5, 1); }
+  55% { transform: translateY(-12%) scale(.9, 1.14); animation-timing-function: ease-in; } 80% { transform: scale(1.05, .95); } 100% { transform: none; } }
 /* the film snap: a white flash over the lid */
-.cup.snap::after { content: ''; position: absolute; left: 4%; right: 4%; top: 8%; height: 14%; border-radius: 50%; background: radial-gradient(#FFFFFF 0 40%, rgb(255 255 255 / 0) 70%); animation: snap 380ms ease-out forwards; }
-@keyframes snap { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.cup.snap::after { content: ''; position: absolute; left: -6%; right: -6%; top: 4%; height: 20%; border-radius: 50%; background: radial-gradient(#FFFFFF 0 45%, rgb(255 251 220 / .8) 58%, rgb(255 255 255 / 0) 72%); animation: snap 380ms ease-out forwards; }
+@keyframes snap { from { transform: scale(.4); opacity: 1; } 30% { transform: scale(1.2); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
 
 /* ---------- fx ---------- */
 .fx { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
@@ -349,7 +395,6 @@ button { font: inherit; color: inherit; border: 0; }
 @keyframes floatUp { 0% { transform: translate(-50%, -20%) scale(.6); opacity: 0; } 20% { transform: translate(-50%, -60%) scale(1.15); opacity: 1; } 100% { transform: translate(-50%, -160%) scale(1); opacity: 0; } }
 .coin-fly { position: absolute; width: 2.8cqw; margin: -1.4cqw 0 0 -1.4cqw; z-index: 31; }
 .coin-fly svg { display: block; width: 100%; }
-.pt { position: absolute; width: 1.3cqw; height: 1.3cqw; margin: -.65cqw; animation: pt 620ms ease-out forwards; }
 .pt-ice { background: #DFF4FF; border: .16cqw solid #3E7FA8; border-radius: .3cqw; }
 .pt-pearl { background: #2B1A12; border-radius: 50%; box-shadow: inset .25cqw .25cqw 0 -.12cqw #8A5A3C; }
 .pt-pudding { background: #F6C356; border: .14cqw solid #A8701A; border-radius: .2cqw; border-top: .35cqw solid #A9561C; }
@@ -359,12 +404,6 @@ button { font: inherit; color: inherit; border: 0; }
 .pt-taro { background: #A07BD0; border: .14cqw solid #5C3F86; border-radius: .35cqw; }
 .pt-bean { background: #7A2A26; border-radius: 50%; box-shadow: inset .2cqw .2cqw 0 -.08cqw #C2615A; }
 .pt-lemon { width: 1.8cqw; height: 1.8cqw; margin: -.9cqw; background: radial-gradient(circle, #FFD84A 0 55%, #FFF6C8 56% 70%, #E2A800 71%); border-radius: 50%; }
-@keyframes pt { to { transform: translate(var(--dx), var(--dy)) rotate(200deg); opacity: 0; } }
-/* topping arcs: x moves linearly, y rises then falls (two nested animations) */
-.arc-x { position: absolute; width: 0; height: 0; animation: arcX 460ms linear both; }
-.pt-drop { position: absolute; display: block; width: 1.2cqw; height: 1.2cqw; margin: -.6cqw; animation: arcY 460ms both; }
-@keyframes arcX { to { transform: translateX(var(--dx)); } }
-@keyframes arcY { 0% { transform: translateY(0) scale(.7); animation-timing-function: cubic-bezier(.2, .6, .4, 1); } 45% { transform: translateY(var(--up)) scale(1.1) rotate(90deg); animation-timing-function: cubic-bezier(.6, 0, .9, .5); } 92% { transform: translateY(var(--dy)) scale(1) rotate(200deg); opacity: 1; } 100% { transform: translateY(var(--dy)) scale(.6); opacity: 0; } }
 /* the tea stream */
 .stream { position: absolute; inset: 0; }
 .stream svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -372,10 +411,25 @@ button { font: inherit; color: inherit; border: 0; }
 .stream .stream-glint { stroke-dasharray: 8 14; animation: pourIn var(--ms) linear forwards, flow 260ms linear infinite; }
 @keyframes pourIn { 0% { stroke-dashoffset: 100; opacity: 1; } 25% { stroke-dashoffset: 0; opacity: 1; } 75% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: -100; opacity: .6; } }
 @keyframes flow { to { stroke-dashoffset: -22; } }
-.splash { position: absolute; width: 4cqw; height: 1.2cqw; margin: -.6cqw -2cqw; border-radius: 50%; border: .3cqw solid var(--c); animation: splash 420ms ease-out both; }
-@keyframes splash { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
-.spark { position: absolute; width: .35cqw; height: 1.4cqw; margin: -.7cqw -.175cqw; background: var(--gold-hi); border-radius: .2cqw; transform: rotate(var(--a)) translateY(-1cqw); animation: spark 480ms ease-out forwards; }
-@keyframes spark { to { transform: rotate(var(--a)) translateY(-3.6cqw); opacity: 0; } }
+/* pooled particles (ui.js spawn: ≤ 12 alive, Web Animations on transform / opacity; the shapes only) */
+.fxp { position: absolute; left: 0; top: 0; display: block; pointer-events: none; will-change: transform, opacity; }
+.fxp svg { display: block; width: 100%; height: auto; overflow: visible; }
+.fxp.p-bit { width: 1.3cqw; height: 1.3cqw; margin: -.65cqw; }
+.fxp.p-drop { width: 1.2cqw; height: 1.2cqw; margin: -.6cqw; }
+.fxp.p-drop.pt-lemon { width: 1.8cqw; height: 1.8cqw; margin: -.9cqw; }
+.fxp.p-tdrop { width: .62cqw; height: .74cqw; margin: -.37cqw -.31cqw; background: var(--c, #C8915C); border: .1cqw solid rgb(62 38 32 / .7); border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; }
+.fxp.p-splash { width: 4cqw; height: 1.2cqw; margin: -.6cqw -2cqw; border-radius: 50%; border: .3cqw solid var(--c); }
+.fxp.p-spark { width: .35cqw; height: 1.4cqw; margin: -.7cqw -.175cqw; background: linear-gradient(#FFFFFF, var(--gold-hi) 40%, var(--lemon)); border-radius: .2cqw; }
+.fxp.p-flash { border-radius: 50%; background: radial-gradient(closest-side, #FFFFFF 0 35%, rgb(255 250 220 / .85) 55%, rgb(255 255 255 / 0)); }
+.fxp.p-heart { width: 1.9cqw; margin: -.85cqw 0 0 -.95cqw; }
+.fxp.p-star { width: 1.9cqw; margin: -.95cqw 0 0 -.95cqw; }
+.fxp.p-dust { width: 2.4cqw; height: 2.4cqw; margin: -1.2cqw; border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%, rgb(255 250 240 / .95) 0 22%, rgb(232 214 190 / .85) 45%, rgb(196 168 140 / .5) 62%, rgb(196 168 140 / 0) 72%); }
+.fxp.p-steam { width: 3.2cqw; height: 3.2cqw; margin: -1.6cqw; border-radius: 50%;
+  background: radial-gradient(circle at 44% 42%, #FFFFFF 0 36%, rgb(255 253 248 / .88) 47%, rgb(150 134 124 / .32) 56%, rgb(150 134 124 / 0) 64%); }
+.fxp.p-ring { border-radius: 50%; border: .32cqw solid var(--c, var(--paper)); box-shadow: 0 0 0 .12cqw rgb(62 38 32 / .35), inset 0 0 0 .12cqw rgb(62 38 32 / .25); }
+.fxp.p-zip { transform-origin: 0 50%; }
+.fxp.p-coin, .fxp.p-cup { z-index: 1; }
 .stamp { position: absolute; width: 8cqw; margin: -4cqw 0 0 -4cqw; animation: stampDown 1100ms ease-out forwards; }
 .stamp svg { display: block; width: 100%; }
 @keyframes stampDown { 0% { transform: scale(2.2) rotate(-20deg); opacity: 0; } 18% { transform: scale(1) rotate(-12deg); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(1) rotate(-12deg); opacity: 0; } }
@@ -397,14 +451,24 @@ button { font: inherit; color: inherit; border: 0; }
 .clerk-cut {
   position: absolute; left: .8cqw; top: 8.4cqw; width: 15cqw; height: 15cqw; z-index: 25; pointer-events: none; overflow: hidden;
   border: .35cqw solid var(--ink); border-radius: 1.8cqw; background: var(--k, var(--gun)); box-shadow: 0 .6cqw 0 rgb(0 0 0 / .35);
-  transform: translateX(-130%) rotate(-5deg); transition: transform 160ms cubic-bezier(.3, 1.4, .5, 1);
+  transform: translateX(-130%) rotate(-5deg); transition: transform 150ms cubic-bezier(.5, -.4, .9, .5); /* snaps back out (a tiny wind-up first) */
 }
 .clerk-cut.k-gun { --k: var(--gun); --k2: var(--gun-deep); } .clerk-cut.k-shut { --k: var(--shut); --k2: var(--shut-deep); } .clerk-cut.k-take { --k: var(--take); --k2: var(--take-deep); }
-.clerk-cut.on { transform: translateX(0) rotate(-5deg); }
+/* slams in: overshoots past its place, kicks back, settles (the hit face reads from ~100 ms) */
+.clerk-cut.on { transform: translateX(0) rotate(-5deg); transition: none; animation: ccSlam 280ms linear; }
+@keyframes ccSlam { 0% { transform: translateX(-130%) rotate(-14deg) scale(1.18); animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+  42% { transform: translateX(9%) rotate(-1deg) scale(.95, 1.05); animation-timing-function: ease-in-out; } 70% { transform: translateX(-3%) rotate(-7deg) scale(1.03, .97); }
+  100% { transform: translateX(0) rotate(-5deg); } }
+/* speed lines over the outer ring of the panel (art direction 8.1: paper colour, thin wedges, centre left clear), 300 ms */
+.cc-lines { position: absolute; inset: -40%; z-index: 1; opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 3deg at 50% 50%, rgb(255 247 230 / .9) 0 1.1deg, transparent 1.1deg 13deg);
+  -webkit-mask: radial-gradient(circle, transparent 30%, #000 46%); mask: radial-gradient(circle, transparent 30%, #000 46%); }
+.clerk-cut.on .cc-lines { animation: ccLines 300ms ease-out; }
+@keyframes ccLines { 0% { opacity: 1; transform: scale(1.25) rotate(-6deg); } 100% { opacity: 0; transform: scale(1) rotate(0deg); } }
 .cc-burst { position: absolute; inset: -50%; background: repeating-conic-gradient(from 0deg at 50% 50%, var(--k, var(--gun)) 0 9deg, var(--k2, var(--gun-deep)) 9deg 18deg); }
 .clerk-cut.on .cc-burst { animation: ccSpin 1.4s linear; }
 @keyframes ccSpin { to { rotate: 40deg; } }
-.cc-clerk { position: absolute; left: -16%; top: 4%; width: 132%; }
+.cc-clerk { position: absolute; left: -16%; top: 4%; width: 132%; z-index: 2; }
 .cc-clerk .clerk { display: block; width: 100%; height: auto; overflow: visible; }
 .clerk * { transform-box: view-box; }
 .clerk .c-skin { fill: var(--skin); } .clerk .c-skin-sh { fill: var(--skin-sh); } .clerk .c-skin-hi { fill: var(--skin-hi); }
@@ -484,10 +548,12 @@ button { font: inherit; color: inherit; border: 0; }
 .hud.goal-met .hud-goal > i { background: linear-gradient(#9EF0C8, var(--mint)); }
 .hud.goal-met .hud-flag { animation: flagWave 700ms ease-in-out infinite alternate; transform-origin: 20% 100%; }
 @keyframes flagWave { to { transform: rotate(-12deg); } }
-.hud.bump .hud-coin { animation: coinBump 220ms ease-out; }
-.hud.bump .hud-num { animation: numBump 220ms ease-out; }
-@keyframes coinBump { 50% { transform: scale(1.22) rotate(-10deg); } }
-@keyframes numBump { 50% { transform: scale(1.12); } }
+/* every coin landing: the coin spins a little, the number punches (scale bounce with an overshoot) */
+.hud.bump .hud-coin { animation: coinBump 260ms ease-out; }
+.hud.bump .hud-num { animation: numBump 280ms linear; transform-origin: 30% 60%; }
+@keyframes coinBump { 40% { transform: scale(1.3) rotate(-14deg); } 75% { transform: scale(.95) rotate(4deg); } }
+@keyframes numBump { 0% { transform: none; animation-timing-function: cubic-bezier(.2, .9, .4, 1); } 30% { transform: scale(1.34) rotate(-3deg) translateY(-6%); animation-timing-function: ease-in-out; }
+  62% { transform: scale(.94) rotate(1deg); } 82% { transform: scale(1.04); } 100% { transform: none; } }
 .hud-timer { left: 25.8cqw; width: 10.6cqw; border-radius: 1.4cqw; display: flex; align-items: center; gap: .5cqw; padding-left: .4cqw; }
 .hud-timer svg { width: 3.6cqw; height: 3.6cqw; flex: none; overflow: visible; }
 .ht-bg { fill: var(--paper); stroke: var(--ink); stroke-width: 3; }
@@ -686,7 +752,10 @@ html:lang(en) .rotate :is(p, .btn-gold, .ribbon span) { font-family: var(--font-
 
 @media (prefers-reduced-motion: reduce) {
   .shaker.shake, .btn-gold, .walker .wk-inner, .walker .wk-leg-l, .walker .wk-leg-r, .wk-tag, .start-card .rays, .up.can .up-buy, .hud-timer.late,
-  .walker .cust .f-up, .vehicle svg { animation: none !important; }
+  .walker .cust .f-up, .vehicle svg, .walker .walker-svg, .walker .cust .h-all, .clerk-cut.on, .cc-lines, .st.press, .cup.bounce, .cups .cup.popdone,
+  .cup.shaking, .st-shaker[data-state="busy"] .as-shaker-arm, .hud.bump .hud-num, .hud.bump .hud-coin { animation: none !important; }
+  .st-shaker[data-state="busy"]::before, .st-shaker[data-state="busy"]::after, .cc-lines { display: none; }
+  .clerk-cut { transition: none; }
 }
 
 /* ─── bitmap pictures over the drawn art (src/shop/pics.js, docs/art-ai-brief.md) ─────────────────────── */

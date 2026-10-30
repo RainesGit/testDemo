@@ -99,6 +99,25 @@ function place(e, r, h) {
   return e;
 }
 const restart = (e, cls) => { if (!e) return; e.classList.remove(cls); void e.offsetWidth; e.classList.add(cls); };
+// a one-shot class: restarted now, taken off again after ms (so it never masks a later animation on the same element)
+const shotT = new WeakMap();
+function oneShot(e, cls, ms) {
+  if (!e) return;
+  restart(e, cls);
+  let m = shotT.get(e);
+  if (!m) { m = {}; shotT.set(e, m); }
+  clearTimeout(m[cls]);
+  m[cls] = setTimeout(() => e.classList.remove(cls), ms);
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// particle shapes (tiny inline SVG; the art files stay untouched): no words, no filters
+const FXP = {
+  heart: '<svg viewBox="0 0 24 22" aria-hidden="true"><path d="M12 20.5 C5 15 1.2 11.2 1.2 7 A5.2 5.2 0 0 1 12 4.6 A5.2 5.2 0 0 1 22.8 7 C22.8 11.2 19 15 12 20.5 Z" fill="#FF5C7A" stroke="#8E2A3A" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="7.2" cy="7.6" rx="2.2" ry="1.5" fill="#FFFFFF" opacity=".75" transform="rotate(-30 7.2 7.6)"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 L14.9 8.6 L22.5 9.2 L16.7 14.1 L18.5 21.6 L12 17.6 L5.5 21.6 L7.3 14.1 L1.5 9.2 L9.1 8.6 Z" fill="#FFD84A" stroke="#8A5A00" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 5 L13.4 9.4" stroke="#FFF3B0" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  zip: '<svg viewBox="0 0 64 18" aria-hidden="true"><path d="M3 9 H54" stroke="#3E2620" stroke-width="6" stroke-linecap="round"/><path d="M8 5 V13 M14 5 V13 M20 5 V13 M26 5 V13 M32 5 V13 M38 5 V13 M44 5 V13 M50 5 V13" stroke="#E8ECF1" stroke-width="2.6"/><rect x="52" y="2.5" width="9" height="13" rx="2.5" fill="#FFD84A" stroke="#3E2620" stroke-width="2"/></svg>',
+  pop: '<svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="#FFF7E6" stroke-width="3.2" stroke-linecap="round"><path d="M20 2 V9 M20 31 V38 M2 20 H9 M31 20 H38 M7.3 7.3 L12 12 M28 28 L32.7 32.7 M32.7 7.3 L28 12 M12 28 L7.3 32.7"/></g></svg>',
+};
 
 export function createShopUI(root, h = {}) {
   const call = (k, ...a) => { try { return h[k] && h[k](...a); } catch (e) { console.error('[shop ui]', e); return undefined; } };
@@ -131,7 +150,7 @@ export function createShopUI(root, h = {}) {
   shaker.append(street, traffic, walkersEl, corner, awning, pillar, seatsEl, counter);
   counter.append(cupsEl);
   const fx = el('div', 'fx');
-  const clerkCut = el('div', 'clerk-cut', `<div class="cc-burst"></div><div class="cc-clerk">${clerkSVG()}</div>`);
+  const clerkCut = el('div', 'clerk-cut', `<div class="cc-burst"></div><div class="cc-lines"></div><div class="cc-clerk">${clerkSVG()}</div>`);
   const subs = el('div', 'subs');
   const finger = el('div', 'finger', FINGER_SVG);
   finger.hidden = true;
@@ -321,6 +340,12 @@ export function createShopUI(root, h = {}) {
     return w;
   }
   function setPos(w, p, far = 0) {
+    // which way the person is heading (the run lean and the dust puffs follow it)
+    if (w.pos) {
+      const dx = p.x - w.pos.x;
+      const d = Math.abs(dx) > 0.2 ? Math.sign(dx) : w.dir || 1;
+      if (d !== w.dir) { w.dir = d; w.el.style.setProperty('--dir', String(d)); }
+    }
     const x = p.x * K - (PERSON.w * K) / 2;
     const y = p.y * K - PERSON.h * K;
     w.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${p.s.toFixed(4)})`;
@@ -347,6 +372,7 @@ export function createShopUI(root, h = {}) {
       setPos(w, streetPoint(u, lane), clamp((u - 0.42) / 0.3, 0, 1));
       const moving = c.phase === 'walk';
       setMode(w, moving ? (c.run ? 'run' : c.kind === 'oke' ? 'swag' : 'walk') : 'idle');
+      if (moving && c.run) runDust(w);
     });
     s.incoming.forEach((inc, i) => {
       if (!inc) return;
@@ -372,7 +398,7 @@ export function createShopUI(root, h = {}) {
       if (!w.leaving) startLeave(w, 'walk');
       const L = w.leaving;
       const t = now - L.t0 - (L.hold || 0);
-      if (L.kind === 'fly') { if (t > 700) { w.el.remove(); walkers.delete(uid); } continue; }
+      if (L.kind === 'fly') { if (t > 760) { w.el.remove(); walkers.delete(uid); } continue; }
       if (t < 0) continue;
       if (!w.el.classList.contains('back')) { w.el.classList.add('back'); w.el.classList.remove('happy'); setMode(w, 'walk'); }
       const from = L.from;
@@ -392,10 +418,11 @@ export function createShopUI(root, h = {}) {
   }
   function startLeave(w, kind, reason) {
     const happy = reason === 'served' || reason === 'take';
-    w.leaving = { kind, t0: performance.now(), from: w.pos || streetPoint(0), hold: happy && kind === 'walk' ? 420 : 0 };
+    // a paying customer stays for the whole happy jump (anticipation → jump → landing, 540 ms) before turning round
+    w.leaving = { kind, t0: performance.now(), from: w.pos || streetPoint(0), hold: happy && kind === 'walk' ? 560 : 0 };
     w.el.classList.remove('oke-live');
     if (reason) w.el.dataset.exit = reason;
-    if (happy && kind === 'walk') restart(w.el, 'happy');
+    if (happy && kind === 'walk') oneShot(w.el, 'happy', 2000);
     if (kind === 'walk') { setMode(w, w.leaving.hold ? 'counter' : 'walk'); w.el.classList.add('leaving'); }
   }
 
@@ -474,6 +501,8 @@ export function createShopUI(root, h = {}) {
       const shaking = !!cup.shakingUntil;
       const key = `${cup.tea}|${cup.milk ? 1 : 0}|${cup.toppings.join(',')}|${cup.ice}|${cup.sugar}|${cup.foam ? 1 : 0}|${cup.lemon ? 1 : 0}|${cup.shaken ? 1 : 0}|${cup.sealed ? 1 : 0}`;
       if (key !== c.key) { c.key = key; c.el.innerHTML = cupSVG(cup); }
+      // dropped on a customer or the bin but refused: show it again where it belongs
+      if (c.gone) { c.gone = false; c.el.classList.remove('vanish'); c.el.style.transform = ''; }
       const refKey = ref.shelf != null ? `s${ref.shelf}` : `w${ref.w}`;
       const pos = cupPlace(ref, cup);
       const posKey = `${refKey}|${Math.round(pos.x)}|${Math.round(pos.y)}|${Math.round(pos.w)}`;
@@ -604,6 +633,7 @@ export function createShopUI(root, h = {}) {
     renderSeats(s);
     renderCups(s);
     renderTraffic();
+    ambient(s);
     // sealers
     for (let k = 0; k < (cfg ? cfg.sealers : 1); k++) {
       const e = st['sealer-' + k];
@@ -695,10 +725,139 @@ export function createShopUI(root, h = {}) {
     const top = p.y - PERSON.h * p.s;
     return { x: (p.x - w / 2) * K, y: top * K, w: w * K, h: hh * K, cx: p.x * K, cy: (top + hh / 2) * K };
   }
-  function shake(px = 4) {
-    if (reduced()) px = Math.round(px / 2);
-    shaker.style.setProperty('--sh', `${px}px`);
-    restart(shaker, 'shake');
+  // screen shake (art direction 8.1): directional, two decaying swings along (dx, dy); the .shaker wrapper moves, the
+  // stage (pointer coordinates) never does; off with prefers-reduced-motion
+  let shakeT = 0;
+  function shake(px = 4, dx = 1, dy = 0, delay = 0) {
+    if (reduced()) return;
+    clearTimeout(shakeT);
+    const go = () => {
+      const n = Math.hypot(dx, dy) || 1;
+      shaker.style.setProperty('--shx', `${((px * dx) / n).toFixed(1)}px`);
+      shaker.style.setProperty('--shy', `${((px * dy) / n).toFixed(1)}px`);
+      shaker.style.setProperty('--shms', `${px >= 8 ? 300 : 220}ms`);
+      oneShot(shaker, 'shake', 320);
+    };
+    if (delay) shakeT = setTimeout(go, delay); else go();
+  }
+
+  // ---- particle pool (art direction 8.2): at most 12 alive, the elements are reused and taken out of the DOM when their
+  // animation ends; transform / opacity only (Web Animations). prio: 0 = ambience (dust, steam: skipped when the pool is
+  // busy or motion is reduced), 1 = effect bits, 2 = coins (a new particle may take over the oldest one of a lower or
+  // equal priority)
+  const PMAX = 12;
+  const pool = [];
+  let pSeq = 0;
+  const busyN = () => pool.reduce((n, q) => n + (q.busy ? 1 : 0), 0);
+  function release(p) {
+    if (!p.busy) return;
+    p.busy = false;
+    if (p.anim) { p.anim.onfinish = null; p.anim = null; }
+    p.el.remove();
+    const d = p.done;
+    p.done = null;
+    if (d) d();
+  }
+  function spawn(cls, { x, y, html = '', frames, ms = 500, delay = 0, easing = 'ease-out', prio = 1, style = '', done = null }) {
+    if (prio === 0 && (reduced() || busyN() > PMAX - 4)) return null;
+    let p = pool.find((q) => !q.busy);
+    if (!p && pool.length < PMAX) { p = { el: el('i'), busy: false }; pool.push(p); }
+    if (!p) {
+      for (const q of pool) if (q.prio <= prio && (!p || q.prio < p.prio || (q.prio === p.prio && q.seq < p.seq))) p = q;
+      if (!p) return null;
+      if (p.anim) p.anim.cancel();
+      release(p);
+    }
+    p.busy = true;
+    p.prio = prio;
+    p.seq = ++pSeq;
+    p.done = done;
+    p.el.className = `fxp ${cls}`;
+    p.el.innerHTML = html;
+    p.el.style.cssText = `left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;${style}`;
+    fx.append(p.el);
+    if (!p.el.animate) { setTimeout(() => release(p), ms + delay); return p; }
+    p.anim = p.el.animate(frames, { duration: ms, delay, easing, fill: 'both' });
+    p.anim.onfinish = () => release(p);
+    return p;
+  }
+  // a throw: x moves evenly, y rises by `up` (negative) and falls to dy (sampled parabola)
+  function arcFrames(dx, dy, up, { s0 = 0.7, s1 = 0.7, rot = 200, fade = true, n = 8 } = {}) {
+    const f = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = dx * t;
+      const y = dy * t + 4 * up * t * (1 - t);
+      const s = t < 0.5 ? s0 + (1.1 - s0) * (t / 0.5) : 1.1 + (s1 - 1.1) * ((t - 0.5) / 0.5);
+      f.push({ transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${(rot * t).toFixed(0)}deg) scale(${s.toFixed(3)})`, opacity: fade && i === n ? 0 : 1 });
+    }
+    return f;
+  }
+  // radial bits (stars, hearts, sparks): fly out from (x, y), fade
+  function radial(cls, html, x, y, n, { d0 = 30, d1 = 60, a0 = 0, spread = Math.PI * 2, rise = 0, ms = 560, rot = 180, prio = 1, s = 1 } = {}) {
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (spread * (i + 0.5)) / n - spread / 2 + rnd(-0.25, 0.25);
+      const d = rnd(d0, d1) * K;
+      const tx = Math.cos(a) * d;
+      const ty = Math.sin(a) * d - rise * K;
+      spawn(cls, { x, y, html, ms: ms + rnd(-60, 60), prio, easing: 'cubic-bezier(.15,.7,.35,1)', frames: [
+        { transform: `translate(0, 0) rotate(0deg) scale(${(0.4 * s).toFixed(2)})`, opacity: 1 },
+        { transform: `translate(${(tx * 0.7).toFixed(1)}px, ${(ty * 0.7).toFixed(1)}px) rotate(${(rot * 0.6).toFixed(0)}deg) scale(${(1.1 * s).toFixed(2)})`, opacity: 1, offset: 0.55 },
+        { transform: `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) rotate(${rot}deg) scale(${(0.6 * s).toFixed(2)})`, opacity: 0 },
+      ] });
+    }
+  }
+  const hearts = (x, y, n = 3) => { for (let i = 0; i < n; i++) {
+    const tx = rnd(-46, 46) * K;
+    const ty = -rnd(60, 96) * K;
+    spawn('p-heart', { x: x + (i - (n - 1) / 2) * 18 * K, y, html: FXP.heart, ms: 820, delay: i * 70, easing: 'cubic-bezier(.2,.8,.4,1)', frames: [
+      { transform: 'translate(0, 0) scale(.3) rotate(0deg)', opacity: 0 },
+      { transform: `translate(${(tx * 0.4).toFixed(1)}px, ${(ty * 0.45).toFixed(1)}px) scale(1.25) rotate(${(tx > 0 ? 10 : -10)}deg)`, opacity: 1, offset: 0.3 },
+      { transform: `translate(${(tx * 0.8).toFixed(1)}px, ${(ty * 0.8).toFixed(1)}px) scale(1) rotate(${(tx > 0 ? -8 : 8)}deg)`, opacity: 1, offset: 0.7 },
+      { transform: `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(.8)`, opacity: 0 },
+    ] });
+  } };
+  const stars = (x, y, n = 4, o = {}) => radial('p-star', FXP.star, x, y, n, { d0: 50, d1: 90, rot: 220, ...o });
+  // a puff of dust (prio 0 unless asked): grows and fades while drifting by (dx, dy)
+  function dust(x, y, s = 1, dx = 0, dy = -10, prio = 0, delay = 0) {
+    return spawn('p-dust', { x, y, prio, delay, ms: 520, easing: 'cubic-bezier(.2,.7,.4,1)', frames: [
+      { transform: `translate(0, 0) scale(${(0.35 * s).toFixed(2)})`, opacity: 0.95 },
+      { transform: `translate(${(dx * K).toFixed(1)}px, ${(dy * K).toFixed(1)}px) scale(${(1.3 * s).toFixed(2)})`, opacity: 0 },
+    ] });
+  }
+  // a flat ring on the ground / the lid (dust ring under the stamp, the coin landing, the star-up)
+  function ring(x, y, w, color, ms = 420, prio = 1, delay = 0) {
+    return spawn('p-ring', { x, y, prio, ms, delay, style: `width:${w.toFixed(1)}px;height:${(w * 0.42).toFixed(1)}px;margin:${(-w * 0.21).toFixed(1)}px 0 0 ${(-w / 2).toFixed(1)}px;--c:${color};`,
+      frames: [{ transform: 'scale(.25)', opacity: 1 }, { transform: 'scale(1.5)', opacity: 0 }] });
+  }
+  // fans running in: a little dust kicked up behind the feet every few steps
+  let dustT = 0;
+  function runDust(w) {
+    const now = performance.now();
+    if (!w.pos || now < (w.nextDust || 0) || now - dustT < 60) return;
+    w.nextDust = now + 170 + (Number(w.el.dataset.uid) % 5) * 15;
+    dustT = now;
+    const p = w.pos;
+    dust(p.x * K - (w.dir || 1) * 18 * p.s * K, p.y * K - 6 * p.s * K, Math.max(0.6, p.s * 1.6), -(w.dir || 1) * 30 * p.s, -14 * p.s);
+  }
+  // steam from the pearl pot (and the waffle iron) while cooking
+  let steamT = 0;
+  function ambient(s) {
+    const now = performance.now();
+    if (now < steamT || document.hidden) return;
+    steamT = now + 340;
+    const puff = (r, k) => {
+      const x = (r.x + r.w * rnd(0.32, 0.68)) * K;
+      const y = (r.y + r.h * k) * K;
+      const sx = rnd(-14, 14) * K;
+      spawn('p-steam', { x, y, prio: 0, ms: 1100, easing: 'cubic-bezier(.3,.6,.5,1)', frames: [
+        { transform: 'translate(0, 0) scale(.45)', opacity: 0 },
+        { transform: `translate(${(sx * 0.4).toFixed(1)}px, ${(-18 * K).toFixed(1)}px) scale(.85)`, opacity: 0.8, offset: 0.25 },
+        { transform: `translate(${sx.toFixed(1)}px, ${(-58 * K).toFixed(1)}px) scale(1.6)`, opacity: 0 },
+      ] });
+    };
+    if (s.pot && s.pot.cookingUntil && R.pot) puff(R.pot, 0.2);
+    else if (s.snack && s.snack.cookingUntil && R.waffle && Math.random() < 0.5) puff(R.waffle, 0.25);
   }
   let floatBusy = 0;
   function floatNum(text, x, y, cls = '') {
@@ -714,56 +873,54 @@ export function createShopUI(root, h = {}) {
     }, delay);
   }
   // coins pop out of the customer, then fly into the HUD coin; the HUD number ticks up as they land (render)
+  // the coins first pop out of the customer with a twinkle, then fly into the HUD coin; the HUD number punches on every
+  // landing and ticks up (render); the last one leaves a gold ring on the HUD coin
   function coinsFly(from, n = 3) {
     const to = rectIn(hud.querySelector('.hud-coin'));
+    const W = 2.8 * stage.clientWidth / 100;
+    radial('p-spark', '', from.cx, from.cy - 10 * K, 3, { d0: 26, d1: 40, a0: -Math.PI / 2, spread: Math.PI * 1.2, rot: 0, ms: 380 });
     for (let i = 0; i < n; i++) {
-      const c = el('div', 'coin-fly', coinSVG());
-      c.style.left = `${from.cx}px`;
-      c.style.top = `${from.cy}px`;
-      fx.append(c);
-      const px = (Math.random() - 0.5) * 70 * K;
-      const py = -(40 + Math.random() * 40) * K;
+      const px = rnd(-35, 35) * K;
+      const py = -rnd(40, 80) * K;
       const dx = to.cx - from.cx;
       const dy = to.cy - from.cy;
-      const a = c.animate ? c.animate([
-        { transform: 'translate(0, 0) scale(.3)', opacity: 0 },
-        { transform: `translate(${px}px, ${py}px) scale(1.15)`, opacity: 1, offset: 0.32, easing: 'cubic-bezier(.4, 0, .9, .6)' },
-        { transform: `translate(${dx}px, ${dy}px) scale(.7)`, opacity: 1 },
-      ], { duration: 640 + i * 60, delay: i * 55, easing: 'linear', fill: 'both' }) : null;
-      const done = () => { c.remove(); restart(hud, 'bump'); };
-      if (a) a.onfinish = done; else setTimeout(done, 700);
+      spawn('p-coin', { x: from.cx, y: from.cy, html: coinSVG(), prio: 2, ms: 640 + i * 60, delay: i * 55, easing: 'linear',
+        style: `width:${W.toFixed(1)}px;margin:${(-W / 2).toFixed(1)}px 0 0 ${(-W / 2).toFixed(1)}px;`,
+        frames: [
+          { transform: 'translate(0, 0) scale(.3) rotate(0deg)', opacity: 0 },
+          { transform: `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px) scale(1.2) rotate(${px > 0 ? 30 : -30}deg)`, opacity: 1, offset: 0.32, easing: 'cubic-bezier(.4, 0, .9, .6)' },
+          { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(.7) rotate(0deg)`, opacity: 1 },
+        ],
+        done: () => { restart(hud, 'bump'); if (i === n - 1) ring(to.cx, to.cy, 64 * K, 'var(--lemon)', 360, 1); } });
     }
   }
-  function burst(x, y, kind, n = 5) {
+  // bits of the curse (ice cubes, pearls): thrown out of (x, y), toward `dir` (radians) if given
+  function burst(x, y, kind, n = 5, dir = null) {
     for (let i = 0; i < n; i++) {
-      const p = el('i', `pt pt-${kind}`);
-      const a = (Math.PI * 2 * i) / n + Math.random() * 0.6;
-      const d = (30 + Math.random() * 40) * K * 1.6;
-      p.style.left = `${x}px`;
-      p.style.top = `${y}px`;
-      p.style.setProperty('--dx', `${Math.cos(a) * d}px`);
-      p.style.setProperty('--dy', `${Math.sin(a) * d - 20}px`);
-      fx.append(p);
-      setTimeout(() => p.remove(), 650);
+      const a = dir == null ? (Math.PI * 2 * i) / n + Math.random() * 0.6 : dir + rnd(-0.6, 0.6);
+      const d = rnd(30, 70) * K * 1.6;
+      const fall = kind === 'pearl' ? 70 * K : 0; // pearls bounce down
+      spawn(`p-bit pt-${kind}`, { x, y, ms: 640, easing: 'cubic-bezier(.2,.7,.4,1)', frames: arcFrames(Math.cos(a) * d, Math.sin(a) * d + fall, -rnd(20, 50) * K, { s0: 0.8, s1: 0.8, rot: rnd(160, 320) }) });
     }
   }
-  // a small arc from a station to the cup (toppings, ice, syrup)
+  // a small arc from a station to the cup (toppings, ice, syrup); lands at ~420 ms
   function arcDrop(kind, from, to, n = 3) {
     for (let i = 0; i < n; i++) {
-      const o = el('div', 'arc-x');
-      const inner = el('i', `pt-drop pt-${kind}`);
-      o.append(inner);
       const jx = (i - (n - 1) / 2) * 7 * K;
-      o.style.left = `${from.x + jx}px`;
-      o.style.top = `${from.y}px`;
-      o.style.setProperty('--dx', `${to.x - from.x - jx * 0.5}px`);
-      inner.style.setProperty('--dy', `${to.y - from.y}px`);
-      inner.style.setProperty('--up', `${-Math.max(30 * K, (from.y - to.y) * 0.25 + 46 * K)}px`);
-      o.style.animationDelay = inner.style.animationDelay = `${i * 50}ms`;
-      fx.append(o);
-      setTimeout(() => o.remove(), 520 + i * 50);
+      const up = -Math.max(30 * K, (from.y - to.y) * 0.25 + 46 * K);
+      spawn(`p-drop pt-${kind}`, { x: from.x + jx, y: from.y, ms: 460, delay: i * 50, easing: 'linear',
+        frames: arcFrames(to.x - from.x - jx * 0.5, to.y - from.y, up, { s0: 0.7, s1: 0.85, rot: 200 }) });
     }
   }
+  // drops jumping out of the cup and falling back in (tea / milk splash, a topping plopping in)
+  function splashDrops(x, y, color, n = 3, delay = 0) {
+    for (let i = 0; i < n; i++) {
+      const dx = (i - (n - 1) / 2) * rnd(10, 16) * K;
+      spawn('p-tdrop', { x, y, delay: delay + i * 40, ms: 380, easing: 'linear', style: `--c:${color};`,
+        frames: arcFrames(dx, 4 * K, -rnd(16, 26) * K, { s0: 0.9, s1: 0.6, rot: 0 }) });
+    }
+  }
+  const cupColor = (w) => { const cup = lastState && lastState.work[w]; return cup && cup.tea && TEA_COLORS[cup.tea] ? TEA_COLORS[cup.tea].body : '#C8915C'; };
   // the tea stream: a curved ribbon from the tap's spout into the cup
   function pour(kind, from, to, ms, color) {
     const c = color || (TEA_COLORS[kind] ? TEA_COLORS[kind].body : '#C8915C');
@@ -777,14 +934,10 @@ export function createShopUI(root, h = {}) {
     e.style.setProperty('--ms', `${Math.max(240, ms)}ms`);
     fx.append(e);
     setTimeout(() => e.remove(), Math.max(240, ms) + 320);
-    // a splash ring on the cup
-    const sp = el('div', 'splash');
-    sp.style.left = `${to.x}px`;
-    sp.style.top = `${to.y}px`;
-    sp.style.setProperty('--c', c);
-    sp.style.animationDelay = '160ms';
-    fx.append(sp);
-    setTimeout(() => sp.remove(), 700);
+    // a splash ring on the cup and a few drops jumping out and back in
+    spawn('p-splash', { x: to.x, y: to.y, delay: 160, ms: 420, style: `--c:${c};`, frames: [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(1.4)', opacity: 0 }] });
+    splashDrops(to.x, to.y, c, 3, 170);
+    if (ms > 700) splashDrops(to.x, to.y, c, 2, Math.min(ms - 200, 700));
   }
   const dp = (x, y) => ({ x: x * K, y: y * K });
   function cupTop(w) {
@@ -793,22 +946,28 @@ export function createShopUI(root, h = {}) {
     if (!c || !c.pos) return null;
     return dp(c.pos.x, c.pos.y - c.pos.w * CUP_K + c.pos.w * 0.26);
   }
+  // the clerk cut-in (three beats, art direction 8.4): the panel slams in with an overshoot and speed lines on the
+  // 'hit' face, snaps to 'perfect', and is gone again after ~0.6 s
   let clerkT = 0;
   function clerkPop(key) {
     const svg = clerkCut.querySelector('svg');
     clearTimeout(clerkT);
+    clerkCut.className = `clerk-cut k-${key}`;
+    void clerkCut.offsetWidth;
     clerkCut.className = `clerk-cut on k-${key}`;
     svg.dataset.mood = 'hit';
     clerkT = setTimeout(() => {
       svg.dataset.mood = 'perfect';
-      clerkT = setTimeout(() => { clerkCut.className = `clerk-cut k-${key}`; svg.dataset.mood = 'idle'; }, 560);
-    }, 640);
+      clerkT = setTimeout(() => { clerkCut.className = `clerk-cut k-${key}`; svg.dataset.mood = 'idle'; }, 200);
+    }, 380);
   }
+  // 收: the stamp comes down on the forehead; on the thump a dust ring, two puffs and a short downward shake
   function stampOn(i) {
     const r = seatHeadRect(i);
     const s = el('div', 'stamp', STAMP_SVG);
+    const sy = r.y + r.h * 0.4;
     s.style.left = `${r.cx}px`;
-    s.style.top = `${r.y + r.h * 0.4}px`;
+    s.style.top = `${sy}px`;
     fx.append(s);
     const tk = el('div', 'ticket', T.ticket.map((x, k) => `<span class="tk${k}">${esc(x)}</span>`).join(''));
     tk.style.left = `${r.cx}px`;
@@ -816,17 +975,53 @@ export function createShopUI(root, h = {}) {
     fx.append(tk);
     setTimeout(() => s.remove(), 1100);
     setTimeout(() => tk.remove(), 1600);
+    const thump = 190; // stampDown reaches the head at 18 % of 1100 ms
+    ring(r.cx, sy + r.h * 0.12, r.w * 0.8, 'rgb(255 236 210 / .9)', 460, 1, thump);
+    dust(r.cx - r.w * 0.3, sy + r.h * 0.1, 1.1, -26, -6, 1, thump);
+    dust(r.cx + r.w * 0.3, sy + r.h * 0.1, 1.1, 26, -6, 1, thump);
+    shake(5, 0, 1, thump);
   }
-  function sparkle(x, y, n = 6) {
+  // sparks: short gold streaks thrown out from (x, y)
+  function sparkle(x, y, n = 6, d = 36) {
     for (let i = 0; i < n; i++) {
-      const p = el('i', 'spark');
-      const a = (Math.PI * 2 * i) / n;
-      p.style.left = `${x}px`;
-      p.style.top = `${y}px`;
-      p.style.setProperty('--a', `${(a * 180) / Math.PI}deg`);
-      fx.append(p);
-      setTimeout(() => p.remove(), 520);
+      const a = (360 * i) / n + rnd(-12, 12);
+      const len = rnd(0.8, 1.25);
+      spawn('p-spark', { x, y, ms: 460, easing: 'cubic-bezier(.1,.7,.3,1)', frames: [
+        { transform: `rotate(${a.toFixed(0)}deg) translateY(${(-8 * K).toFixed(1)}px) scale(.6, ${len.toFixed(2)})`, opacity: 1 },
+        { transform: `rotate(${a.toFixed(0)}deg) translateY(${(-d * K * len).toFixed(1)}px) scale(.3, ${(len * 0.5).toFixed(2)})`, opacity: 0 },
+      ] });
     }
+  }
+  // the sealer: a bright white flash over the lid
+  function flash(x, y, w) {
+    spawn('p-flash', { x, y, ms: 280, style: `width:${w.toFixed(1)}px;height:${(w * 0.5).toFixed(1)}px;margin:${(-w * 0.25).toFixed(1)}px 0 0 ${(-w / 2).toFixed(1)}px;`,
+      frames: [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(1.1)', opacity: 1, offset: 0.3 }, { transform: 'scale(1.9)', opacity: 0 }] });
+  }
+  // a served drink: a copy of the dropped cup hops from where it was let go into the customer's hands
+  // (events are handled before the next render, so the served cup's element is still there to copy)
+  let lastDrop = null; // a dragged cup / bag / snack let go on a customer: { slot, x, y, w, h, html, t }
+  function serveArc(slot, src) {
+    const r = seatHeadRect(slot);
+    const to = { x: r.cx, y: r.y + r.h * 1.15 };
+    let from = null;
+    if (lastDrop && lastDrop.slot === slot && performance.now() - lastDrop.t < 400) from = lastDrop;
+    else if (src && src.el && src.el.isConnected) {
+      const b = rectIn(src.el);
+      if (b.w > 0) from = { x: b.cx, y: b.cy, w: b.w, h: b.h, html: src.el.innerHTML };
+    }
+    lastDrop = null;
+    if (!from || !from.html) return;
+    spawn('p-cup', { x: from.x, y: from.y, html: from.html, prio: 2, ms: 360, easing: 'linear',
+      style: `width:${from.w.toFixed(1)}px;margin:${(-from.h / 2).toFixed(1)}px 0 0 ${(-from.w / 2).toFixed(1)}px;`,
+      frames: arcFrames(to.x - from.x, to.y - from.y, -Math.max(30 * K, Math.abs(to.y - from.y) * 0.3), { s0: 1, s1: 0.5, rot: 0, n: 8 }) });
+  }
+  // the element of the cup a 'serve' came from (a work slot or a shelf place)
+  function cupElOf(ref) {
+    for (const [, c] of cupEls) {
+      if (!c.ref) continue;
+      if (ref.shelf != null ? c.ref.shelf === ref.shelf : ref.w != null && c.ref.w === ref.w) return c;
+    }
+    return null;
   }
 
   let subT = 0;
@@ -852,27 +1047,43 @@ export function createShopUI(root, h = {}) {
         const w = walkers.get(ev.cust.uid);
         const r = seatHeadRect(ev.slot);
         if (ev.reason === 'gun') {
-          shake(8);
-          burst(r.cx, r.cy, 'ice', 5);
-          if (w) { startLeave(w, 'fly', 'gun'); w.el.classList.add('fly'); }
+          // 滾: anticipation, then a spinning fly-off (toward the swipe, else up-left); stars and ice where they were, a
+          // dust puff on the lip behind them, a directional shake on the launch
+          const now = performance.now();
+          const fd = lastSwipe && lastSwipe.slot === ev.slot && now - lastSwipe.t < 800 ? (lastSwipe.x >= 0 ? 1 : -1) : -1;
+          const a = fd > 0 ? -0.5 : Math.PI + 0.5;
+          shake(10, fd, -0.4, 90);
+          burst(r.cx, r.cy, 'ice', 3, a);
+          stars(r.cx, r.cy, 4, { a0: a, spread: Math.PI * 0.9, d0: 60, d1: 110 });
+          dust(r.cx - fd * r.w * 0.2, LIP_Y * K - 6 * K, 1.4, -fd * 30, -12, 1, 60);
+          dust(r.cx + fd * r.w * 0.1, LIP_Y * K - 2 * K, 1.1, -fd * 12, -18, 1, 110);
+          if (w) { w.el.style.setProperty('--fd', String(fd)); startLeave(w, 'fly', 'gun'); w.el.classList.add('fly'); }
         } else if (w) {
-          if (ev.reason === 'take') { stampOn(ev.slot); w.el.classList.add('has-ticket'); }
+          if (ev.reason === 'take') { stampOn(ev.slot); w.el.classList.add('has-ticket'); oneShot(w.el, 'thump', 600); }
           if (ev.reason === 'timeout') w.el.classList.add('sad');
           startLeave(w, 'walk', ev.reason);
         }
         break;
       }
       case 'answer': {
-        if (ev.key === 'shut' && !ev.normal) {
+        const r = seatHeadRect(ev.slot);
+        if (ev.key === 'shut') {
+          // 閉嘴: a big squash, a zipper drawn across the mouth that pops, a pop ring and pearls bouncing down
           const w = walkers.get(ev.cust.uid);
-          if (w) restart(w.el, 'squash');
-          const r = seatHeadRect(ev.slot);
-          burst(r.cx, r.cy, 'pearl', 3);
-          shake(4);
+          if (w && !ev.normal) oneShot(w.el, 'squash', 560);
+          const my = r.y + r.h * 0.72;
+          const zw = r.w * 0.42;
+          spawn('p-zip', { x: r.cx - zw / 2, y: my, html: FXP.zip, delay: 190, ms: 560, style: `width:${zw.toFixed(1)}px;margin-top:${(-zw * 0.14).toFixed(1)}px;`, frames: [
+            { transform: 'scaleX(0)', opacity: 1 }, { transform: 'scaleX(1.05)', opacity: 1, offset: 0.3 }, { transform: 'scaleX(1)', opacity: 1, offset: 0.7 }, { transform: 'scale(1.3)', opacity: 0 },
+          ] });
+          const pw = r.w * 0.9;
+          spawn('p-pop', { x: r.cx, y: my, html: FXP.pop, delay: 590, ms: 300, style: `width:${pw.toFixed(1)}px;margin:${(-pw / 2).toFixed(1)}px 0 0 ${(-pw / 2).toFixed(1)}px;`,
+            frames: [{ transform: 'scale(.4) rotate(0deg)', opacity: 1 }, { transform: 'scale(1.25) rotate(12deg)', opacity: 0 }] });
+          burst(r.cx, my, 'pearl', 2, Math.PI / 2);
+          shake(6, 0, 1, 70);
         }
         clerkPop(ev.key);
-        const r = seatHeadRect(ev.slot);
-        if (ev.prepay) { floatNum(`+${ev.prepay}`, r.cx, r.y + r.h * 0.2, 'gold'); coinsFly({ cx: r.cx, cy: r.y + r.h * 0.5 }, 5); }
+        if (ev.prepay) { floatNum(`+${ev.prepay}`, r.cx, r.y + r.h * 0.2, 'gold'); coinsFly({ cx: r.cx, cy: r.y + r.h * 0.5 }, 4); }
         if (ev.best) restart(stage, 'laugh');
         break;
       }
@@ -886,9 +1097,14 @@ export function createShopUI(root, h = {}) {
       }
       case 'serve': {
         const w = walkers.get(ev.cust.uid);
+        if (!ev.bag && (ev.w != null || ev.shelf != null)) {
+          const c = cupElOf(ev);
+          serveArc(ev.slot, c);
+          if (c) c.gone = true; // the flying copy replaces it
+        }
         if (ev.correct) {
-          if (w && !ev.done) restart(w.el, 'happy');
-          if (!ev.done && seats[ev.slot]) restart(seats[ev.slot].bubble, 'tickpop');
+          if (w && !ev.done) oneShot(w.el, 'happy', 600);
+          if (!ev.done && seats[ev.slot]) { restart(seats[ev.slot].bubble, 'tickpop'); const r = seatHeadRect(ev.slot); hearts(r.cx, r.y + r.h * 0.3, 1); }
         } else {
           if (w) restart(w.el, 'wobble');
           say(t.complaints[Math.floor(Math.random() * t.complaints.length)], 'cust', 'shut');
@@ -899,6 +1115,7 @@ export function createShopUI(root, h = {}) {
         const r = seatHeadRect(ev.slot);
         floatNum(`+${ev.pay + ev.tip}`, r.cx, r.y + r.h * 0.1, ev.wrong ? 'dim' : '');
         coinsFly({ cx: r.cx, cy: r.y + r.h * 0.55 }, ev.tip > 0 ? 4 : 3);
+        if (!ev.wrong && !ev.partial) hearts(r.cx, r.y + r.h * 0.35, 3);
         break;
       }
       case 'tea': {
@@ -919,16 +1136,16 @@ export function createShopUI(root, h = {}) {
         if (tr) press(tr);
         const r = R['top-' + ev.kind];
         const to = cupTop(ev.w);
-        if (r && to) arcDrop(ev.kind, dp(r.x + r.w * 0.5, r.y + r.h * 0.38), to, 3);
-        bounceCup(ev.w, 300);
+        if (r && to) { arcDrop(ev.kind, dp(r.x + r.w * 0.5, r.y + r.h * 0.38), to, 3); splashDrops(to.x, to.y, cupColor(ev.w), 2, 430); }
+        bounceCup(ev.w, 420);
         break;
       }
       case 'ice': {
         if (st.ice) press(st.ice);
         const r = R.ice;
         const to = cupTop(ev.w);
-        if (r && to && ev.level) arcDrop('ice', dp(r.x + r.w * 0.5, r.y + r.h * 0.3), to, 2);
-        bounceCup(ev.w, 300);
+        if (r && to && ev.level) { arcDrop('ice', dp(r.x + r.w * 0.5, r.y + r.h * 0.3), to, 2); splashDrops(to.x, to.y, cupColor(ev.w), 2, 400); }
+        bounceCup(ev.w, 380);
         break;
       }
       case 'sugar': {
@@ -936,7 +1153,7 @@ export function createShopUI(root, h = {}) {
         const r = R.sugar;
         const to = cupTop(ev.w);
         if (r && to && ev.level) arcDrop('syrup', dp(r.x + r.w * 0.86, r.y + r.h * 0.2), to, 2);
-        bounceCup(ev.w, 300);
+        bounceCup(ev.w, 380);
         break;
       }
       case 'milk': case 'foam': {
@@ -954,8 +1171,8 @@ export function createShopUI(root, h = {}) {
         if (st.lemon) press(st.lemon);
         const r = R.lemon;
         const to = cupTop(ev.w);
-        if (r && to) arcDrop('lemon', dp(r.x + r.w * 0.5, r.y + r.h * 0.4), to, 1);
-        bounceCup(ev.w, 300);
+        if (r && to) { arcDrop('lemon', dp(r.x + r.w * 0.5, r.y + r.h * 0.4), to, 1); splashDrops(to.x, to.y, cupColor(ev.w), 2, 400); }
+        bounceCup(ev.w, 400);
         break;
       }
       case 'sliceStart': if (st.board) { press(st.board); restart(st.board, 'chop'); } break;
@@ -972,21 +1189,23 @@ export function createShopUI(root, h = {}) {
       case 'pack': if (st.bag) { press(st.bag); restart(st.bag, 'refill'); } break;
       case 'serveBag': case 'serveSnack': {
         const w = walkers.get(ev.cust.uid);
-        if (w && !ev.done) restart(w.el, 'happy');
+        serveArc(ev.slot, null);
+        if (w && !ev.done) oneShot(w.el, 'happy', 600);
         if (seats[ev.slot]) restart(seats[ev.slot].bubble, 'tickpop');
         break;
       }
       case 'cup': press(st.rack); bounceCup(ev.w, 0); break;
       case 'sealStart': if (ev.shelf) press(st.shelf); else press(st['sealer-' + (ev.sealer || 0)]); break;
       case 'sealed': {
-        shake(3);
+        shake(3, 0, 1);
         const e = ev.shelf != null ? st.shelf : st['sealer-' + (ev.sealer || 0)];
         const c = cupById(ev.id);
-        if (c) restart(c.el, 'snap');
+        if (c) { oneShot(c.el, 'snap', 420); oneShot(c.el, 'popdone', 340); }
         if (e) {
           const r = c ? rectIn(c.el) : rectIn(e);
           floatNum('喀', r.cx, r.y - 8 * K, 'kaa');
-          sparkle(r.cx, r.y + r.w * 0.24, 6);
+          flash(r.cx, r.y + r.w * 0.24, r.w * 1.3);
+          sparkle(r.cx, r.y + r.w * 0.24, 6, 44);
         }
         break;
       }
@@ -994,9 +1213,13 @@ export function createShopUI(root, h = {}) {
       case 'trash': press(st.trash); break;
       case 'cookStart': press(st.pot); break;
       case 'star': {
+        // star-up: the row bounces, the new star spins in, a gold ring, stars and sparks fly out of it
         restart(stage, 'starup');
         const r = rectIn(hudStars);
-        sparkle(r.x + r.w * ((ev.stars - 0.5) / 5), r.cy, 8);
+        const x = r.x + r.w * ((ev.stars - 0.5) / 5);
+        ring(x, r.cy, 90 * K, 'var(--lemon)', 520, 2);
+        stars(x, r.cy, 5, { d0: 60, d1: 110, prio: 2, s: 1.2, ms: 700 });
+        sparkle(x, r.cy, 6, 50);
         break;
       }
       case 'nope': {
@@ -1018,12 +1241,13 @@ export function createShopUI(root, h = {}) {
     }
   }
   function renderCupsNow() { if (lastState) renderCups(lastState); }
-  function press(e) { restart(e, 'press'); }
+  // every station tap: squash and stretch with an overshoot (short, so the station is still at once)
+  function press(e) { oneShot(e, 'press', 300); }
   function bounceCup(w, delay = 0) {
     renderCupsNow();
     const cup = lastState && lastState.work[w];
     const c = cup && cupById(cup.id);
-    if (c) setTimeout(() => restart(c.el, 'bounce'), delay);
+    if (c) setTimeout(() => { if (!c.el.classList.contains('dragging')) oneShot(c.el, 'bounce', 300); }, delay);
   }
 
   // ---- guide finger ----
@@ -1142,11 +1366,12 @@ export function createShopUI(root, h = {}) {
   const gestureSeat = new Map(); // pointer id → slot
   let firstInput = false;
   let tapSeat = null;
+  let lastSwipe = null; // the last 滾 swipe: the customer flies off that way
   const rec = createRecognizer({
     onGesture(e) {
       if (e.type === 'swipe') {
         const slot = gestureSeat.get(e.id);
-        if (slot != null) { call('onAnswer', slot, 'gun', { speed: e.speed, dir: e.dir }); gestureSeat.delete(e.id); }
+        if (slot != null) { lastSwipe = { slot, x: e.dir ? e.dir.x : -1, t: performance.now() }; call('onAnswer', slot, 'gun', { speed: e.speed, dir: e.dir }); gestureSeat.delete(e.id); }
       } else if (e.type === 'tap') {
         const slot = tapSeat;
         if (slot != null && e.n === 3) call('onAnswer', slot, 'shut', { taps: e.n });
@@ -1279,12 +1504,14 @@ export function createShopUI(root, h = {}) {
       const d = drag;
       drag = null;
       const p = pt(e);
+      const gr = d.moved ? rectIn(d.el) : null; // where the cup / bag / snack was let go (the serve hop starts there)
       d.el.classList.remove('dragging');
       d.el.style.transform = '';
       if (d.ghost) { d.el.remove(); d.src.classList.remove('lifted'); }
       if (!d.moved) { if (d.ref.w != null) call('onSelect', d.ref.w); else if (d.ghost) restart(d.src, 'nudge'); return; }
       if (cancel) return;
       const tgt = hitTarget(p.x, p.y, d.ref);
+      if (gr && tgt.type === 'seat') lastDrop = { slot: tgt.slot, x: gr.cx, y: gr.cy, w: gr.w, h: gr.h, html: d.el.innerHTML, t: performance.now() };
       call('onDrop', d.ref, tgt);
       if (d.ghost) return;
       // a served / trashed cup disappears where it was dropped (no slide back)

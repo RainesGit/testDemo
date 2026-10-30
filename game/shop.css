@@ -97,14 +97,14 @@ button { font: inherit; color: inherit; border: 0; }
 [hidden] { display: none !important; }
 
 /* ---------- frame + 16:9 landscape stage (docs/gameplay-v3-shop.md 10.1): design 1280×720, 1cqw = 12.8 design px ----------
-   The frame fits inside the safe area (notches, home bar); the gutters around it continue the shop: the night street
+   The frame fits inside the safe area (notches, home bar); the gutters around it continue the shop: the dusk street
    above the counter line, the steel table with its wood edge below. */
 .app {
   position: fixed; inset: 0; display: grid; place-items: center;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background:
     radial-gradient(ellipse at 50% 45%, transparent 40%, rgb(0 0 0 / .45) 100%),
-    linear-gradient(var(--night-900) 0, var(--night-700) 33%, var(--wood-warm-hi) 37.2%, var(--wood-warm) 38.4%, #6E4A34 38.5%, #6E4A34 44%, #DDE2E8 44.2%, #C3C9D3 60%, var(--wood-warm-hi) 60.4%, var(--wood-warm-lo) 62.4%, #CBD1DA 62.6%, #8F98A6 97.6%, var(--wood-warm) 97.8%);
+    linear-gradient(#4A3478 0, #C2577E 20%, #8E6E78 33%, var(--wood-warm-hi) 37.2%, var(--wood-warm) 38.4%, #6E4A34 38.5%, #6E4A34 44%, #EFE4D6 44.2%, #D9CBBB 60%, var(--wood-warm-hi) 60.4%, var(--wood-warm-lo) 62.4%, #E2D5C5 62.6%, #A8968A 97.6%, var(--wood-warm) 97.8%);
 }
 .frame {
   position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--night-900);

@@ -546,26 +546,52 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
 /** The part-timer, a bust behind the front worktop (viewBox 0 0 142 166, fully inside): red cap (Lv2: a gold star),
  *  apron, both hands at the cup they are making (ui.js lays the cup over the hands). */
 export function helperSVG(level = 1) {
-  const skin = '#F2C7A0';
+  // drawn like the customers and the clerk (art direction 14): soft coloured outlines (softLine), warm shading, the shop
+  // uniform (a plum polo, the red apron with a stitched pocket and a pen, a name badge), the red cap
+  const visit = level === 2 ? 1 : 0;
+  const skin = customerLook({ id: 'staff' }, visit).skin || '#F2C7A0';
+  const U = '#4E3668';                       // the polo, a warm plum (the clerk's uniform family)
+  const A = GUN;                             // the apron
+  const torso = 'M16 166 Q18 116 50 106 H92 Q124 116 126 166 Z';
   // the head as a group (a nested <svg> would be resized by page CSS such as `.st svg { width: 100% }`)
-  const head = customerSVG({ id: 'staff' }, level === 2 ? 1 : 0, {}).replace(/^<svg class="cust"[^>]*>/, '<g class="cust" transform="translate(23 14) scale(.48)">').replace(/<\/svg>$/, '</g>');
+  const head = customerSVG({ id: 'staff' }, visit, {}).replace(/^<svg class="cust"[^>]*>/, '<g class="cust" transform="translate(23 14) scale(.48)">').replace(/<\/svg>$/, '</g>');
   const body = [
     `<g stroke="${INK}" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">`,
-    `<path fill="${PALETTE.COUNTER_HI}" d="M16 166 Q18 116 50 106 H92 Q124 116 126 166 Z"/>`,
-    `<path fill="${PAPER}" d="M46 112 H96 L102 166 H40 Z"/><path fill="none" d="M46 112 L40 102 M96 112 L102 102"/>`,
-    `<path fill="${GUN}" stroke="none" d="${ringPath(71, 128, 7)}"/>`,
+    `<path fill="${U}" d="${torso}"/>`,
+    `<path fill="${warmShade(U)}" fill-opacity=".7" stroke="none" d="M100 110 Q124 118 126 166 H104 Q108 136 100 110 Z"/>`,
+    `<path fill="url(#gkCylSoft)" stroke="none" d="${torso}"/>`,
+    // the polo collar points and a warm rim of shop light on the left shoulder
+    `<path fill="${mixColor(U, '#FFFFFF', 0.8)}" stroke-width="2.4" d="M58 106 L52 118 L66 114 Z M84 106 L90 118 L76 114 Z"/>`,
+    `<path fill="none" stroke="${WARM_RIM}" stroke-opacity=".6" stroke-width="4" d="M24 132 Q30 114 48 108"/>`,
+    // the apron: bib with straps, stitched top edge, a pocket with a pen, the shop's white cup mark (no words)
+    `<path fill="${A}" d="M46 112 H96 L102 166 H40 Z"/>`,
+    `<path fill="${warmShade(A)}" fill-opacity=".6" stroke="none" d="M86 112 H96 L102 166 H92 Z"/>`,
+    `<path fill="none" stroke="${GUN_DEEP}" stroke-width="3.4" d="M48 112 L42 102 M94 112 L100 102"/>`,
+    `<path fill="none" stroke="${PAPER}" stroke-opacity=".75" stroke-width="1.6" stroke-dasharray="3 3" d="M50 117 H92"/>`,
+    `<path fill="${mixColor(A, GUN_DEEP, 0.6)}" stroke-width="2.4" d="M56 140 H86 V158 Q71 162 56 158 Z"/>`,
+    `<path fill="none" stroke="${PAPER}" stroke-opacity=".7" stroke-width="1.4" stroke-dasharray="2.6 2.6" d="M59 143 H83 V155.4 Q71 158.6 59 155.4 Z"/>`,
+    `<path fill="${STEEL_HI}" stroke-width="1.8" d="M78 132 h4 v10 h-4 Z"/><path fill="#3D8BD9" stroke-width="1.8" d="M77.6 128 h4.8 v5 h-4.8 Z"/>`,
+    `<path fill="${PAPER}" stroke="none" d="M66 122 H76 L75 130 H67 Z"/>`,
+    // the name badge with a gold clip
+    `<path fill="${PAPER}" stroke-width="2" d="M30 124 h14 v8 h-14 Z"/><path fill="${LEMON}" stroke-width="1.6" d="M34 121 h6 v4 h-6 Z"/>`,
     `<path fill="${skin}" d="M60 98 H82 V112 Q71 118 60 112 Z"/>`,
-    // arms forward to the cup
-    `<path fill="${PALETTE.COUNTER_HI}" d="M22 134 Q12 148 30 156 L56 150 L54 138 Z M120 134 Q130 148 112 156 L86 150 L88 138 Z"/>`,
-    `<path fill="${skin}" d="${ringPath(56, 148, 7)} ${ringPath(86, 148, 7)}"/>`,
+    `<path fill="url(#gkShade)" stroke="none" d="${kEll(71, 104, 12, 5)}"/>`,
+    // arms forward to the cup: plum sleeves, hands in the face's own skin tone
+    `<path fill="${U}" d="M22 134 Q12 148 30 156 L56 150 L54 138 Z"/>`,
+    `<path fill="${warmShade(U)}" d="M120 134 Q130 148 112 156 L86 150 L88 138 Z"/>`,
+    `<path fill="${skin}" d="${ringPath(56, 148, 7)}"/><path fill="${warmShade(skin)}" d="${ringPath(86, 148, 7)}"/>`,
     '</g>',
     head,
-    `<path fill="url(#gkBlush)" d="${kEll(55, 89, 7, 4)} ${kEll(89, 89, 7, 4)}"/><path fill="url(#gkShade)" d="${kEll(71, 104, 12, 5)}"/>`,
-    // the cap (Lv2: a gold star on it)
-    `<path fill="${GUN}" stroke="${INK}" stroke-width="3" stroke-linejoin="round" d="M38 46 Q42 14 72 14 Q102 14 106 46 Q72 38 38 46 Z M98 42 Q118 40 128 48 Q110 52 96 48 Z"/>`,
+    `<g stroke="none"><path fill="url(#gkBlush)" d="${kEll(55, 89, 7, 4)} ${kEll(89, 89, 7, 4)}"/></g>`,
+    // the cap (Lv2: a gold star on it): crown with a seam and a button, a curved brim, a soft highlight
+    `<path fill="${GUN}" stroke="${INK}" stroke-width="3" stroke-linejoin="round" d="M38 46 Q42 14 72 14 Q102 14 106 46 Q72 38 38 46 Z"/>`,
+    `<path fill="${warmShade(GUN)}" stroke="${INK}" stroke-width="3" stroke-linejoin="round" d="M98 42 Q118 40 128 48 Q110 52 96 48 Z"/>`,
+    `<path fill="none" stroke="${GUN_DEEP}" stroke-width="2" d="M72 15 Q66 28 64 41 M72 15 Q80 28 84 41"/>`,
+    `<path fill="${GUN_DEEP}" d="${ringPath(72, 15, 3)}"/>`,
+    `<path fill="url(#gkHi)" stroke="none" d="${kEll(56, 26, 12, 6)}"/>`,
     level >= 2 ? `<path fill="${LEMON}" stroke="${INK}" stroke-width="2" stroke-linejoin="round" d="M72 18 L76 27 L85 27 L78 32 L81 41 L72 36 L63 41 L66 32 L59 27 L68 27 Z"/>` : '',
   ];
-  return svg('helper-svg', '0 0 142 166', body.join(''), ` data-level="${level}"`);
+  return svg('helper-svg', '0 0 142 166', softLine(body.join('')), ` data-level="${level}"`);
 }
 
 export function acSVG() {

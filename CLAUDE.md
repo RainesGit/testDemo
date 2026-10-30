@@ -60,7 +60,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
   src/art.js            All SVG art as pure string templates (clerk, shop, customers, boss, signs, monitor; shared:
                         logo, cup tower, event props, particles; docs/art-direction-v2.md)
   src/shop/art-kit.js   The shop's depth kit (art-direction-v2.md 13): SHOP_DEFS (one shared set of gradients: cylinder / top /
-                        front shading, glass, liquid, steel, contact shadow, blush), ao / cast / over / line helpers
+                        front shading, glass, liquid, warm steel / chrome, wood, gold, dust cloth, gloss sheen, contact shadow,
+                        blush; shadows in a warm brown), ao / cast / over / line / lit / dark helpers, softLine (character lines)
   src/shop/art-shop.js  Gameplay v3 work-area art in three-quarter view from above (docs/gameplay-v3-shop.md 3, 10; art-direction
                         12, 13): cupSVG (tea / milk / toppings / ice / sugar / foam / lemon / froth / sealed), tea tanks, topping
                         trays (6 kinds), lemon tray, ice bin / dispenser, syrup, sealer, pearl pot + rig, cup rack, trash, cup

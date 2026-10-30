@@ -11,12 +11,12 @@
 //                                G.box (a diagonal block face), G.sph (sphere), G.ao (contact shadow), G.inner (the inside of
 //                                a container seen from above), G.glass (clear plastic: refraction edges), G.liquid (a drink
 //                                behind the plastic), G.spec (a specular streak), G.steel / G.steelTop / G.chrome (metal fills),
-//                                G.wood, G.blush / G.hi / G.shade (soft round spots for faces), G.glow (a warm light pool)
+//                                G.wood, G.gold (polished gold), G.cloth (dust-cloth folds), G.sheen (gloss band), G.blush / G.hi / G.shade (soft round spots for faces), G.glow (a warm light pool)
 //   ell(cx, cy, rx, ry)          an ellipse as a path
 //   ao(cx, cy, rx, ry)           a soft contact shadow under a prop; cast(cx, cy, rx, ry) its longer shadow to the lower right
 //   over(d, g, op?)              the same path again with a shading overlay
 //   line(c, k = .55)             the thin outline colour of a fill c (c darkened)
-//   lit(c, k), dark(c, k)        lighter / darker versions of a colour (mixColor towards warm white / cool dark)
+//   lit(c, k), dark(c, k)        lighter / darker versions of a colour (mixColor towards warm white / warm brown dark)
 //   r1(n)                        rounded to 0.1
 //   softLine(svg, { k })         the shop's character line style (art-direction-v2.md 14): every stroke width × k, black
 //                                ink → warm brown, and each filled shape without its own stroke outlined in a darker shade of
@@ -27,14 +27,14 @@ import { mixColor } from '../art.js';
 export const r1 = (n) => Math.round(n * 10) / 10;
 export const ell = (cx, cy, rx, ry) => `M${r1(cx - rx)} ${r1(cy)} a${r1(rx)} ${r1(ry)} 0 1 0 ${r1(2 * rx)} 0 a${r1(rx)} ${r1(ry)} 0 1 0 ${r1(-2 * rx)} 0`;
 export const lit = (c, k = 0.35) => mixColor(c, '#FFF6E2', 1 - k);
-export const dark = (c, k = 0.3) => mixColor(c, '#241A30', 1 - k);
+export const dark = (c, k = 0.3) => mixColor(c, '#2E1A16', 1 - k); // toward a warm brown dark (art direction 14)
 export const line = (c, k = 0.55) => mixColor(c, '#2A1C24', 1 - k);
 
 export const G = {
   cyl: 'url(#gkCyl)', cylSoft: 'url(#gkCylSoft)', top: 'url(#gkTop)', front: 'url(#gkFront)', box: 'url(#gkBox)', sph: 'url(#gkSph)',
   ao: 'url(#gkAO)', inner: 'url(#gkInner)', glass: 'url(#gkGlass)', liquid: 'url(#gkLiquid)', spec: 'url(#gkSpec)', steel: 'url(#gkSteel)',
   steelTop: 'url(#gkSteelTop)', chrome: 'url(#gkChrome)', wood: 'url(#gkWood)', blush: 'url(#gkBlush)', hi: 'url(#gkHi)', shade: 'url(#gkShade)',
-  glow: 'url(#gkGlow)', rim: 'url(#gkRim)', foam: 'url(#gkFoam)',
+  glow: 'url(#gkGlow)', rim: 'url(#gkRim)', foam: 'url(#gkFoam)', gold: 'url(#gkGold)', cloth: 'url(#gkCloth)', sheen: 'url(#gkSheen)',
 };
 
 export const ao = (cx, cy, rx, ry) => `<path fill="${G.ao}" d="${ell(cx, cy, rx, ry)}"/>`;
@@ -44,7 +44,7 @@ export const over = (d, g, op = 1) => `<path fill="${g}"${op < 1 ? ` fill-opacit
 
 const stop = (o, c, a = 1) => `<stop offset="${o}" stop-color="${c}"${a < 1 ? ` stop-opacity="${a}"` : ''}/>`;
 const W = '#FFFFFF';
-const K = '#140C1C';
+const K = '#2A140E'; // shadows are warm (art direction 14): a deep red-brown, not a cool purple
 const WARM = '#FFE2A8';
 
 export const SHOP_DEFS = '<svg class="shop-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>' +
@@ -65,11 +65,16 @@ export const SHOP_DEFS = '<svg class="shop-defs" width="0" height="0" aria-hidde
   // a drink behind the plastic: darker at both edges (the wall bends the light), a light core
   `<linearGradient id="gkLiquid" x1="0" y1="0" x2="1" y2="0">${stop(0, K, 0.28)}${stop(0.18, K, 0.02)}${stop(0.36, W, 0.18)}${stop(0.55, W, 0.02)}${stop(0.85, K, 0.2)}${stop(1, K, 0.38)}</linearGradient>` +
   `<linearGradient id="gkSpec" x1="0" y1="0" x2="1" y2="0">${stop(0, W, 0)}${stop(0.5, W, 0.9)}${stop(1, W, 0)}</linearGradient>` +
-  // metal fills
-  `<linearGradient id="gkSteel" x1="0" y1="0" x2="1" y2="0">${stop(0, '#8E97A6')}${stop(0.16, '#F5F7FA')}${stop(0.32, '#CBD1DA')}${stop(0.62, '#AAB2BE')}${stop(0.86, '#78808F')}${stop(1, '#B4BBC6')}</linearGradient>` +
-  `<linearGradient id="gkSteelTop" x1="0" y1="0" x2=".5" y2="1">${stop(0, '#FBFCFD')}${stop(0.55, '#D6DBE2')}${stop(1, '#AEB5C0')}</linearGradient>` +
-  `<linearGradient id="gkChrome" x1="0" y1="0" x2="0" y2="1">${stop(0, '#FFFFFF')}${stop(0.4, '#C9CFD8')}${stop(0.55, '#8A93A1')}${stop(1, '#D9DEE5')}</linearGradient>` +
-  `<linearGradient id="gkWood" x1="0" y1="0" x2="0" y2="1">${stop(0, '#EDBE7E')}${stop(0.45, '#C98A4B')}${stop(1, '#8A5529')}</linearGradient>` +
+  // metal fills: stainless that reflects the warm shop light (art direction 14): warm whites, peach highlights, warm mid-greys
+  `<linearGradient id="gkSteel" x1="0" y1="0" x2="1" y2="0">${stop(0, '#9E8780')}${stop(0.16, '#FFF8EE')}${stop(0.3, '#EBD8C8')}${stop(0.62, '#C8B0A0')}${stop(0.86, '#8C7268')}${stop(1, '#DEC2AC')}</linearGradient>` +
+  `<linearGradient id="gkSteelTop" x1="0" y1="0" x2=".5" y2="1">${stop(0, '#FFFDF8')}${stop(0.55, '#EFE2D5')}${stop(1, '#CDB9AA')}</linearGradient>` +
+  `<linearGradient id="gkChrome" x1="0" y1="0" x2="0" y2="1">${stop(0, '#FFFFFF')}${stop(0.4, '#ECDFD3')}${stop(0.55, '#A38A80')}${stop(1, '#F4E6D8')}</linearGradient>` +
+  `<linearGradient id="gkWood" x1="0" y1="0" x2="0" y2="1">${stop(0, '#F4C68A')}${stop(0.45, '#CF8B47')}${stop(1, '#844B20')}</linearGradient>` +
+  // polished gold (coins, badges, trims) and a warm dust cloth (locked spots: soft folds, lit from the upper left)
+  `<linearGradient id="gkGold" x1="0" y1="0" x2=".7" y2="1">${stop(0, '#FFF6C4')}${stop(0.3, '#FFD54A')}${stop(0.7, '#F0A410')}${stop(1, '#B86E00')}</linearGradient>` +
+  `<linearGradient id="gkCloth" x1="0" y1="0" x2="1" y2="0">${stop(0, K, 0.16)}${stop(0.12, W, 0.4)}${stop(0.26, K, 0.1)}${stop(0.42, W, 0.28)}${stop(0.58, K, 0.12)}${stop(0.74, W, 0.2)}${stop(0.9, K, 0.24)}${stop(1, WARM, 0.3)}</linearGradient>` +
+  // a glossy sheen on lacquer, syrup and jelly: a soft diagonal white band
+  `<linearGradient id="gkSheen" x1="0" y1="0" x2="1" y2="1">${stop(0, W, 0)}${stop(0.3, W, 0.55)}${stop(0.42, W, 0.08)}${stop(1, W, 0)}</linearGradient>` +
   // soft round spots: a cheek blush, a highlight, a shadow
   `<radialGradient id="gkBlush" cx=".5" cy=".5" r=".5">${stop(0, '#FF6F7D', 0.55)}${stop(1, '#FF6F7D', 0)}</radialGradient>` +
   `<radialGradient id="gkHi" cx=".5" cy=".5" r=".5">${stop(0, W, 0.7)}${stop(1, W, 0)}</radialGradient>` +

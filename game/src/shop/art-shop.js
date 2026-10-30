@@ -39,10 +39,18 @@ import { PALETTE, mixColor, celShade, celHilite, ringPath, mulberry32, fnv1a } f
 import { SHOP_DEFS, G, ell, ao, cast, over, line, lit, dark, r1 } from './art-kit.js';
 
 export { SHOP_DEFS };
-export const ART_SHOP_VERSION = 2;
+export const ART_SHOP_VERSION = 3;
 
-const { INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, TAKE, TAKE_DEEP, LEMON, GOLD_HI, MINT, STEEL_HI, STEEL, STEEL_LO,
-  NIGHT_700, NIGHT_900, COUNTER, COUNTER_LO, WARM_RIM, SHUT } = PALETTE;
+const { INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, TAKE, TAKE_DEEP, LEMON, GOLD_HI, MINT, NIGHT_900, WARM_RIM, SHUT } = PALETTE;
+// The work area's own warm tokens (art direction 14): stainless that reflects the warm shop light (warm whites, peach
+// highlights, warm mid-greys instead of blue-greys), and warm chocolate darks where the v2 palette has night blues/purples.
+const STEEL_HI = '#FFF8EE';
+const STEEL = '#D6C5B8';
+const STEEL_LO = '#937E75';
+const NIGHT_700 = '#3D2722';   // burners, sight glasses, chutes, timers: a warm near-black
+const COUNTER = '#5E3628';     // knobs, pump heads, handles: chocolate
+const COUNTER_LO = '#36201A';
+const PEACH = '#FFD2A8';       // the warm light caught on metal edges
 
 export const TEA_KINDS = ['black', 'green', 'jade'];
 export const TOPPING_KINDS = ['pearl', 'coconut', 'pudding', 'grass', 'taro', 'bean'];
@@ -54,16 +62,16 @@ export const TEA_COLORS = {
   jade: { body: '#9BD957', milk: '#C8E59A', label: '#2E9E46', name: '翡翠檸檬' }, // bright lime + lemon
 };
 const TOPPING_NAME = { pearl: '珍珠', coconut: '椰果', pudding: '布丁', grass: '仙草', taro: '芋圓', bean: '紅豆' };
-const PEARL = '#2B1A12';
-const PEARL_HI = '#8A5A3C';
-const COCO = '#F4ECCB';
-const PUDDING = '#F6C356';
-const CARAMEL = '#A9561C';
-const GRASS = '#2A2A1E';
-const GRASS_HI = '#5B5C3E';
+const PEARL = '#33190C';
+const PEARL_HI = '#A0623A';
+const COCO = '#FBF0C6';
+const PUDDING = '#FFC54A';
+const CARAMEL = '#B4561A';
+const GRASS = '#2E2418';
+const GRASS_HI = '#7A6646';
 const TARO = ['#A07BD0', '#F2A65A', '#F1E3C0'];   // 芋圓: taro purple, sweet-potato orange, cream
-const BEAN = '#7A2A26';
-const BEAN_HI = '#C2615A';
+const BEAN = '#8C2A22';
+const BEAN_HI = '#D86A5C';
 const ICE = '#E6F6FF';
 const ICE_EDGE = '#86BCD8';
 const SYRUP = '#E9A23B';
@@ -341,7 +349,8 @@ export function teaTankSVG(kind = 'black', { fast = false } = {}) {
 const PAN_RIM = 'M10 16 H90 L97 60 H3 Z';
 const PAN_IN = 'M14 20 H86 L92 56 H8 Z';
 const PAN_FLOOR = 'M18 31 H82 L88 55 H12 Z';
-function panShell(contents, name, tone = STEEL_LO) {
+function panShell(contents, name, tone = STEEL_LO, tagC = GUN) {
+  const tag = 'M31 62 H69 Q71 62 71 64 V71 Q71 73 69 73 H31 Q29 73 29 71 V64 Q29 62 31 62 Z';
   return [
     ao(50, 76, 52, 10),
     P(G.steelTop, PAN_RIM, ` stroke="${STEEL_LINE}" stroke-width="1.2" stroke-linejoin="round"`),
@@ -350,9 +359,15 @@ function panShell(contents, name, tone = STEEL_LO) {
     P(tone, PAN_FLOOR),
     contents,
     over(PAN_IN, G.inner),
-    S('#FFFFFF', 1.6, 'M12 17.6 H88', ' stroke-opacity=".85" stroke-linecap="round"'),
+    // the rolled rim catches the key light at the back and a warm glint on the right
+    S('#FFFFFF', 1.6, 'M12 17.6 H88', ' stroke-opacity=".85" stroke-linecap="round"') + S(PEACH, 1.2, 'M90.6 21 L94.6 56', ' stroke-opacity=".7" stroke-linecap="round"'),
+    // the front face: a pressed groove, two rivets, a warm top edge
     P(G.steel, 'M3 60 H97 L95 74 H5 Z', ` stroke="${STEEL_LINE}" stroke-width="1.1" stroke-linejoin="round"`), over('M3 60 H97 L95 74 H5 Z', G.front),
-    name ? P(PAPER, 'M33 62.4 H67 V72 H33 Z', ` stroke="${line(PAPER, 0.4)}" stroke-width=".8"`) + label(50, 70.2, name, 7.6) : '',
+    S(STEEL_LO, 0.8, 'M6 69.6 H94', ' stroke-opacity=".45"') + S(PEACH, 1, 'M4.4 61 H95.6', ' stroke-opacity=".8"'),
+    P(dark(STEEL, 0.32), `${ring(9, 65.6, 1.2)} ${ring(91, 65.6, 1.2)}`),
+    // a paper tag with an edge in the topping's own colour and a strip of tape
+    name ? P(PAPER, tag, ` stroke="${line(PAPER, 0.4)}" stroke-width=".8"`) + P(tagC, 'M31 62 H35 V73 H31 Q29 73 29 71 V64 Q29 62 31 62 Z') +
+      P('#FFF0C2', 'M45 59.6 h10 v4.4 h-10 Z', ' fill-opacity=".85"') + label(52, 70.6, name, 7.6) : '',
   ].join('');
 }
 
@@ -377,11 +392,14 @@ function trayItems(kind, n, yT, seed) {
   items.reverse(); // back rows first
   if (kind === 'pearl' || kind === 'bean') {
     const bean = kind === 'bean';
-    return P(bean ? BEAN : PEARL, items.map(([x, y, , k]) => (bean ? ell(x, y, 3.2 * k, 2.2 * k) : ring(x, y, r1(3.2 * k)))).join(' '), ` stroke="${bean ? '#4A1714' : '#140A06'}" stroke-width=".5"`) +
-      P('#FFFFFF', items.map(([x, y, , k]) => ring(r1(x - 1 * k), r1(y - 1.1 * k), r1(0.8 * k))).join(' '), ' fill-opacity=".8"');
+    // glossy balls: the body, a soft lit crescent on the upper left, a crisp white glint
+    return P(bean ? BEAN : PEARL, items.map(([x, y, , k]) => (bean ? ell(x, y, 3.2 * k, 2.2 * k) : ring(x, y, r1(3.2 * k)))).join(' '), ` stroke="${bean ? '#4A1714' : '#1A0A04'}" stroke-width=".5"`) +
+      P(bean ? BEAN_HI : PEARL_HI, items.map(([x, y, , k]) => ell(r1(x - 0.7 * k), r1(y - 0.8 * k), r1(1.9 * k), r1(1.3 * k))).join(' '), ' fill-opacity=".6"') +
+      P('#FFFFFF', items.map(([x, y, , k]) => ring(r1(x - 1 * k), r1(y - 1.1 * k), r1(0.8 * k))).join(' '), ' fill-opacity=".9"');
   }
   if (kind === 'taro') {
-    return TARO.map((c, j) => P(c, items.filter((_, i) => i % 3 === j).map(([x, y, , k]) => `M${r1(x - 3.4 * k)} ${r1(y - 2 * k)} h${r1(6.8 * k)} v${r1(4 * k)} h${r1(-6.8 * k)} Z`).join(' ') || 'M0 0', ` stroke="${line(c, 0.4)}" stroke-width=".6" stroke-linejoin="round"`)).join('');
+    return TARO.map((c, j) => P(c, items.filter((_, i) => i % 3 === j).map(([x, y, , k]) => `M${r1(x - 3.4 * k)} ${r1(y - 2 * k)} h${r1(6.8 * k)} v${r1(4 * k)} h${r1(-6.8 * k)} Z`).join(' ') || 'M0 0', ` stroke="${line(c, 0.4)}" stroke-width=".6" stroke-linejoin="round"`)).join('') +
+      P('#FFFFFF', items.map(([x, y, , k]) => `M${r1(x - 2.6 * k)} ${r1(y - 1.4 * k)} h${r1(2.6 * k)} v${r1(1 * k)} h${r1(-2.6 * k)} Z`).join(' '), ' fill-opacity=".6"');
   }
   if (kind === 'coconut') {
     return P(COCO, items.map(([x, y, a, k]) => sq(x, y, r1(5.2 * k), a, 0.75)).join(' '), ' fill-opacity=".92" stroke="#B9A673" stroke-width=".6" stroke-linejoin="round"') +
@@ -391,11 +409,13 @@ function trayItems(kind, n, yT, seed) {
     return P(PUDDING, items.map(([x, y, , k]) => `M${r1(x - 3.4 * k)} ${r1(y + 2.4 * k)} L${r1(x - 2.6 * k)} ${r1(y - 2.2 * k)} H${r1(x + 2.6 * k)} L${r1(x + 3.4 * k)} ${r1(y + 2.4 * k)} Z`).join(' '), ' stroke="#B8801E" stroke-width=".6" stroke-linejoin="round"') +
       P(CARAMEL, items.map(([x, y, , k]) => `M${r1(x - 2.6 * k)} ${r1(y - 2.2 * k)} H${r1(x + 2.6 * k)} L${r1(x + 2.8 * k)} ${r1(y - 0.6 * k)} H${r1(x - 2.8 * k)} Z`).join(' '));
   }
-  return P(GRASS, items.map(([x, y, a, k]) => sq(x, y, r1(5.6 * k), a * 0.6, 0.75)).join(' '), ' stroke="#121208" stroke-width=".5" stroke-linejoin="round"') +
-    S(GRASS_HI, 1, items.map(([x, y, , k]) => `M${r1(x - 2 * k)} ${r1(y - 0.8 * k)} l1.6 -1.2`).join(' '), ' stroke-linecap="round"');
+  return P(GRASS, items.map(([x, y, a, k]) => sq(x, y, r1(5.6 * k), a * 0.6, 0.75)).join(' '), ' stroke="#140C06" stroke-width=".5" stroke-linejoin="round"') +
+    S(GRASS_HI, 1, items.map(([x, y, , k]) => `M${r1(x - 2 * k)} ${r1(y - 0.8 * k)} l1.6 -1.2`).join(' '), ' stroke-linecap="round"') +
+    P('#FFFFFF', items.map(([x, y, , k]) => ring(r1(x + 1.2 * k), r1(y - 0.6 * k), r1(0.6 * k))).join(' '), ' fill-opacity=".7"');
 }
 
-const TRAY_BASE = { pearl: '#4A2A1A', coconut: '#E9DDB0', pudding: '#E8AE45', grass: '#1E1F16', taro: '#E8D7C2', bean: '#5E1E1A' };
+const TRAY_BASE = { pearl: '#5C2C12', coconut: '#F2DD9E', pudding: '#F2A93A', grass: '#2A1E12', taro: '#F0DCC0', bean: '#6A1C16' };
+const TAG_C = { pearl: '#8A4A24', coconut: '#E9C46A', pudding: '#F2A93A', grass: '#4A3624', taro: '#A07BD0', bean: '#B23A30' };
 
 export function toppingTraySVG(kind = 'pearl', scoopsLeft = 10) {
   const k = TOPPING_KINDS.includes(kind) ? kind : 'pearl';
@@ -408,13 +428,17 @@ export function toppingTraySVG(kind = 'pearl', scoopsLeft = 10) {
     const pile = `M${xT} ${yT} Q50 ${r1(yT - 3)} ${r1(100 - xT)} ${yT} L88 55 H12 Z`;
     inner += P(TRAY_BASE[k], pile) + over(pile, G.top, 0.6);
     inner += trayItems(k, 8 + Math.round(f * 18), yT, fnv1a(k + left));
+    // the syrup gloss over the pile: a soft sheen and two wet streaks catching the key light
+    inner += over(pile, G.sheen, 0.7) + S('#FFFFFF', 1.3, `M${r1(xT + 6)} ${r1(yT + 4)} Q34 ${r1(yT + 1)} 46 ${r1(yT + 2.6)} M22 50 Q28 47.6 34 48.4`, ' stroke-opacity=".55" stroke-linecap="round"');
   } else {
-    inner += S(STEEL_HI, 1.2, 'M26 46 L32 38 M34 48 L42 38', ' stroke-opacity=".7" stroke-linecap="round"');
+    inner += S(STEEL_HI, 1.2, 'M26 46 L32 38 M34 48 L42 38', ' stroke-opacity=".7" stroke-linecap="round"') +
+      P(TRAY_BASE[k], `${ring(30, 50, 1.6)} ${ring(54, 44, 1.3)} ${ring(62, 52, 1.5)}`, ' fill-opacity=".8"');
   }
-  // a long-handled scoop resting in the pan
+  // a long-handled scoop resting in the pan (a chocolate grip at the end)
   inner += S(dark(STEEL, 0.35), 3.6, 'M70 42 L88 6', ' stroke-linecap="round"') + S(STEEL_HI, 1.6, 'M70 42 L88 6', ' stroke-linecap="round"') +
+    S(COUNTER, 4.4, 'M83.4 15.4 L88.6 5', ' stroke-linecap="round"') + S(lit(COUNTER, 0.4), 1.4, 'M83.2 14.4 L87.6 5.6', ' stroke-linecap="round" stroke-opacity=".8"') +
     P(G.steelTop, ell(68, 45, 7, 3.6), ` stroke="${STEEL_LINE}" stroke-width="1"`);
-  return svg('as-station as-tray', '0 0 100 95', panShell(inner, TOPPING_NAME[k]), ` data-kind="${k}" data-left="${left}"`);
+  return svg('as-station as-tray', '0 0 100 95', panShell(inner, TOPPING_NAME[k], STEEL_LO, TAG_C[k]), ` data-kind="${k}" data-left="${left}"`);
 }
 
 /** The lemon tray: a small pan of lemon wheels (slices of max). */
@@ -422,13 +446,23 @@ export function lemonTraySVG(slices = 6, max = 6) {
   const n = max > 0 ? Math.round((clamp(slices, 0, max) / max) * 8) : 0;
   const pos = [[30, 49], [50, 50], [70, 49], [40, 42], [60, 42], [28, 36], [50, 35], [72, 36]].slice(0, n).reverse();
   let inner = P('#F6E7A8', PAN_FLOOR, ' fill-opacity=".5"');
+  // the wheels drawn layer by layer (peel, pith, flesh, segments, a juicy glint), back rows first
+  const L = ['', '', '', '', ''];
   for (const [x, y] of pos) {
     const k = 0.75 + 0.25 * ((y - 31) / 24);
-    inner += P('#E2A800', ell(x, y + 1, 10 * k, 5 * k)) + P('#FFF6C8', ell(x, y, 9 * k, 4.2 * k)) + P(LEMON, ell(x, y, 7.4 * k, 3.4 * k)) +
-      S('#FFF6C8', 0.8, `M${r1(x - 7 * k)} ${y} H${r1(x + 7 * k)} M${x} ${r1(y - 3.2 * k)} V${r1(y + 3.2 * k)}`);
+    L[0] += ell(x, y + 1, 10 * k, 5 * k) + ' ';
+    L[1] += ell(x, y, 9 * k, 4.2 * k) + ' ';
+    L[2] += ell(x, y, 7.4 * k, 3.4 * k) + ' ';
+    L[3] += `M${r1(x - 7 * k)} ${y} H${r1(x + 7 * k)} M${x} ${r1(y - 3.2 * k)} V${r1(y + 3.2 * k)} M${r1(x - 5 * k)} ${r1(y - 2.4 * k)} L${r1(x + 5 * k)} ${r1(y + 2.4 * k)} M${r1(x + 5 * k)} ${r1(y - 2.4 * k)} L${r1(x - 5 * k)} ${r1(y + 2.4 * k)} `;
+    L[4] += ell(r1(x - 3 * k), r1(y - 1.4 * k), r1(2.2 * k), r1(0.9 * k)) + ' ';
   }
-  if (!n) inner += S(STEEL_HI, 1.2, 'M26 46 L32 38 M34 48 L42 38', ' stroke-opacity=".7" stroke-linecap="round"');
-  return svg('as-station as-tray as-lemon', '0 0 100 95', panShell(inner, ''), ` data-left="${clamp(slices, 0, max)}"`);
+  if (n) inner += P('#E8A400', L[0], ` stroke="${line('#E8A400', 0.4)}" stroke-width=".6"`) + P('#FFF8D2', L[1]) + P('#FFD23A', L[2]) + S('#FFF8D2', 0.7, L[3]) + P('#FFFFFF', L[4], ' fill-opacity=".75"');
+  else inner += S(STEEL_HI, 1.2, 'M26 46 L32 38 M34 48 L42 38', ' stroke-opacity=".7" stroke-linecap="round"');
+  // the tag on the front: a lemon picture instead of a word, and a pair of tongs resting on the rim
+  const tag = P(PAPER, 'M38 62 H62 Q64 62 64 64 V71 Q64 73 62 73 H38 Q36 73 36 71 V64 Q36 62 38 62 Z', ` stroke="${line(PAPER, 0.4)}" stroke-width=".8"`) +
+    P(LEMON, ell(50, 67.5, 6, 3.6), ' stroke="#D99A00" stroke-width=".9"') + P('#7FB24A', 'M54 64.6 q4 -2.6 6 -.4 q-3 2.4 -6 .4 Z');
+  const tongs = S(dark(STEEL, 0.3), 2.6, 'M64 46 L90 10 M70 47 L92 13', ' stroke-linecap="round"') + S(STEEL_HI, 1, 'M64 45 L89.4 10.4 M70 46 L91.4 13.4', ' stroke-linecap="round"');
+  return svg('as-station as-tray as-lemon', '0 0 100 95', panShell(inner + tongs, '') + tag, ` data-left="${clamp(slices, 0, max)}"`);
 }
 
 export function iceBinSVG() {
@@ -444,24 +478,41 @@ export function iceBinSVG() {
     P(ICE_EDGE, cubes.map(([x, y, , k]) => `M${r1(x - 4 * k)} ${r1(y + 2 * k)} h${r1(8 * k)} v${r1(3 * k)} h${r1(-8 * k)} Z`).join(' '), ' fill-opacity=".5"') +
     P(ICE, cubes.map(([x, y, a, k]) => sq(x, y, r1(8.6 * k), a, 0.6)).join(' '), ` stroke="${ICE_EDGE}" stroke-width=".8" stroke-linejoin="round"`) +
     P('#FFFFFF', cubes.map(([x, y, a, k]) => sq(r1(x - 1.6 * k), r1(y - 1), r1(3 * k), a, 0.6)).join(' ')) +
-    P(G.steelTop, 'M58 40 L74 34 Q80 37 78 42 L64 46 Q58 45 58 40 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`) +
-    S(COUNTER, 3.2, 'M77 37 L90 28', ' stroke-linecap="round"');
-  return svg('as-station as-ice', '0 0 100 95', panShell(inner, '冰塊'));
+    // frost glints on the pile and a few melt drops on the floor
+    P('#FFFFFF', [[28, 40, 3.4], [47, 47, 2.6], [36, 52, 2.2], [56, 36, 2.4]].map(([x, y, r]) => `M${x} ${r1(y - r)} L${r1(x + r * 0.28)} ${r1(y - r * 0.28)} L${r1(x + r)} ${y} L${r1(x + r * 0.28)} ${r1(y + r * 0.28)} L${x} ${r1(y + r)} L${r1(x - r * 0.28)} ${r1(y + r * 0.28)} L${r1(x - r)} ${y} L${r1(x - r * 0.28)} ${r1(y - r * 0.28)} Z`).join(' ')) +
+    P(G.steelTop, 'M58 40 L74 34 Q80 37 78 42 L64 46 Q58 45 58 40 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`) + P(STEEL_LO, 'M62 40.6 L73 36.6 Q75 38 74.4 40 L65 43 Z', ' fill-opacity=".45"') +
+    S(COUNTER, 3.2, 'M77 37 L90 28', ' stroke-linecap="round"') + S(lit(COUNTER, 0.45), 1, 'M78 35.6 L89 28', ' stroke-linecap="round"');
+  return svg('as-station as-ice', '0 0 100 95', panShell(inner, '冰塊', STEEL_LO, '#5FB4E0'));
 }
 
 export function iceDispenserSVG() {
   const top = 'M10 8 H90 L95 22 H5 Z';
-  const front = 'M5 22 H95 V82 H5 Z';
+  const front = 'M5 22 H95 V80 Q95 84 91 84 H9 Q5 84 5 80 Z';
+  const win = 'M11 28 H62 V54 H11 Z';
+  const panel = 'M68 28 Q68 26 70 26 H88 Q90 26 90 28 V76 Q90 78 88 78 H70 Q68 78 68 76 Z';
   const p = [
-    ao(50, 86, 50, 8),
+    cast(50, 88, 48, 7), ao(50, 88, 50, 8),
+    P(COUNTER_LO, 'M10 83 h10 v5 h-10 Z M80 83 h10 v5 h-10 Z'),
     P(G.steel, front, ` stroke="${STEEL_LINE}" stroke-width="1.2"`), over(front, G.front),
     P(G.steelTop, top, ` stroke="${STEEL_LINE}" stroke-width="1.2" stroke-linejoin="round"`),
-    P('#CFE7F4', 'M12 28 H66 V52 H12 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`),
-    P(ICE, [[20, 46], [30, 42], [42, 47], [54, 43], [26, 35], [48, 34], [60, 49]].map(([x, y], i) => sq(x, y, 8, i * 17, 0.8)).join(' '), ` stroke="${ICE_EDGE}" stroke-width=".8"`),
-    over('M12 28 H66 V52 H12 Z', G.glass),
-    P(NIGHT_700, 'M28 58 H52 V68 H46 L42 76 H38 L34 68 H28 Z'),
-    P(COUNTER, 'M72 30 H88 V74 H72 Z'), P('#7FD4FF', `${ring(80, 40, 2.4)} ${ring(80, 50, 2.4)} ${ring(80, 60, 2.4)}`),
-    S('#FFFFFF', 1.4, 'M12 9.6 H88', ' stroke-opacity=".8"'),
+    // the lid seam and its chrome pull, a light streak along the back edge
+    S(STEEL_LO, 0.8, 'M8.4 16 H91.6', ' stroke-opacity=".5"') + P(G.chrome, 'M40 11 H60 V13.6 H40 Z', ` stroke="${STEEL_LINE}" stroke-width=".7"`) + S('#FFFFFF', 1.4, 'M12 9.6 H88', ' stroke-opacity=".8"'),
+    // the window onto the ice store: cool cubes behind the glass, a glint
+    P('#D6ECF5', win, ` stroke="${STEEL_LINE}" stroke-width="1.2"`),
+    P(ICE, [[18, 48], [28, 45], [40, 49], [52, 45], [24, 37], [36, 39], [48, 35], [57, 50]].map(([x, y], i) => sq(x, y, 8.4, i * 17, 0.8)).join(' '), ` stroke="${ICE_EDGE}" stroke-width=".8" stroke-linejoin="round"`),
+    over(win, G.glass), P('#FFFFFF', 'M16 30 L22 30 L14 52 L11 52 L11 44 Z M26 30 L29 30 L21 52 L18 52 Z', ' fill-opacity=".55"'),
+    // the dispensing bay: a dark recess, the chrome chute, a drip tray with a grate
+    P(NIGHT_700, 'M20 58 Q20 57 21 57 H59 Q60 57 60 58 V80 H20 Z'), over('M20 58 H60 V80 H20 Z', G.inner),
+    P(G.chrome, 'M35 57 H45 V63 L43 68 H37 L35 63 Z', ` stroke="${STEEL_LINE}" stroke-width=".8"`),
+    P(G.steelTop, 'M18 74 H62 L63 80 H17 Z', ` stroke="${STEEL_LINE}" stroke-width=".8"`) + S(STEEL_LO, 0.8, 'M22 76 H58 M21 78 H59', ' stroke-opacity=".7"'),
+    // the control panel: three lit buttons, a vent grille
+    P(COUNTER, panel, ` stroke="${COUNTER_LO}" stroke-width="1"`), over(panel, G.front),
+    P(MINT, ring(79, 36, 3), ` stroke="${dark(MINT, 0.4)}" stroke-width=".8"`) + P('#7FD4FF', ring(79, 46, 3), ' stroke="#3F8CB8" stroke-width=".8"') + P(GUN, ring(79, 56, 3), ` stroke="${GUN_DEEP}" stroke-width=".8"`),
+    P('#FFFFFF', `${ring(78, 35, 1)} ${ring(78, 45, 1)} ${ring(78, 55, 1)}`, ' fill-opacity=".85"'),
+    S(COUNTER_LO, 1.2, 'M72 64 H86 M72 67.4 H86 M72 70.8 H86', ' stroke-linecap="round"'),
+    // corner screws and a warm glint down the right edge
+    P(dark(STEEL, 0.32), `${ring(9, 26, 1.1)} ${ring(91, 82, 1.1)} ${ring(9, 81, 1.1)} ${ring(64, 26, 1.1)}`),
+    S(PEACH, 1.2, 'M93.4 24 V80', ' stroke-opacity=".7" stroke-linecap="round"'),
   ];
   return svg('as-station as-ice as-dispenser', '0 0 100 95', p.join(''));
 }
@@ -469,18 +520,27 @@ export function iceDispenserSVG() {
 export function syrupSVG() {
   const p = [
     cast(35, 102, 30, 6), ao(35, 102, 30, 6),
+    // a steel saucer catching drips, with a little amber puddle
+    P(G.steelTop, ell(35, 97, 31, 7.4), ` stroke="${STEEL_LINE}" stroke-width="1"`), P(dark(STEEL, 0.12), ell(35, 97.6, 25, 5.4)), P(SYRUP, ell(52, 99, 4.4, 1.6), ' fill-opacity=".85"'),
     cylinder(12, 58, 42, 94, 7, '#FFF4DD', line(SYRUP, 0.4)),
     P(SYRUP, 'M14 56 V93 A21 6 0 0 0 56 93 V56 Z'), over('M14 56 V93 A21 6 0 0 0 56 93 V56 Z', G.cyl),
     P(celHilite(SYRUP), ell(35, 56, 21, 5)),
+    // tiny bubbles suspended in the syrup
+    P('#FFF1C8', `${ring(20, 88, 1.2)} ${ring(48, 90, 1)} ${ring(52, 62, 1.1)} ${ring(18, 60, .9)}`, ' fill-opacity=".8"'),
     P(PAPER, 'M14 66 A21 6 0 0 0 56 66 V82 A21 6 0 0 1 14 82 Z', ` stroke="${line(PAPER, 0.4)}" stroke-width=".8"`),
+    S(GUN, 1.4, 'M14 68.4 A21 6 0 0 0 56 68.4', ' stroke-opacity=".9"'),
     label(35, 81, '果糖', 12),
     over('M12 42 V94 A23 7 0 0 0 58 94 V42 Z', G.glass, 0.7),
+    P('#FFFFFF', 'M17 47 h3 V90 h-3 Z', ' fill-opacity=".45"'),
+    // a drip running down the front from the nozzle side
+    P(SYRUP, 'M53 44 q1.4 0 1.4 2 V54 a1.4 1.8 0 0 1 -2.8 0 V46 q0 -2 1.4 -2 Z', ` stroke="${line(SYRUP, 0.4)}" stroke-width=".5"`),
     P(G.steelTop, ell(35, 42, 23, 7), ` stroke="${line(SYRUP, 0.4)}" stroke-width="1"`),
     // the pump head seen from above: collar, stem, head, nozzle
     P(COUNTER, 'M27 40 V32 A8 3 0 0 1 43 32 V40 A8 3 0 0 1 27 40 Z'), P(lit(COUNTER, 0.3), ell(35, 32, 8, 3)),
     P(G.chrome, 'M33 32 V20 h4 V32 Z'),
     P(COUNTER, 'M24 20 Q24 13 35 13 Q46 13 46 20 Q46 24 35 24 Q24 24 24 20 Z'), P(lit(COUNTER, 0.35), ell(35, 17.6, 9, 3.4)),
     P(COUNTER, 'M44 16 H60 Q63 16 63 19 V22 H59 V20 H44 Z'), P(SYRUP, 'M59 22 h3 v2 a1.5 2 0 0 1 -3 0 Z'),
+    S('#FFFFFF', 1.2, 'M27 16 Q31 13.6 37 13.4', ' stroke-linecap="round" stroke-opacity=".7"'),
   ];
   return svg('as-station as-syrup', '0 0 70 108', p.join(''));
 }
@@ -599,11 +659,14 @@ export function potRigSVG(lv = 1) {
       fl += `M${r1(x - 5)} 104 Q${r1(x - 4)} 93 ${r1(x)} 87 Q${r1(x + 4)} 93 ${r1(x + 5)} 104 Z `;
       core += `M${r1(x - 2.4)} 104 Q${r1(x - 2)} 98 ${r1(x)} 95 Q${r1(x + 2)} 98 ${r1(x + 2.4)} 104 Z `;
     }
-    p.push(P(COUNTER_LO, ell(55, 104, 50, 8)) + P(TAKE, fl) + P('#7FD4FF', core));
+    // a wide ring burner: a cast-iron collar with a warm glow round it, orange flames with hot cores
+    p.push(P(G.glow, ell(55, 100, 58, 12)) + P(COUNTER_LO, ell(55, 104, 50, 8)) + S(lit(COUNTER_LO, 0.3), 1.2, 'M8 102 Q55 92 102 102', ' stroke-opacity=".7"') + P(TAKE, fl) + P('#FFF3B0', core));
   }
   if (lv >= 4) {
     p.push(P(G.steel, 'M0 -46 H40 L28 -12 H12 Z', ` stroke="${STEEL_LINE}" stroke-width="1.2"`) + P(G.steelTop, ell(20, -46, 20, 5)));
-    p.push(P(PEARL, `${ring(11, -46, 3.4)} ${ring(20, -47, 3.4)} ${ring(29, -46, 3.4)} ${ring(16, -44, 3)} ${ring(25, -44, 3)}`));
+    p.push(P(dark(STEEL, 0.32), `${ring(6, -40, 1)} ${ring(34, -40, 1)} ${ring(14, -18, 1)} ${ring(26, -18, 1)}`) + S(PEACH, 1, 'M35 -42 L27 -14', ' stroke-opacity=".7"'));
+    p.push(P(PEARL, `${ring(11, -46, 3.4)} ${ring(20, -47, 3.4)} ${ring(29, -46, 3.4)} ${ring(16, -44, 3)} ${ring(25, -44, 3)}`) +
+      P('#FFFFFF', `${ring(10, -47.2, 1)} ${ring(19, -48.2, 1)} ${ring(28, -47.2, 1)} ${ring(15, -45, .8)} ${ring(24, -45, .8)}`, ' fill-opacity=".8"'));
     p.push(S(dark(STEEL, 0.4), 7, 'M20 -12 V6 Q20 20 34 26', ' stroke-linecap="round"') + S(STEEL_HI, 3.4, 'M20 -12 V6 Q20 20 34 26', ' stroke-linecap="round"'));
     p.push(P(MINT, ring(32, -22, 3.4), ` stroke="${dark(MINT, 0.4)}" stroke-width="1"`));
   }
@@ -617,21 +680,34 @@ export function cupRackSVG() {
   let rims = '';
   let outline = '';
   let mouths = '';
+  let inside = '';
+  let band = '';
+  let spec = '';
   for (const [cx, top] of stacks) {
     const hw = 14;
     fill += `M${cx - hw} ${top} L${cx - 9} 104 A9 3 0 0 0 ${cx + 9} 104 L${cx + hw} ${top} Z `;
     outline += `M${cx - hw} ${top} L${cx - 9} 104 M${cx + hw} ${top} L${cx + 9} 104 `;
     for (let y = top + 6; y < top + 36; y += 5) rims += `M${cx - hw + 0.4} ${y} A${hw} 3.6 0 0 0 ${cx + hw - 0.4} ${y} `;
     mouths += ell(cx, top, hw, 4.6) + ' ';
+    inside += ell(cx, top + 1, hw - 3, 2.8) + ' ';
+    // the printed band of the shop's cups (a red ring, no words) on the top cup, and a specular streak down each stack
+    const y0 = top + 40;
+    band += `M${r1(cx - hw + 3.4)} ${y0} A${hw - 3} 3.4 0 0 0 ${r1(cx + hw - 3.4)} ${y0} L${r1(cx + hw - 3.8)} ${y0 + 5} A${hw - 3.4} 3.4 0 0 1 ${r1(cx - hw + 3.8)} ${y0 + 5} Z `;
+    spec += `M${cx - hw + 3} ${top + 4} L${cx - 7} 100 L${cx - 5.4} 100 L${cx - hw + 5.6} ${top + 4} Z `;
   }
   const p = [
     cast(50, 116, 52, 8), ao(50, 116, 52, 8),
-    P(G.steelTop, 'M6 102 H94 L98 112 H2 Z', ` stroke="${STEEL_LINE}" stroke-width="1.1"`), P(G.steel, 'M2 112 H98 L97 118 H3 Z'),
-    P('#DDEFF7', fill, ' fill-opacity=".42"'),
+    // the rack's back rail: two posts and a cross bar behind the stacks
+    P(G.steel, 'M7 34 h4 v70 h-4 Z M89 34 h4 v70 h-4 Z M7 52 H93 V56 H7 Z', ` stroke="${STEEL_LINE}" stroke-width=".8"`),
+    P(G.steelTop, 'M6 102 H94 L98 112 H2 Z', ` stroke="${STEEL_LINE}" stroke-width="1.1"`), P(G.steel, 'M2 112 H98 L97 118 H3 Z', ` stroke="${STEEL_LINE}" stroke-width=".8"`),
+    P(COUNTER_LO, 'M5 118 h8 v3 h-8 Z M87 118 h8 v3 h-8 Z'), P(dark(STEEL, 0.3), `${ring(9, 54, 1)} ${ring(91, 54, 1)} ${ring(8, 115, 1)} ${ring(92, 115, 1)}`),
+    S(PEACH, 1, 'M4 112.6 H96', ' stroke-opacity=".8"'),
+    P('#E4F2F8', fill, ' fill-opacity=".46"'),
     over(fill, G.glass),
-    S('#9FC4D8', 1, rims),
-    P('#EAF6FB', mouths, ' fill-opacity=".75"'), S('#7FA6BC', 1.1, mouths),
-    S('#7FA6BC', 1.1, outline),
+    P(GUN, band, ' fill-opacity=".75"'),
+    S('#A9CADB', 1, rims),
+    P('#F2FAFD', mouths, ' fill-opacity=".8"'), P('#BFDCEA', inside, ' fill-opacity=".6"'), S('#7FA6BC', 1.1, mouths),
+    S('#7FA6BC', 1.1, outline), P('#FFFFFF', spec, ' fill-opacity=".5"'),
   ];
   return svg('as-station as-rack', '0 0 100 125', p.join(''));
 }
@@ -640,15 +716,25 @@ export function trashSVG() {
   const bodyD = 'M12 32 L18 96 A22 7 0 0 0 62 96 L68 32 Z';
   const p = [
     cast(40, 102, 34, 6), ao(40, 102, 34, 6),
-    // the lid flipped up behind the opening
-    `<g transform="rotate(-18 14 26)">${P(NIGHT_700, 'M12 6 Q12 2 16 2 H64 Q68 2 68 6 V22 H12 Z', ` stroke="${line(NIGHT_700, 0.3)}" stroke-width="1"`)}${over('M12 6 Q12 2 16 2 H64 Q68 2 68 6 V22 H12 Z', G.front)}</g>`,
+    // the lid flipped up behind the opening: red lacquer with a sheen and a chrome hinge
+    `<g transform="rotate(-18 14 26)">${P(GUN, 'M12 6 Q12 2 16 2 H64 Q68 2 68 6 V22 H12 Z', ` stroke="${GUN_DEEP}" stroke-width="1"`)}${over('M12 6 Q12 2 16 2 H64 Q68 2 68 6 V22 H12 Z', G.front)}` +
+      `${over('M12 6 Q12 2 16 2 H64 Q68 2 68 6 V22 H12 Z', G.sheen, 0.8)}${P(G.chrome, 'M30 20 h20 v4 h-20 Z', ` stroke="${STEEL_LINE}" stroke-width=".7"`)}</g>`,
     P(G.steel, bodyD, ` stroke="${STEEL_LINE}" stroke-width="1.2"`),
+    // ribs on the body, the red band with a white cup picture (no words)
+    S(STEEL_LO, 0.9, 'M14.8 70 Q40 76 65.2 70 M16 84 Q40 90 64 84', ' stroke-opacity=".5"'),
     P(GUN, 'M13.6 50 L66.4 50 L65.8 58 L14.2 58 Z'), over('M13.6 50 L66.4 50 L65.8 58 L14.2 58 Z', G.cyl),
+    P(PAPER, 'M36 51.4 H44 L43 56.6 H37 Z', ' fill-opacity=".9"'),
+    S(PEACH, 1.4, 'M62.6 62 L59.4 94', ' stroke-opacity=".7" stroke-linecap="round"'),
     P(G.steelTop, ell(40, 32, 28, 9), ` stroke="${STEEL_LINE}" stroke-width="1.1"`),
-    P('#2A2030', ell(40, 33, 24, 7)), over(ell(40, 33, 24, 7), G.inner),
-    // a crumpled cup peeking out
+    P('#2E1E1A', ell(40, 33, 24, 7)), over(ell(40, 33, 24, 7), G.inner),
+    // the bin bag folded over the rim
+    P('#4A3A3A', 'M13 32 Q16 39 22 37 Q28 41 34 38 Q40 42 46 38 Q52 41 58 37 Q64 39 67 32 Q66 36 62 36.4 Q40 44 18 36.4 Q14 36 13 32 Z'),
+    // a crumpled cup and a bent straw peeking out
+    S(MINT, 2, 'M30 31 L27 16 L32 12', ' stroke-linecap="round" stroke-linejoin="round"'),
     P('#DDEFF7', 'M42 30 L48 16 L58 19 L55 31 Z', ' stroke="#7FA6BC" stroke-width="1" stroke-linejoin="round"'), P(GUN, 'M47 18 L57 21 L56 24 L46 21 Z', ' fill-opacity=".7"'),
-    P(COUNTER_LO, 'M30 100 H50 L52 106 H28 Z'),
+    // the foot pedal at the front and two little feet
+    P(COUNTER_LO, 'M22 101 h6 v4 h-6 Z M52 101 h6 v4 h-6 Z'),
+    P(G.chrome, 'M30 99 H50 L53 105 H27 Z', ` stroke="${STEEL_LINE}" stroke-width=".8"`),
   ];
   return svg('as-station as-trash', '0 0 80 108', p.join(''));
 }
@@ -659,8 +745,12 @@ export function workSlotSVG() {
     ao(50, 32, 48, 13),
     P(G.steelTop, ell(50, 27, 43, 15.5), ` stroke="${STEEL_LINE}" stroke-width="1.1"`),
     P(dark(STEEL, 0.2), ell(50, 26.5, 33, 11)),
-    P('#33262A', ell(50, 27.6, 28, 8.6)), over(ell(50, 27.6, 28, 8.6), G.inner),
+    P('#3A2824', ell(50, 27.6, 28, 8.6)), over(ell(50, 27.6, 28, 8.6), G.inner),
+    // a rubber gasket ring inside the lip, four screws on the flange, the key light and a warm glint
+    S('#5A3E36', 1.4, ell(50, 27, 30.4, 9.6), ' stroke-opacity=".8"'),
+    P(dark(STEEL, 0.32), `${ring(12, 27, 1.2)} ${ring(88, 27, 1.2)} ${ring(50, 13.4, 1.1)} ${ring(50, 40.6, 1.3)}`),
     S('#FFFFFF', 2, 'M14 22 Q28 13 50 12', ' stroke-linecap="round" stroke-opacity=".9"'),
+    S(PEACH, 1.4, 'M70 39.4 Q86 36 91 28', ' stroke-linecap="round" stroke-opacity=".75"'),
   ];
   return svg('as-station as-slot', '0 0 100 50', p.join(''));
 }
@@ -826,7 +916,8 @@ export function itemsBubbleSVG(order = {}, got = [], { gotSnack = false } = {}) 
 export function coinSVG() {
   const body = [
     P(TAKE_DEEP, ring(20, 21.6, 17)),
-    P(TAKE, ring(20, 20, 17), ' stroke="#A85F00" stroke-width="2"'),
+    P(G.gold, ring(20, 20, 17), ' stroke="#A85F00" stroke-width="2"'),
+    S('#C98200', 1, ring(20, 20, 15.6), ' stroke-dasharray="1.4 1.6" stroke-opacity=".7"'),
     S(TAKE_DEEP, 1.4, ring(20, 20, 13)),
     `<text x="20" y="24.4" ${FONT_NUM} font-size="11" text-anchor="middle" fill="#A85F00">NT$</text>`,
     S(GOLD_HI, 2.2, 'M8.6 15 Q11 8.6 18 7', ' stroke-linecap="round"'),
@@ -865,14 +956,15 @@ export function counterBackdropSVG() {
 }
 
 // ─── The landscape work table, seen from above (design y − 284) ────────────────────────────────
-const WOOD = '#C98A4B';
-const WOOD_HI = '#E6B373';
-const WOOD_LO = '#8E5A2E';
-const MAT = '#9C5B45';
-const MAT_HI = '#BC7A5E';
-const MAT_LO = '#6B3A2B';
-const TILE = '#F3E4C8';
-const TILE_LINE = '#D3BB93';
+// warm, richer materials (art direction 14): honey wood, terracotta rubber, cream / peach tiles, warm stainless
+const WOOD = '#CF8B47';
+const WOOD_HI = '#F0BE7E';
+const WOOD_LO = '#86501F';
+const MAT = '#A9583C';
+const MAT_HI = '#CF7E58';
+const MAT_LO = '#6E3122';
+const TILE = '#F9DDBC';
+const TILE_LINE = '#D9A97E';
 // table space: back wall 0–34, the back bench 34–150 (its raised wood nosing 150–166), the worktop 166–420, the front
 // edge 420–436. Perspective: the table's side edges lean in toward the back (x at y: 34 → 64 px in, 420 → 0) and the
 // steel panel seams run toward a vanishing point high above the middle of the table.
@@ -894,31 +986,59 @@ function brush(y0, y1, n, seed) {
 
 function lockBadge(cx, cy, r = 14) {
   const k = r / 14;
-  return `<g class="lk">${P(COUNTER, ring(cx, cy, r), ` stroke="${INK}" stroke-width="${r1(2.2 * k)}"`)}${over(ring(cx, cy, r), G.sph, 0.6)}` +
+  // a chocolate enamel disc with a gold bezel, a polished gold padlock with a keyhole (warm, art direction 14)
+  const body = `M${r1(cx - 7.4 * k)} ${r1(cy - 1.6 * k)} H${r1(cx + 7.4 * k)} V${r1(cy + 6.4 * k)} Q${r1(cx + 7.4 * k)} ${r1(cy + 7.6 * k)} ${r1(cx + 6.2 * k)} ${r1(cy + 7.6 * k)} H${r1(cx - 6.2 * k)} Q${r1(cx - 7.4 * k)} ${r1(cy + 7.6 * k)} ${r1(cx - 7.4 * k)} ${r1(cy + 6.4 * k)} Z`;
+  return `<g class="lk">${P(COUNTER, ring(cx, cy, r), ` stroke="#3E2620" stroke-width="${r1(2.2 * k)}"`)}${over(ring(cx, cy, r), G.sph, 0.6)}` +
+    S(G.gold, r1(1.3 * k), ring(cx, cy, r1(r - 2.4 * k))) +
     S(LEMON, r1(3 * k), `M${r1(cx - 4.6 * k)} ${r1(cy - 1 * k)} V${r1(cy - 4.6 * k)} A${r1(4.6 * k)} ${r1(4.6 * k)} 0 0 1 ${r1(cx + 4.6 * k)} ${r1(cy - 4.6 * k)} V${r1(cy - 1 * k)}`, ' stroke-linecap="round"') +
-    P(TAKE, `M${r1(cx - 7.4 * k)} ${r1(cy - 1.6 * k)} H${r1(cx + 7.4 * k)} V${r1(cy + 7.6 * k)} H${r1(cx - 7.4 * k)} Z`, ` stroke="${INK}" stroke-width="${r1(1.4 * k)}"`) +
-    P(INK, ring(cx, r1(cy + 2.4 * k), r1(1.7 * k))) + '</g>';
+    P(G.gold, body, ` stroke="#7A4A10" stroke-width="${r1(1.2 * k)}"`) +
+    P('#5A3008', `${ring(cx, r1(cy + 2 * k), r1(1.6 * k))} M${r1(cx - 0.7 * k)} ${r1(cy + 2.6 * k)} h${r1(1.4 * k)} l${r1(0.4 * k)} ${r1(3 * k)} h${r1(-2.2 * k)} Z`) + '</g>';
 }
 export function lockBadgeSVG() { return svg('as-lock', '0 0 40 40', lockBadge(20, 20, 17)); }
 
 export function tableSVG() {
   const T = (y) => EDGE(y);
-  // the back wall: warm tiles with a sticker wall (pictures only), grout in perspective-free rows
+  // the back wall: cream and peach tiles (a soft checker), grout, a glint on each tile, a sticker wall (pictures only)
   let grout = '';
+  let peach = '';
+  let glint = '';
   for (let y = 11; y < 34; y += 11) grout += `M0 ${y} H1280 `;
-  for (let r = 0; r < 3; r++) { const off = r % 2 ? 13 : 0; for (let x = off; x < 1280; x += 26) grout += `M${x} ${r * 11} v11 `; }
+  for (let r = 0; r < 3; r++) {
+    const off = r % 2 ? 13 : 0;
+    for (let x = off - 26; x < 1280; x += 26) {
+      grout += `M${x} ${r * 11} v11 `;
+      if (((x - off) / 26 + r) % 3 === 0) peach += `M${x + 0.6} ${r * 11 + 0.6} h24.8 v9.8 h-24.8 Z `;
+      glint += `M${x + 3} ${r * 11 + 2.6} h9 `;
+    }
+  }
   const rnd = mulberry32(fnv1a('stickers'));
-  const STICK = [GUN, SHUT, TAKE, MINT, '#FF8FC1', '#7FD4FF', LEMON];
+  const STICK = [GUN, SHUT, TAKE, MINT, '#FF5FA2', '#2FB2F0', LEMON, '#FF8A2A'];
   let stickers = '';
+  let stickShadow = '';
+  let stickDark = '';
   for (let x = 10; x < 1270; x += 22 + rnd() * 30) {
     const c = STICK[Math.floor(rnd() * STICK.length)];
     const y = 6 + rnd() * 16;
     const k = rnd();
     const a = (rnd() - 0.5) * 30;
-    stickers += k < 0.3 ? P(c, ring(r1(x), r1(y), r1(4 + rnd() * 2)), ' stroke="#FFFFFF" stroke-width="1.4"')
-      : k < 0.6 ? P(c, sq(r1(x), r1(y), r1(8 + rnd() * 3), a), ' stroke="#FFFFFF" stroke-width="1.4"')
-        : k < 0.8 ? P(c, `M${r1(x)} ${r1(y + 4)} C${r1(x - 6)} ${r1(y)} ${r1(x - 4)} ${r1(y - 5)} ${r1(x)} ${r1(y - 2)} C${r1(x + 4)} ${r1(y - 5)} ${r1(x + 6)} ${r1(y)} ${r1(x)} ${r1(y + 4)} Z`, ' stroke="#FFFFFF" stroke-width="1.2"')
-          : P(c, `M${r1(x)} ${r1(y - 5)} l1.6 3.4 3.8 .5 -2.8 2.6 .7 3.8 -3.3 -1.8 -3.3 1.8 .7 -3.8 -2.8 -2.6 3.8 -.5 Z`, ' stroke="#FFFFFF" stroke-width="1"');
+    const X = r1(x);
+    const Y = r1(y);
+    let d;
+    if (k < 0.2) d = ring(X, Y, r1(4.4 + rnd() * 2));
+    else if (k < 0.38) d = sq(X, Y, r1(8.4 + rnd() * 3), a);
+    else if (k < 0.54) d = `M${X} ${r1(y + 4.4)} C${r1(x - 6.6)} ${Y} ${r1(x - 4.4)} ${r1(y - 5.5)} ${X} ${r1(y - 2.2)} C${r1(x + 4.4)} ${r1(y - 5.5)} ${r1(x + 6.6)} ${Y} ${X} ${r1(y + 4.4)} Z`;
+    else if (k < 0.7) d = `M${X} ${r1(y - 5.5)} l1.8 3.7 4.2 .6 -3.1 2.9 .8 4.2 -3.7 -2 -3.7 2 .8 -4.2 -3.1 -2.9 4.2 -.6 Z`;
+    else if (k < 0.85) {
+      // a cup sticker with a straw and three pearls
+      d = `M${r1(x - 4.4)} ${r1(y - 4)} h8.8 l-1.4 9.4 h-6 Z`;
+      stickDark += `${ring(r1(x - 1.8), r1(y + 3.2), 1)} ${ring(X, r1(y + 3.6), 1)} ${ring(r1(x + 1.8), r1(y + 3.2), 1)} M${r1(x + 1.4)} ${r1(y - 4)} l1.8 -3.4 h1 l-1.8 3.4 Z `;
+    } else {
+      // a round smiley face (dots and a smile, no words)
+      d = ring(X, Y, 5.2);
+      stickDark += `${ring(r1(x - 1.8), r1(y - 1.2), 0.8)} ${ring(r1(x + 1.8), r1(y - 1.2), 0.8)} M${r1(x - 2.6)} ${r1(y + 1.2)} q2.6 2.6 5.2 0 l-.4 -.2 q-2.2 1.8 -4.4 0 Z `;
+    }
+    stickShadow += d + ' ';
+    stickers += P(c, d, ' stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"');
   }
   // the worktop and the back bench as perspective trapezoids
   const bench = `M${T(34)} 34 H${1280 - T(34)} L${1280 - T(150)} 150 H${T(150)} Z`;
@@ -936,55 +1056,73 @@ export function tableSVG() {
     const k = 0.75 + 0.25 * ((y - 334) / 84);
     for (let x = 200 + ((y / 9) % 2) * 5; x < 708; x += 11 * k) { dots += ell(r1(x), y, r1(2.4 * k), r1(1.6 * k)) + ' '; dotsLo += ell(r1(x + 0.8), r1(y + 1), r1(2.4 * k), r1(1.6 * k)) + ' '; }
   }
+  // screw heads along the steel nosing at the front
+  let screws = '';
+  for (let x = 40; x < 1280; x += 160) screws += ring(x, 419.6, 1.3) + ' ';
+  const SH = '#3A1E14';
   const body = [
-    `<defs><linearGradient id="asTbTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6F8FA"/><stop offset=".28" stop-color="#D5DAE2"/><stop offset=".72" stop-color="#A3ABB8"/><stop offset="1" stop-color="#7E8797"/></linearGradient>` +
-      `<linearGradient id="asTbBench" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2F4F7"/><stop offset="1" stop-color="#C3C9D3"/></linearGradient>` +
-      `<radialGradient id="asTbKey" gradientUnits="userSpaceOnUse" cx="420" cy="90" r="820"><stop offset="0" stop-color="${WARM_RIM}" stop-opacity=".55"/><stop offset=".45" stop-color="${WARM_RIM}" stop-opacity=".14"/><stop offset="1" stop-color="${WARM_RIM}" stop-opacity="0"/></radialGradient>` +
-      `<radialGradient id="asTbFall" gradientUnits="userSpaceOnUse" cx="560" cy="170" r="900"><stop offset=".45" stop-color="#140C1C" stop-opacity="0"/><stop offset="1" stop-color="#140C1C" stop-opacity=".42"/></radialGradient>` +
-      `<radialGradient id="asTbTile" gradientUnits="userSpaceOnUse" cx="460" cy="-30" r="760"><stop offset="0" stop-color="#FFF4DE"/><stop offset=".7" stop-color="${TILE}"/><stop offset="1" stop-color="#C9A579"/></radialGradient>` +
+    `<defs><linearGradient id="asTbTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF5E8"/><stop offset=".3" stop-color="#E8D6C6"/><stop offset=".7" stop-color="#C3A894"/><stop offset="1" stop-color="#957565"/></linearGradient>` +
+      `<linearGradient id="asTbBench" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6EA"/><stop offset="1" stop-color="#DCC3AE"/></linearGradient>` +
+      // broad reflections of the shop light in the polished steel: soft vertical bands, warm white and peach
+      `<linearGradient id="asTbRefl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset=".14" stop-color="#FFFFFF" stop-opacity=".34"/><stop offset=".2" stop-color="#FFFFFF" stop-opacity="0"/>` +
+      `<stop offset=".46" stop-color="${PEACH}" stop-opacity="0"/><stop offset=".55" stop-color="${PEACH}" stop-opacity=".32"/><stop offset=".64" stop-color="${PEACH}" stop-opacity="0"/>` +
+      `<stop offset=".8" stop-color="#FFFFFF" stop-opacity="0"/><stop offset=".86" stop-color="#FFFFFF" stop-opacity=".22"/><stop offset=".9" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>` +
+      `<radialGradient id="asTbKey" gradientUnits="userSpaceOnUse" cx="420" cy="90" r="820"><stop offset="0" stop-color="${WARM_RIM}" stop-opacity=".7"/><stop offset=".45" stop-color="#FFD9A0" stop-opacity=".2"/><stop offset="1" stop-color="#FFD9A0" stop-opacity="0"/></radialGradient>` +
+      `<radialGradient id="asTbPeach" gradientUnits="userSpaceOnUse" cx="980" cy="300" r="420"><stop offset="0" stop-color="#FFB98A" stop-opacity=".26"/><stop offset="1" stop-color="#FFB98A" stop-opacity="0"/></radialGradient>` +
+      `<radialGradient id="asTbFall" gradientUnits="userSpaceOnUse" cx="560" cy="170" r="900"><stop offset=".45" stop-color="${SH}" stop-opacity="0"/><stop offset="1" stop-color="${SH}" stop-opacity=".44"/></radialGradient>` +
+      `<radialGradient id="asTbTile" gradientUnits="userSpaceOnUse" cx="460" cy="-30" r="760"><stop offset="0" stop-color="#FFF3E0"/><stop offset=".7" stop-color="${TILE}"/><stop offset="1" stop-color="#D59A6C"/></radialGradient>` +
       `<linearGradient id="asTbMat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${MAT_HI}"/><stop offset="1" stop-color="${MAT}"/></linearGradient></defs>`,
-    // the back wall: tiles + stickers, a shadow under the lip
+    // the back wall: tiles + stickers, a shadow under the lip, a wooden backsplash cap where it meets the bench
     `<rect x="0" y="0" width="1280" height="40" fill="url(#asTbTile)"/>`,
-    S(TILE_LINE, 1.2, grout),
+    P('#F0B98C', peach, ' fill-opacity=".38"'),
+    S(TILE_LINE, 1.2, grout), S('#FFFFFF', 1.2, glint, ' stroke-opacity=".5" stroke-linecap="round"'),
+    P(SH, stickShadow, ' fill-opacity=".2" transform="translate(1 1.4)"'),
     stickers,
-    `<rect x="0" y="0" width="1280" height="8" fill="#2A1A10" fill-opacity=".4"/>`,
+    stickDark ? P('#3E2620', stickDark) : '',
+    `<rect x="0" y="0" width="1280" height="8" fill="${SH}" fill-opacity=".4"/>`,
+    P('url(#gkWood)', 'M0 31 H1280 V35 H0 Z'), S('#FFE6B8', 1, 'M0 31.5 H1280', ' stroke-opacity=".8"'),
     // the side walls where the table narrows toward the back (warm tiles in shadow)
-    P('#5E3E2C', `M0 0 H${T(34) + 2} L0 420 Z`), P('#5E3E2C', `M1280 0 H${1278 - T(34)} L1280 420 Z`),
-    S('#7A5440', 1, `M0 60 L${r1(T(34) * 0.9)} 30 M0 120 L${r1(T(34) * 0.8)} 70 M0 180 L${r1(T(34) * 0.65)} 110 M1280 60 L${r1(1280 - T(34) * 0.9)} 30 M1280 120 L${r1(1280 - T(34) * 0.8)} 70 M1280 180 L${r1(1280 - T(34) * 0.65)} 110`),
+    P('#6A4030', `M0 0 H${T(34) + 2} L0 420 Z`), P('#6A4030', `M1280 0 H${1278 - T(34)} L1280 420 Z`),
+    S('#8A5A42', 1, `M0 60 L${r1(T(34) * 0.9)} 30 M0 120 L${r1(T(34) * 0.8)} 70 M0 180 L${r1(T(34) * 0.65)} 110 M1280 60 L${r1(1280 - T(34) * 0.9)} 30 M1280 120 L${r1(1280 - T(34) * 0.8)} 70 M1280 180 L${r1(1280 - T(34) * 0.65)} 110`),
     // the back bench: lighter, raised; its panel seams; its wood nosing (a real step); the step's shadow on the worktop
     P('url(#asTbBench)', bench),
-    S('#8E97A5', 1, benchSeams, ' stroke-opacity=".35"'),
-    S('#FFFFFF', 1.2, brush(38, 146, 26, 11), ' stroke-opacity=".3"'),
+    P('url(#asTbRefl)', bench, ' fill-opacity=".7"'),
+    S('#A88A78', 1, benchSeams, ' stroke-opacity=".4"'),
+    S('#FFFFFF', 1.2, brush(38, 146, 26, 11), ' stroke-opacity=".34"'),
     P('url(#gkWood)', `M${T(150)} 150 H${1280 - T(150)} L${1280 - T(166)} 166 H${T(166)} Z`),
-    S('#FFF2C8', 1.6, `M${T(150)} 150.8 H${1280 - T(150)}`, ' stroke-opacity=".8"'),
-    S(WOOD_LO, 1, `M${T(158)} 159 Q320 157 640 160 T${1280 - T(158)} 159`, ' stroke-opacity=".5"'),
-    // the main worktop: brushed steel panels receding to the back, lighter at the back, seams toward the vanishing point
+    S('#FFF0C8', 1.6, `M${T(150)} 150.8 H${1280 - T(150)}`, ' stroke-opacity=".85"'),
+    S(WOOD_LO, 1, `M${T(158)} 159 Q320 157 640 160 T${1280 - T(158)} 159 M${T(154)} 155 Q420 153.6 820 155.6 T${1280 - T(154)} 154.6`, ' stroke-opacity=".45"'),
+    // the main worktop: warm brushed steel receding to the back, lighter at the back, seams toward the vanishing point
     P('url(#asTbTop)', top),
-    S('#6E7786', 1.2, seams, ' stroke-opacity=".32"'), S('#FFFFFF', 1, seamsHi, ' stroke-opacity=".35"'),
+    P('url(#asTbRefl)', top),
+    S('#8E7064', 1.2, seams, ' stroke-opacity=".34"'), S('#FFFFFF', 1, seamsHi, ' stroke-opacity=".42"'),
     `<rect x="0" y="166" width="1280" height="22" fill="url(#gkInner)"/>`,
-    S('#FFFFFF', 1.3, brush(170, 416, 46, 21), ' stroke-opacity=".26"'),
-    S('#5B6372', 1.1, brush(170, 416, 22, 22), ' stroke-opacity=".12"'),
-    // the prep mat with its rubber dots in perspective and a soft contact shadow
-    P('#140C1C', 'M190 338 H720 L722 424 H186 Z', ' fill-opacity=".22"'),
+    S('#FFFFFF', 1.3, brush(170, 416, 56, 21), ' stroke-opacity=".36"'),
+    S('#7A5A4C', 1.1, brush(170, 416, 30, 22), ' stroke-opacity=".17"'),
+    // the prep mat with its rubber dots in perspective, a stitched raised border and a soft contact shadow
+    P(SH, 'M190 338 H720 L722 424 H186 Z', ' fill-opacity=".24"'),
     P('url(#asTbMat)', mat, ` stroke="${MAT_LO}" stroke-width="2.4" stroke-linejoin="round"`),
-    P(MAT_LO, dotsLo), P(lit(MAT, 0.25), dots),
+    P(MAT_LO, dotsLo), P(lit(MAT, 0.28), dots),
+    S(lit(MAT_HI, 0.4), 1, 'M198 339 H708 Q711 339 711.4 342 L713 409 Q713 412 710 412 H196 Q193 412 193 409 L194.6 342 Q195 339 198 339 Z', ' stroke-dasharray="4 3" stroke-opacity=".7"'),
     S(lit(MAT_HI, 0.3), 1.6, 'M198 336.6 H708', ' stroke-linecap="round"'),
-    // the warm key light (upper left) and the falloff to the edges
+    // the warm key light (upper left), a peach bounce on the right and the falloff to the edges
     `<rect x="0" y="34" width="1280" height="402" fill="url(#asTbKey)"/>`,
+    `<rect x="560" y="120" width="720" height="316" fill="url(#asTbPeach)"/>`,
     `<rect x="0" y="0" width="1280" height="436" fill="url(#asTbFall)"/>`,
-    // front edge: a steel nosing over warm wood
+    // front edge: a steel nosing with screws over warm wood
     `<rect x="0" y="420" width="1280" height="16" fill="url(#gkWood)"/>`,
-    S(WOOD_LO, 1.1, 'M0 428 Q220 425 460 429 T960 427 T1280 429', ' stroke-opacity=".5"'),
+    S(WOOD_LO, 1.1, 'M0 428 Q220 425 460 429 T960 427 T1280 429 M0 432.6 Q300 431 640 433 T1280 432', ' stroke-opacity=".5"'),
     P(STEEL_HI, 'M0 418 H1280 V421 H0 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`),
+    P(STEEL_LO, screws),
   ];
   return `<svg class="as-table" viewBox="0 0 1280 436" preserveAspectRatio="none" aria-hidden="true">${body.join('')}</svg>`;
 }
 
 export function counterLipSVG() {
   return `<svg class="as-lip" viewBox="0 0 1280 16" preserveAspectRatio="none" aria-hidden="true">` +
-    `<rect x="0" y="0" width="1280" height="7" fill="url(#gkWood)"/>${S('#FFF2C8', 1.6, 'M0 1.2 H1280', ' stroke-opacity=".85"')}` +
-    `<rect x="0" y="7" width="1280" height="6" fill="url(#gkChrome)"/>${S(STEEL_LINE, 1, 'M0 7 H1280 M0 13 H1280')}` +
-    `<rect x="0" y="13" width="1280" height="3" fill="#140C1C" fill-opacity=".35"/></svg>`;
+    `<rect x="0" y="0" width="1280" height="7" fill="url(#gkWood)"/>${S('#FFF0C8', 1.6, 'M0 1.2 H1280', ' stroke-opacity=".9"')}` +
+    `<rect x="0" y="7" width="1280" height="6" fill="url(#gkChrome)"/>${S(STEEL_LINE, 1, 'M0 7 H1280 M0 13 H1280')}${S(PEACH, 1, 'M0 8.4 H1280', ' stroke-opacity=".6"')}` +
+    `<rect x="0" y="13" width="1280" height="3" fill="#3A1E14" fill-opacity=".38"/></svg>`;
 }
 
 export function shelfSVG(n = 4, { autoSeal = false } = {}) {
@@ -992,25 +1130,33 @@ export function shelfSVG(n = 4, { autoSeal = false } = {}) {
   const cols = 3;
   const cw = 240 / cols;
   let rings = '';
+  let ringsHi = '';
   let locks = '';
   for (let i = 0; i < 6; i++) {
     const row = i < cols ? 0 : 1;
     const col = row ? i - cols : i;
     const cx = r1(col * cw + cw / 2);
     const cy = row ? 240 : 114;
-    if (i < k) rings += `${ell(cx, cy, r1(cw * 0.32), 5.6)} `;
+    if (i < k) { rings += `${ell(cx, cy, r1(cw * 0.32), 5.6)} `; ringsHi += `M${r1(cx - cw * 0.3)} ${cy - 1.6} Q${r1(cx - cw * 0.12)} ${cy - 5.4} ${r1(cx + cw * 0.06)} ${cy - 5.4} `; }
     else locks += S(INK_BG, 1.4, ell(cx, cy, r1(cw * 0.32), 5.6), ' stroke-opacity=".5" stroke-dasharray="4 3"') + lockBadge(cx, cy - 34, 12);
   }
-  const tier = (y) => P('url(#gkSteelTop)', `M4 ${y} H236 L240 ${y + 16} H0 Z`, ` stroke="${STEEL_LINE}" stroke-width="1"`) + P(G.steel, `M0 ${y + 16} H240 V${y + 22} H0 Z`);
+  const tier = (y) => P('url(#gkSteelTop)', `M4 ${y} H236 L240 ${y + 16} H0 Z`, ` stroke="${STEEL_LINE}" stroke-width="1"`) + P(G.steel, `M0 ${y + 16} H240 V${y + 22} H0 Z`) +
+    P(GUN, `M0 ${y + 18.6} H240 V${y + 20.4} H0 Z`, ' fill-opacity=".85"') + S(PEACH, 1, `M2 ${y + 16.6} H238`, ' stroke-opacity=".8"');
+  const panel = 'M10 4 H230 V104 H10 Z M10 126 H230 V230 H10 Z';
   const body = [
     ao(120, 250, 124, 8),
-    // warm wood back panel with a soft light pool, steel posts
-    P(WOOD_LO, 'M6 0 H234 V244 H6 Z'), P(WOOD, 'M10 4 H230 V104 H10 Z M10 126 H230 V230 H10 Z', ' fill-opacity=".6"'),
-    `<path fill="url(#gkGlow)" d="M10 4 H230 V104 H10 Z M10 126 H230 V230 H10 Z" fill-opacity=".6"/>`,
-    S(WOOD_HI, 1.2, 'M10 34 H230 M10 68 H230 M10 158 H230 M10 194 H230', ' stroke-opacity=".45"'),
+    // warm wood back panel: plank seams with a little grain, a warm light strip glowing under each top, steel posts
+    P(WOOD_LO, 'M6 0 H234 V244 H6 Z'), P(WOOD, panel, ' fill-opacity=".7"'), over(panel, G.front, 0.6),
+    `<path fill="url(#gkGlow)" d="${panel}" fill-opacity=".7"/>`,
+    S(WOOD_HI, 1.2, 'M10 34 H230 M10 68 H230 M10 158 H230 M10 194 H230', ' stroke-opacity=".5"'),
+    S(WOOD_LO, 0.9, 'M30 14 Q60 12 90 15 M140 48 Q170 46 200 49 M40 84 Q70 82 96 85 M150 140 Q180 138 210 141 M36 176 Q66 174 96 177 M130 212 Q160 210 196 213', ' stroke-opacity=".4"'),
+    P('#FFE9B8', 'M14 4 H226 V7 H14 Z M14 126 H226 V129 H14 Z', ' fill-opacity=".9"'), P(G.glow, `${ell(120, 12, 110, 12)} ${ell(120, 134, 110, 12)}`),
     P(G.steel, 'M0 0 H8 V250 H0 Z M232 0 H240 V250 H232 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`),
+    P(dark(STEEL, 0.32), `${ring(4, 10, 1.3)} ${ring(4, 96, 1.3)} ${ring(4, 140, 1.3)} ${ring(4, 222, 1.3)} ${ring(236, 10, 1.3)} ${ring(236, 96, 1.3)} ${ring(236, 140, 1.3)} ${ring(236, 222, 1.3)}`),
+    S(PEACH, 1.2, 'M238.6 2 V248', ' stroke-opacity=".6"'),
     tier(106), tier(232),
-    P(dark(STEEL, 0.25), rings), over(rings, G.inner, 0.6),
+    // the cup holders: a dark well, a chrome lip catching the light
+    P(dark(STEEL, 0.28), rings, ` stroke="${STEEL_LINE}" stroke-width=".8"`), over(rings, G.inner, 0.7), S('#FFFFFF', 1.4, ringsHi, ' stroke-opacity=".75" stroke-linecap="round"'),
     locks,
     autoSeal ? `<g class="as-gantry">${P(GUN, 'M-4 -18 H244 V-4 H-4 Z', ` stroke="${GUN_DEEP}" stroke-width="1.2" stroke-linejoin="round"`)}${over('M-4 -18 H244 V-4 H-4 Z', G.front)}` +
       `${P(LEMON, 'M8 -14 H232 V-9 H8 Z')}<g class="as-gantry-head">${P(G.steel, 'M100 -4 H140 V8 H100 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`)}${P(PAPER, 'M108 8 H132 V12 H108 Z')}</g></g>` : '',
@@ -1018,36 +1164,53 @@ export function shelfSVG(n = 4, { autoSeal = false } = {}) {
   return svg('as-shelf', '0 0 240 250', body.join(''), ` data-n="${k}" data-auto="${autoSeal ? 1 : 0}"`);
 }
 
-// covered spots (not bought / not on the menu yet): a dust cover in muted steel and a padlock badge, in the station's box
-const COVER = '#8C95A5';
-const COVER_LO = '#6E7686';
+// Covered spots (not bought / not on the menu yet): a warm linen dust cloth draped over the station's silhouette (soft folds,
+// a stitched hem, a tied cord), a padlock badge on it. Still clearly locked, but warm instead of a grey ghost.
+const COVER = '#EBD2AE';
+const COVER_LO = '#B48C64';
+const COVER_HEM = '#C9583F';
 export const LOCK_VB = {
   tea: [100, 155], top: [100, 95], ice: [100, 95], lemon: [100, 95], sugar: [70, 108], sealer: [110, 150], slot: [100, 50], helper: [142, 166],
   milk: [100, 160], foam: [100, 135], shaker: [100, 120], board: [100, 80], waffle: [100, 90], snack: [64, 70], bag: [100, 105],
 };
 export function lockedSVG(kind = 'tea') {
   const [w, h] = LOCK_VB[kind] || [100, 140];
-  const dash = ` stroke="${INK_BG}" stroke-opacity=".4" stroke-width="1.6" stroke-dasharray="5 4"`;
+  const dash = ` stroke="${COVER_LO}" stroke-opacity=".7" stroke-width="1.8" stroke-dasharray="5 4"`;
+  const cl = ` stroke="${COVER_LO}" stroke-width="1.3" stroke-linejoin="round"`;
   let body = '';
   if (kind === 'slot') {
-    body = ao(50, 32, 48, 13) + P(COVER, ell(50, 27, 42, 14.5), ` stroke="${COVER_LO}" stroke-width="1.4"`) + over(ell(50, 27, 42, 14.5), G.top) +
-      P(lit(COVER, 0.2), ell(50, 25, 30, 9)) + lockBadge(50, 25, 12);
+    // a round cloth lid over the holder, its edge hanging in small scallops
+    const d = 'M8 27 Q8 12 50 12 Q92 12 92 27 Q90 33 84 32 Q78 38 70 35 Q62 41 50 37 Q38 41 30 35 Q22 38 16 32 Q10 33 8 27 Z';
+    body = ao(50, 34, 48, 13) + P(COVER, d, cl) + over(d, G.cloth, 0.9) + over(d, G.top, 0.6) +
+      S(COVER_HEM, 1, 'M14 29 Q30 34 50 34 Q70 34 86 29', ' stroke-dasharray="2.4 2" stroke-opacity=".8"') + lockBadge(50, 24, 12);
   } else if (kind === 'helper') {
-    body = `<path fill="none"${dash} d="M71 20 a26 26 0 1 1 -0.1 0 Z M22 166 Q24 104 71 98 Q118 104 120 166"/>` + lockBadge(71, 122, 18);
+    // the part-timer's place: a dashed warm outline, an apron hanging on a peg waiting for someone
+    body = `<path fill="none"${dash} d="M71 20 a26 26 0 1 1 -0.1 0 Z M22 166 Q24 104 71 98 Q118 104 120 166"/>` +
+      P(dark(WOOD, 0.1), ring(71, 104, 3.4)) + S(COVER_LO, 1.4, 'M64 112 L71 104 L78 112') +
+      P(GUN, 'M60 112 H82 L86 150 Q71 156 56 150 Z', ` stroke="${GUN_DEEP}" stroke-width="1.2" stroke-linejoin="round" fill-opacity=".75"`) + lockBadge(71, 132, 16);
   } else if (kind === 'top' || kind === 'ice' || kind === 'lemon') {
-    body = ao(50, 76, 52, 10) + `<path fill="none"${dash} d="${PAN_RIM}"/>` +
-      P(COVER, 'M8 32 H92 L96 60 H4 Z', ` stroke="${COVER_LO}" stroke-width="1.2" stroke-linejoin="round"`) + over('M8 32 H92 L96 60 H4 Z', G.top) +
-      P(G.steel, 'M4 60 H96 L94 74 H6 Z') + P(COVER_LO, 'M40 24 H60 V32 H40 Z') + lockBadge(50, 50, 13);
+    // a cloth thrown over the pan: it sags into the middle and hangs over the front edge in folds
+    const d = 'M6 30 Q28 24 50 28 Q72 24 94 30 L97 62 Q96 72 90 70 Q84 76 76 71 Q68 77 58 72 Q50 77 42 72 Q32 77 24 71 Q16 76 10 70 Q4 72 3 62 Z';
+    body = ao(50, 76, 52, 10) + `<path fill="none"${dash} d="${PAN_RIM}"/>` + P(COVER, d, cl) + over(d, G.cloth, 0.9) + over(d, G.top, 0.5) +
+      S(COVER_LO, 1.2, 'M28 32 Q30 50 24 70 M50 30 V72 M72 32 Q70 50 76 70', ' stroke-opacity=".55" stroke-linecap="round"') +
+      S(COVER_HEM, 1, 'M6 66 Q16 71 24 67 Q32 73 42 68 Q50 73 58 68 Q68 73 76 67 Q84 72 94 66', ' stroke-dasharray="2.4 2" stroke-opacity=".85"') + lockBadge(50, 46, 13);
   } else {
-    // a draped cover over the station's silhouette: rounded top, folds, a soft shadow
+    // a draped cover over the station's silhouette: rounded top, folds, a stitched hem, a tied cord, a soft shadow
     const x0 = w * 0.12;
     const x1 = w * 0.88;
     const top = h * 0.14;
     const bot = h * 0.9;
     const d = `M${r1(x0 + 4)} ${r1(top + h * 0.12)} Q${r1(x0 + 4)} ${r1(top)} ${r1(w / 2)} ${r1(top)} Q${r1(x1 - 4)} ${r1(top)} ${r1(x1 - 4)} ${r1(top + h * 0.12)} L${r1(x1 + w * 0.06)} ${r1(bot)} Q${r1(w * 0.7)} ${r1(bot + h * 0.04)} ${r1(w / 2)} ${r1(bot - h * 0.01)} Q${r1(w * 0.3)} ${r1(bot + h * 0.04)} ${r1(x0 - w * 0.06)} ${r1(bot)} Z`;
     const folds = `M${r1(w * 0.34)} ${r1(top + h * 0.12)} L${r1(w * 0.28)} ${r1(bot - 2)} M${r1(w / 2)} ${r1(top + h * 0.06)} V${r1(bot - 3)} M${r1(w * 0.66)} ${r1(top + h * 0.12)} L${r1(w * 0.72)} ${r1(bot - 2)}`;
-    body = ao(w / 2, bot + 2, w * 0.46, h * 0.05) + P(COVER, d, ` stroke="${COVER_LO}" stroke-width="1.4" stroke-linejoin="round"`) + over(d, G.cyl, 0.8) +
-      S(COVER_LO, 1.6, folds, ' stroke-linecap="round" stroke-opacity=".8"') + lockBadge(w / 2, h * 0.52, Math.min(17, w * 0.2));
+    const foldsHi = `M${r1(w * 0.36)} ${r1(top + h * 0.14)} L${r1(w * 0.31)} ${r1(bot - 4)} M${r1(w * 0.68)} ${r1(top + h * 0.14)} L${r1(w * 0.74)} ${r1(bot - 4)}`;
+    const hem = `M${r1(x0 - w * 0.04)} ${r1(bot - h * 0.035)} Q${r1(w * 0.3)} ${r1(bot + h * 0.005)} ${r1(w / 2)} ${r1(bot - h * 0.045)} Q${r1(w * 0.7)} ${r1(bot + h * 0.005)} ${r1(x1 + w * 0.04)} ${r1(bot - h * 0.035)}`;
+    const cy = r1(top + h * 0.3);
+    const cord = `M${r1(x0 + 1)} ${cy} Q${r1(w / 2)} ${r1(cy + h * 0.04)} ${r1(x1 - 1)} ${cy}`;
+    body = ao(w / 2, bot + 2, w * 0.46, h * 0.05) + P(COVER, d, cl) + over(d, G.cloth, 0.9) + over(d, G.top, 0.5) +
+      S(COVER_LO, 1.6, folds, ' stroke-linecap="round" stroke-opacity=".6"') + S('#FFF6E4', 1.2, foldsHi, ' stroke-linecap="round" stroke-opacity=".7"') +
+      S(COVER_HEM, 1.1, hem, ' stroke-dasharray="2.6 2.2" stroke-opacity=".85"') +
+      S(COVER_HEM, 1.8, cord, ' stroke-linecap="round"') + P(COVER_HEM, `${ring(r1(w / 2 + w * 0.16), r1(cy + h * 0.025), 2.2)}`) +
+      lockBadge(w / 2, h * 0.56, Math.min(17, w * 0.2));
   }
   return svg('as-locked', `0 0 ${w} ${h}`, body, ` data-kind="${kind}"`);
 }
@@ -1056,18 +1219,32 @@ export function teaManifoldSVG(n = 3) {
   const k = int(n, 1, 3, 3);
   const w = 264 / k;
   let drops = '';
-  for (let i = 0; i < k; i++) drops += `M${r1(w * (i + 0.5) - 5)} 24 h10 v14 h-10 Z `;
+  let valves = '';
+  let valvesHi = '';
+  let clamps = '';
+  for (let i = 0; i < k; i++) {
+    const x = r1(w * (i + 0.5));
+    drops += `M${r1(x - 5)} 24 h10 v14 h-10 Z `;
+    valves += `${ring(x, 20, 3.6)} `;
+    valvesHi += `${ring(r1(x - 1.2), 18.8, 1.2)} `;
+    clamps += `M${r1(x - 7)} 13 h3 v14 h-3 Z M${r1(x + 4)} 13 h3 v14 h-3 Z `;
+  }
   return svg('as-manifold', '0 0 264 40', P(G.chrome, `M4 14 H260 V26 H4 Z ${drops}`, ` stroke="${STEEL_LINE}" stroke-width="1.2"`) +
-    S('#FFFFFF', 1.6, 'M6 16.5 H258', ' stroke-opacity=".9"') + P(GUN, ring(18, 8, 7), ` stroke="${GUN_DEEP}" stroke-width="1.2"`) + over(ring(18, 8, 7), G.sph) +
+    S('#FFFFFF', 1.6, 'M6 16.5 H258', ' stroke-opacity=".9"') + S(PEACH, 1, 'M6 24 H258', ' stroke-opacity=".7"') +
+    P(G.steel, clamps, ` stroke="${STEEL_LINE}" stroke-width=".7"`) + P(GUN, valves, ` stroke="${GUN_DEEP}" stroke-width="1"`) + P('#FFFFFF', valvesHi, ' fill-opacity=".6"') +
+    P(GUN, ring(18, 8, 7), ` stroke="${GUN_DEEP}" stroke-width="1.2"`) + over(ring(18, 8, 7), G.sph) +
     S(STEEL_LINE, 2, 'M18 15 V20'));
 }
 
 export function goldenCardSVG() {
-  return svg('as-golden-card', '0 0 70 60', ao(35, 58, 30, 4) + P(WOOD_LO, 'M8 58 L14 6 H56 L62 58 Z') + P(PAPER, 'M12 54 L17 8 H53 L58 54 Z', ` stroke="${WOOD_LO}" stroke-width="1.4"`) +
-    over('M12 54 L17 8 H53 L58 54 Z', G.box) +
-    P(TAKE, 'M26 18 H44 L42 46 H28 Z', ` stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"`) + over('M26 18 H44 L42 46 H28 Z', G.cyl) +
+  // a little easel card announcing the golden cup: a wooden frame, cream card, a gold cup with sparkles
+  return svg('as-golden-card', '0 0 70 60', ao(35, 58, 30, 4) + S(WOOD_LO, 2.4, 'M35 20 L46 58', ' stroke-linecap="round"') +
+    P(G.wood, 'M8 58 L14 6 H56 L62 58 Z', ` stroke="${WOOD_LO}" stroke-width="1"`) + P(PAPER, 'M12 54 L17 8 H53 L58 54 Z', ` stroke="${WOOD_LO}" stroke-width="1.4"`) +
+    over('M12 54 L17 8 H53 L58 54 Z', G.box) + S(TAKE, 1, 'M16 50 L20 12 H50 L54 50 Z', ' stroke-dasharray="2 2" stroke-opacity=".8"') +
+    P(G.gold, 'M26 18 H44 L42 46 H28 Z', ` stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"`) + over('M26 18 H44 L42 46 H28 Z', G.cyl, 0.6) +
+    P('#FFFFFF', 'M29 21 h2.6 l-1.4 22 h-2 Z', ' fill-opacity=".6"') +
     S(INK, 1.8, 'M24 18 H46 M38 18 L42 10') +
-    P(GOLD_HI, 'M50 22 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 Z M18 34 l1.4 3.4 3.4 1.4 -3.4 1.4 -1.4 3.4 -1.4 -3.4 -3.4 -1.4 3.4 -1.4 Z', ` stroke="${TAKE_DEEP}" stroke-width="1"`));
+    P(GOLD_HI, 'M50 22 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 Z M18 34 l1.4 3.4 3.4 1.4 -3.4 1.4 -1.4 3.4 -1.4 -3.4 -3.4 -1.4 3.4 -1.4 Z M49 42 l1 2.4 2.4 1 -2.4 1 -1 2.4 -1 -2.4 -2.4 -1 2.4 -1 Z', ` stroke="${TAKE_DEEP}" stroke-width="1"`));
 }
 
-void NIGHT_900; void COUNTER; void celShade; void WOOD; void WOOD_HI;
+void NIGHT_900; void celShade; void WOOD_HI;

@@ -116,6 +116,35 @@ function setLang(l) {
   audio.setLang(lang);
 }
 
+// ---- the clerk's voice: a line is never cut by the next one ----
+// Cursing fast used to cut every line after a syllable. Now a line plays to the end; a curse that comes while the clerk
+// is still talking waits for it and then plays only its hit (the half after '|'), and only the newest waiting line is
+// kept: the ones in between are dropped (their subtitles too: the screen shows what is heard). Customers do not talk
+// over the clerk either.
+const CLERK_GAP_MS = 90;
+const CLERK_MAX_WAIT_MS = 1600;
+let clerkFreeAt = 0;
+let clerkWaiting = null;
+const clerkTalking = () => performance.now() < clerkFreeAt;
+function clerkSay(line, key, opts = {}, { voice = true } = {}) {
+  const go = (o) => {
+    ui.say(line, 'clerk', key);
+    if (!voice) return;
+    const p = audio.playClerk(line, o);
+    clerkFreeAt = performance.now() + (p.totalMs || 0) + CLERK_GAP_MS;
+  };
+  const wait = clerkFreeAt - performance.now();
+  if (wait <= 0 || !voice) { go(opts); return; }
+  if (clerkWaiting) clearTimeout(clerkWaiting);
+  if (wait > CLERK_MAX_WAIT_MS) { clerkWaiting = null; return; }
+  clerkWaiting = setTimeout(() => { clerkWaiting = null; go({ ...opts, punchOnly: true }); }, wait);
+}
+function clerkHush() {
+  if (clerkWaiting) clearTimeout(clerkWaiting);
+  clerkWaiting = null;
+  clerkFreeAt = 0;
+}
+
 // ---- audio + subtitles per event ----
 function handle(ev) {
   const s = shop.state;
@@ -124,12 +153,12 @@ function handle(ev) {
     case 'arrive':
       if (ev.cust.kind === 'oke') {
         const says = customerSays(ev.cust.cid, content);
-        ui.say(says, 'cust', okeOf(ev.cust.oke).best);
-        audio.playCustomer(says, { rate: 1.05 });
+        if (!clerkTalking()) { ui.say(says, 'cust', okeOf(ev.cust.oke).best); audio.playCustomer(says, { rate: 1.05 }); }
         audio.sfx('dingdong');
       } else audio.sfx('pop');
       break;
     case 'nag': {
+      if (clerkTalking()) break;
       const says = customerSays(ev.cust.cid, content);
       ui.say(says, 'cust', okeOf(ev.cust.oke).best);
       audio.playCustomer(says, { rate: 1.12 });
@@ -137,10 +166,11 @@ function handle(ev) {
     }
     case 'answer': {
       const line = ev.oke ? okeLine(ev.oke, ev.key, content) : normalLine(ev.cid, content);
-      ui.say(line, 'clerk', ev.key);
-      if (!voicedAnswer) audio.playClerk(line, { punchFx: 'curse' });
+      // the fly-off sounds sit under the voice: softer while the clerk is still talking
+      const quiet = clerkTalking() ? 0.6 : 1;
+      clerkSay(line, ev.key, { punchFx: 'curse' }, { voice: !voicedAnswer });
       voicedAnswer = false;
-      if (ev.key === 'gun') { audio.sfx('whoosh', { duration: 0.2, intensity: 0.9 }); audio.sfx('boom', { intensity: 0.5, delay: 0.05 }); }
+      if (ev.key === 'gun') { audio.sfx('whoosh', { duration: 0.2, intensity: 0.9 * quiet }); audio.sfx('boom', { intensity: 0.5 * quiet * quiet, delay: 0.05 }); }
       if (ev.key === 'shut') audio.sfx('slap', { intensity: 0.8 });
       if (ev.key === 'take') { audio.sfx('stamp'); if (ev.prepay) audio.sfx('coin', { delay: 0.2 }); }
       if (ev.best) audio.sfx('cheer', { delay: 0.25 });
@@ -152,7 +182,7 @@ function handle(ev) {
       if (ev.bag) break;
       if (!ev.correct) audio.sfx('huh');
       else if (!ev.done) audio.sfx('ding', { intensity: 0.5 });
-      if (ev.correct && ev.golden) { const line = content.system.opening && content.system.opening.r4b; if (line) { ui.say(line, 'clerk', 'take'); audio.playClerk(line, {}); } }
+      if (ev.correct && ev.golden) { const line = content.system.opening && content.system.opening.r4b; if (line) clerkSay(line, 'take'); }
       break;
     case 'pay': audio.sfx('coin'); if (ev.tip > 0) audio.sfx('ding', { delay: 0.12 }); break;
     case 'fans': if (ev.why === 'star') audio.sfx('cheer', { delay: 0.1 }); break;
@@ -250,8 +280,8 @@ function onClose(sum) {
   ui.teach(null);
   ui.hint(null);
   const line = pick(content.system.closing);
-  ui.say(line, 'clerk', 'take');
-  audio.playClerk(line, {});
+  clerkHush(); // the shutter line always plays, right away
+  clerkSay(line, 'take');
   audio.sfx('gate');
   save = afterDay(save, sum);
   writeSave(store, save);

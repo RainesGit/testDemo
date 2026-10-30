@@ -234,6 +234,8 @@ async function serveCustomer(page, slot, flags) {
 }
 
 async function frameCheck(page, tag) {
+  // a screen shake (the .shaker wrapper, ≤ 320 ms) moves the scene a few px for effect: measure once it has settled
+  await page.waitForFunction(() => !document.querySelector('.shaker.shake'), null, { timeout: 1500 }).catch(() => {});
   const bad = await page.evaluate(() => {
     const fr = document.querySelector('.frame').getBoundingClientRect();
     const o = [];

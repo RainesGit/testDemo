@@ -251,7 +251,7 @@ test('createAudio: first-minute methods exist and degrade silently; playClerk ca
 });
 
 // ---- runtime voice punch (VOICE_FX / voicePlan) ----
-import { voicePlan, VOICE_FX, PUNCH_RATE, CLIP_RATE, hasCurse, dbToGain } from '../src/audio.js';
+import { voicePlan, VOICE_FX, PUNCH_RATE, CLIP_RATE, hasCurse, dbToGain, CONTOURS, customerContour } from '../src/audio.js';
 
 test('voicePlan: off (legacy) keeps the spec 8.5 chain exactly', () => {
   const p = voicePlan('還在想？|滾！', { fx: 'curse' });
@@ -267,7 +267,8 @@ test('voicePlan: the punch half of a cut-point line gets the punch chain, the po
   const p = voicePlan('（盯他三秒）還在想？|滾！', { voiceFx: true });
   assert.equal(p.hit, 'punch');
   assert.equal(p.breathMs, 0); // the punchGapMs silence is the breath
-  assert.deepEqual(p.setup, { rate: 1, gainDb: VOICE_FX.setupDb, chain: null });
+  assert.deepEqual(p.setup, { rate: 1, gainDb: VOICE_FX.setupDb, chain: null, contour: CONTOURS.polite });
+  assert.deepEqual(p.punch.contour, CONTOURS.hit); // intonation: the hit rises to its beat and falls
   assert.equal(p.punch.chain, 'punch');
   assert.equal(p.punch.rate, VOICE_FX.punchRate);
   assert.ok(p.punch.rate >= 1.04 && p.punch.rate <= 1.08);
@@ -422,4 +423,17 @@ test('voice builder: the punchy render profile sets per-segment speed and post; 
   assert.ok(punchy.filter((j) => j.style === 'rage').every((j) => j.post));
   assert.deepEqual(exportJobs(), spec); // the profile does not leak into later calls
   assert.throws(() => exportJobs({ profile: 'nope' }));
+});
+
+test('intonation: every contour averages about 1 (timings stay true); the mega climax stays flat; questions rise', () => {
+  for (const [name, c] of Object.entries(CONTOURS)) {
+    let area = 0;
+    for (let i = 1; i < c.length; i++) area += ((c[i][1] + c[i - 1][1]) / 2) * (c[i][0] - c[i - 1][0]);
+    assert.ok(Math.abs(area - 1) < 0.03 && c[0][0] === 0 && c[c.length - 1][0] === 1, name);
+  }
+  assert.equal(voicePlan('調你媽！', { fx: 'mega', voiceFx: true }).punch.contour, null);
+  assert.equal(voicePlan('還在想？|滾！', { voiceFx: { intonation: false } }).punch.contour, null);
+  assert.equal(customerContour('可以少冰嗎？'), CONTOURS.ask);
+  assert.equal(customerContour('Can I taste it first?'), CONTOURS.ask);
+  assert.equal(customerContour('一杯就好喔。'), CONTOURS.tell);
 });

@@ -191,6 +191,21 @@ export const CLIP_RATE = { polite: 1.08, cold: 0.97, rage: 1.04 };
 export const dbToGain = (db) => Math.pow(10, db / 20);
 
 /**
+ * Intonation (Kokoro reads every line flat): a gentle playbackRate contour over one clip, so pitch and pace move
+ * like speech. hit: rises to the stressed beat, then falls hard (a curse); polite: the service-voice lilt; ask: a
+ * question that rises at the end; tell: a statement that settles. Points are [fraction of the clip, rate multiplier];
+ * each contour averages ≈ 1, so clip timings (timingsFromManifest) stay true within ~2 %.
+ */
+export const CONTOURS = {
+  hit: [[0, 0.96], [0.3, 1.1], [1, 0.93]],
+  polite: [[0, 1.02], [0.45, 1.07], [1, 0.95]],
+  ask: [[0, 1], [0.6, 0.97], [1, 1.12]],
+  tell: [[0, 1.04], [0.5, 1.01], [1, 0.95]],
+};
+/** The contour of a customer's line: a question rises at the end, anything else settles. */
+export const customerContour = (text) => (/[？?][」』)）\s]*$/.test(String(text || '').trim()) ? CONTOURS.ask : CONTOURS.tell);
+
+/**
  * Runtime "voice punch" (Kokoro has no emotion control, so the hit is made in the mix). When enabled, the
  * hit half of a clerk line (normally the part after '|'; the half with the curse word when the curse comes
  * first, as in "調你媽！|黃金比例最好喝！"), rage lines and the 調你媽 climax go through:
@@ -215,6 +230,7 @@ export const VOICE_FX = {
   impact: true,      // synthesized thump + slap at the onset of the hit
   impactGain: 0.7,   // 1.0 for mega
   megaphone: true,   // subtle band-passed blend during rage
+  intonation: true,  // CONTOURS on the hit, the polite setup and customers' lines (not on the slow-motion mega)
   compressor: { threshold: -20, knee: 4, ratio: 5, attack: 0.001, release: 0.09 },
 };
 
@@ -266,10 +282,11 @@ export function voicePlan(text, { fx = 'normal', style, voiceFx = false, lite = 
     echo: fx === 'mega',
     impact,
     impactGain: fx === 'mega' ? 1 : cfg.impactGain,
+    contour: cfg.intonation && fx !== 'mega' ? CONTOURS.hit : null,
   };
   if (!hasSetup) return { hit, breathMs: impact ? cfg.breathMs : 0, setup: null, punch: hitPlan };
   return hit === 'punch'
-    ? { hit, breathMs: 0, setup: clean(cfg.setupDb), punch: hitPlan }
+    ? { hit, breathMs: 0, setup: { ...clean(cfg.setupDb), contour: cfg.intonation ? CONTOURS.polite : null }, punch: hitPlan }
     : { hit, breathMs: 0, setup: hitPlan, punch: clean() }; // curse first: the professional half stays clean
 }
 
@@ -1340,7 +1357,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
   // Plays one clip. Speech clips are cancelled by stopSpeech()/cut(); announcer clips are not.
   // at: absolute AudioContext time (overrides delay). rate: playback rate (customers' 4.2 speed-up).
   // plan: one half from voicePlan() (rate, level, chain, impact); fx: legacy punch chain without a plan.
-  async function playClip(clip, { style, delay = 0, at, speech = true, gen = speechGen, gainValue = 1, rate, fx, plan, buffer } = {}) {
+  async function playClip(clip, { style, delay = 0, at, speech = true, gen = speechGen, gainValue = 1, rate, fx, plan, buffer, contour } = {}) {
     buffer = buffer || await chunk(lang, clip.c);
     if (!buffer || (speech && gen !== speechGen)) return;
     if (ctx.state === 'suspended') ctx.resume();
@@ -1358,6 +1375,16 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
       src.connect(input);
       src.fadeGain = g; // stopSpeech() / cut() fade this out instead of cutting mid-syllable
       const startAt = Math.max(at ?? now() + delay, now());
+      const curve = contour || plan?.contour;
+      if (curve) {
+        // intonation: ramp the rate through the contour over the clip's length at its base rate
+        const r = src.playbackRate.value;
+        const len = clip.d / r;
+        try {
+          src.playbackRate.setValueAtTime(r * curve[0][1], startAt);
+          for (const [f, m] of curve.slice(1)) src.playbackRate.linearRampToValueAtTime(r * m, startAt + f * len);
+        } catch { /* keep the flat rate */ }
+      }
       const done = () => { speechSources.delete(src); clearTimeout(timer); resolve(); };
       src.onended = done;
       const timer = setTimeout(done, ((startAt - now()) + clip.d / src.playbackRate.value) * 1000 + 800);
@@ -1465,7 +1492,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     const gen = speechGen;
     const clip = findClip(unpipe(text));
     const run = (async () => {
-      if (clip && ensureCtx()) await playClip(clip, { gen, rate });
+      if (clip && ensureCtx()) await playClip(clip, { gen, rate, contour: fxConfig(fxCfg)?.intonation ? customerContour(text) : null });
       else await sayFallback(unpipe(text), { style: 'cust', rate: STYLE_VOICE.cust.rate * rate }, gen);
       return { ms };
     })().catch(() => ({ ms }));

@@ -32,7 +32,7 @@ Set in `export-lines.mjs` (`CAST`, `SPEED`):
 | Customers (rotated by id) | `zf_xiaobei`, `zm_yunxi`, `zf_xiaoni`, `zm_yunyang`, `zf_xiaoyi`, `zm_yunxia` | `af_heart`, `am_puck`, `af_bella`, `am_echo`, `bf_emma`, `am_adam`, `af_sarah`, `bm_george` |
 | Milestone announcer | `zf_xiaoxiao` | `af_nova` |
 
-Delivery style only changes speaking speed (and, at runtime, a small playback-rate shift for the
+Delivery style only changes speaking speed (at runtime `src/audio.js` adds an intonation contour per clip, `CONTOURS`, and a small playback-rate shift for the
 forced-polite voice). The emphasis on the hit of a line is added at runtime by the voice punch chain in
 `src/audio.js` (`VOICE_FX`, see `game/README.md`); `?punchfx=0` turns it off for comparison.
 

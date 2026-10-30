@@ -347,7 +347,14 @@ export function walkerLook({ cid = 1, visit = 0, oke = null, uid = null } = {}) 
   const style = uid == null ? pick(STYLES) : STYLES[(uid * 7 + cid * 3) % STYLES.length];
   // a second colour for jackets / overalls / sweater bands, far from the first
   const second = SHIRTS[(n + 5 + Math.floor(rnd() * 4)) % SHIRTS.length];
-  return { shirt, second, style, pants: pick(PANTS), shoes: pick(SHOES), stripe: style === 'tee' && rnd() < 0.5, skirt: rnd() < 0.18, oke: !!oke };
+  const pants = pick(PANTS);
+  const shoes = pick(SHOES);
+  const stripe = style === 'tee' && rnd() < 0.5;
+  const skirt = rnd() < 0.18;
+  const b = rnd();
+  const bag = b < 0.28 ? 'cross' : b < 0.46 ? 'pack' : null; // a cross-body bag or backpack straps
+  const bagC = SHIRTS[(n + 9) % SHIRTS.length];
+  return { shirt, second, style, pants, shoes, stripe, skirt, oke: !!oke, bag, bagC };
 }
 
 // the picture-only fan sign: a cardboard placard with a red heart and a tea cup with a jagged shout burst
@@ -405,46 +412,110 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
   const L = walkerLook({ cid, visit, oke, uid });
   const shirt = cool(L.shirt);
   const pants = cool(L.pants);
-  const skin = cool('#F2C7A0');
   const look = customerLook({ id: cid }, visit, fixed);
+  const skin = mixColor(look.skin, NIGHT_500, 0.94); // hands and neck in the face's own skin tone
   const hairBack = mixColor(look.hairC, NIGHT_900, 0.9);
   const head = customerSVG({ id: cid }, visit, fixed ? { fixed } : {}).replace('<svg class="cust"', '<svg class="cust" x="0" y="0" width="200" height="200"');
+  const c250 = fixed === 'c250' || oke === 'c250';
+  const shoeC = L.shoes;
+  // the right-hand parts are the left ones mirrored about x 100
+  const MIRROR = 'matrix(-1 0 0 1 200 0)';
+  // legs: trousers tapering to a rolled cuff, a crease, chunky sneakers (sole band, toe cap, laces)
   const leg = (side) => {
     const l = side === 'l';
-    const d = l ? 'M58 338 H99 L95 452 H64 Z' : 'M101 338 H142 L136 452 H105 Z';
-    const shoe = l ? 'M60 446 H97 Q104 468 92 474 H52 Q46 466 60 446 Z' : 'M104 446 H141 Q150 466 144 474 H104 Q98 466 104 446 Z';
-    return `<g class="wk-leg wk-leg-${side}"><path fill="${l ? pants : celShade(pants)}" d="${d}"/><path fill="${L.shoes}" d="${shoe}"/></g>`;
+    const fill = l ? pants : celShade(pants);
+    const cuff = mixColor(pants, '#FFFFFF', 0.16);
+    const sole = mixColor(PAPER, NIGHT_500, 0.2);
+    const toe = mixColor(shoeC, '#FFFFFF', 0.35);
+    const g = `<path fill="${fill}" d="M58 334 H100 L97 440 H64 Q59 392 58 334 Z"/>` +
+      `<path fill="${cuff}" stroke-width="3.4" d="M63 428 H98 L97 444 H64 Z"/>` +
+      `<path fill="none" stroke-width="2.4" stroke-opacity=".45" d="M80 352 L81 420"/>` +
+      `<path fill="${shoeC}" d="M60 440 H98 Q107 448 106 462 Q105 470 96 471 H52 Q43 470 45 461 Q48 448 60 440 Z"/>` +
+      `<path fill="${toe}" stroke-width="3" d="M45 461 Q47 452 58 451 Q64 458 62 470 H52 Q43 470 45 461 Z"/>` +
+      `<path fill="${sole}" stroke-width="3.4" d="M44 464 Q45 476 56 477 H96 Q107 476 106 464 Q100 470 92 470 H56 Q48 470 44 464 Z"/>` +
+      `<path fill="none" stroke="${PAPER}" stroke-width="2.6" d="M74 448 L88 446 M72 455 L88 453"/>`;
+    return `<g class="wk-leg wk-leg-${side}">${l ? g : `<g transform="${MIRROR}">${g}</g>`}</g>`;
   };
-  const sleeve = L.style === 'jacket' || L.style === 'hoodie' || L.style === 'sweater' ? shirt : shirt;
+  // arms: bent at the elbow, a sleeve (short for tees and overalls, long with a cuff otherwise), a mitten hand with a thumb
+  const short = L.style === 'tee' || L.style === 'overall';
+  const sleeveC = shirt;
   const arm = (side) => {
     const l = side === 'l';
-    const d = l ? 'M62 206 Q40 212 37 242 L35 300 Q35 312 47 312 Q58 312 58 300 L62 246 Z' : 'M138 206 Q160 212 163 242 L165 300 Q165 312 153 312 Q142 312 142 300 L138 246 Z';
-    return `<g class="wk-arm wk-arm-${side}"><path fill="${l ? sleeve : celShade(sleeve)}" d="${d}"/><path fill="${skin}" d="${ell(l ? 47 : 153, 318, 11, 11)}"/>` +
+    const sl = l ? sleeveC : celShade(sleeveC);
+    const sk = l ? skin : celShade(skin);
+    const hand = `<path fill="${sk}" d="M38 318 Q33 338 46 343 Q59 345 61 330 L58 316 Z"/>` +
+      `<path fill="${sk}" stroke-width="3.4" d="M56 321 Q65 318 66 327 Q65 335 57 334"/>`;
+    const fore = `<path fill="${sk}" d="M36 256 L31 278 Q29 292 35 306 L39 320 Q48 325 59 319 L57 300 Q52 288 54 274 L58 260 Z"/>`;
+    const g = short
+      ? fore + `<path fill="${sl}" d="M66 208 Q43 211 37 240 L33 262 Q46 271 59 264 L63 244 Z"/>` +
+        `<path fill="none" stroke-width="2.4" stroke-opacity=".5" d="M38 256 Q47 262 58 258"/>` + hand
+      : `<path fill="${sl}" d="M66 208 Q43 211 37 240 L31 276 Q29 290 35 304 L39 316 Q48 321 59 315 L57 298 Q52 287 54 273 L63 244 Z"/>` +
+        `<path fill="${mixColor(sleeveC, '#FFFFFF', 0.14)}" stroke-width="3.4" d="M37 304 L39 318 Q48 324 59 317 L57 303 Q47 309 37 304 Z"/>` +
+        `<path fill="none" stroke-width="2.4" stroke-opacity=".45" d="M34 268 Q43 274 53 266 M40 236 Q46 240 52 236"/>` + hand;
+    return `<g class="wk-arm wk-arm-${side}">${l ? g : `<g transform="${MIRROR}">${g}</g>`}` +
       (l ? '' : `<path class="wk-ticket" fill="${LEMON}" d="M150 300 L184 306 L180 330 L146 324 Z"/>`) + '</g>';
   };
   const torso = L.skirt
-    ? 'M50 232 Q52 204 84 198 L116 198 Q148 204 150 232 L148 300 L164 372 Q100 384 36 372 L52 300 Z'
-    : 'M50 232 Q52 204 84 198 L116 198 Q148 204 150 232 L146 346 Q100 354 54 346 Z';
+    ? 'M52 236 Q50 208 84 200 L116 200 Q150 208 148 236 L146 300 L164 372 Q100 386 36 372 L54 300 Z'
+    : 'M52 236 Q50 208 84 200 L116 200 Q150 208 148 236 L146 340 Q100 352 54 340 Z';
+  const hemD = L.skirt ? 'M40 360 Q100 374 160 360 L164 372 Q100 386 36 372 Z' : 'M54 328 Q100 340 146 328 L146 340 Q100 352 54 340 Z';
+  // a bag: a cross-body strap with a small flap bag at the hip, or backpack straps over both shoulders
+  const bagC = cool(L.bagC);
+  const bag = c250 ? '' : L.bag === 'cross'
+    ? `<path fill="none" stroke="${INK}" stroke-width="11" d="M66 206 L140 310"/><path fill="none" stroke="${bagC}" stroke-width="5.4" d="M66 206 L140 310"/>` +
+      `<path fill="${bagC}" stroke-width="3.6" d="M122 302 H160 Q164 302 164 306 V330 Q164 336 158 336 H124 Q118 336 118 330 V306 Q118 302 122 302 Z"/>` +
+      `<path fill="${celShade(bagC)}" stroke-width="3" d="M118 306 Q118 300 124 300 H158 Q164 300 164 306 L162 318 H120 Z"/><path fill="${LEMON}" stroke-width="2" d="M138 314 H144 V322 H138 Z"/>`
+    : L.bag === 'pack'
+      ? `<path fill="${bagC}" stroke-width="3.4" d="M68 206 L78 204 L76 300 L66 300 Z M132 206 L122 204 L124 300 L134 300 Z"/>` +
+        `<path fill="${STEEL}" stroke-width="2.4" d="M66 276 H78 V284 H66 Z M122 276 H134 V284 H122 Z"/>`
+      : '';
+  const sil = (c) => `<g class="wk-sil" stroke="none"><path fill="${mixColor(L.shirt, NIGHT_500, 0.5)}" d="${torso} M37 240 L31 304 Q40 326 59 318 L63 244 Z M163 240 L169 304 Q160 326 141 318 L137 244 Z"/>` +
+    `<path fill="${mixColor(L.pants, NIGHT_700, 0.45)}" d="M58 334 H142 L136 476 H48 Z"/>` +
+    `<path fill="${mixColor('#8A6A5A', NIGHT_500, 0.45)}" d="${ell(100, 108, 80, 90)} M88 182 H112 V206 H88 Z"/>` +
+    `<path fill="none" stroke="${RIM}" stroke-width="7" stroke-opacity=".85" stroke-linecap="round" d="M34 96 Q48 22 104 18 M52 234 Q56 206 84 200"/>${c}</g>`;
+  // the 250-cup customer: an order list as long as she is, rolled at the top, held at the chest, curling on the floor
+  const LIST_ROWS = Array.from({ length: 13 }, (_, i) => 288 + i * 13).map((y, i) => `M${i % 3 === 2 ? 140 : 138} ${y} H${i % 2 ? 166 : 172}`).join(' ');
+  const list = c250
+    ? `<g class="wk-list" stroke="${INK}" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round">` +
+      `<path fill="${PAPER}" d="M132 254 H180 L178 330 Q174 380 180 430 L178 462 Q160 470 132 464 Q128 420 134 380 Q130 320 132 254 Z"/>` +
+      `<path fill="${PAPER_SH}" stroke="none" d="M164 256 H180 L178 330 Q174 380 180 430 L178 462 Q172 466 164 466 Q168 420 166 380 Q162 320 164 256 Z"/>` +
+      `<path fill="none" stroke="${mixColor(INK, PAPER, 0.6)}" stroke-width="2.6" d="${LIST_ROWS}"/>` +
+      `<text x="156" y="282" font-family="'Baloo 2', 'Noto Sans TC', sans-serif" font-weight="800" font-size="22" text-anchor="middle" fill="${GUN}" stroke="none">250</text>` +
+      `<path fill="${PAPER}" d="M128 462 Q126 478 146 478 H186 Q196 476 192 466 Q186 458 176 462 Q172 470 178 472"/>` +
+      `<path fill="${PAPER}" d="M126 244 H184 Q190 244 190 251 Q190 258 184 258 H126 Q120 258 120 251 Q120 244 126 244 Z"/>` +
+      `<path fill="none" stroke="${PAPER_SH}" stroke-width="3" d="M128 249 H182"/>` +
+      `<path fill="${skin}" d="M176 246 Q184 236 192 244 Q196 256 186 262 L178 258 Z"/></g>`
+    : '';
+  // her right arm bends out to hold the list's roll; the other arm hangs as usual
+  const holdArm = c250
+    ? `<g class="wk-arm wk-arm-r"><path fill="${celShade(shirt)}" d="M134 206 Q160 210 167 232 L172 242 Q178 248 184 246 L188 258 Q174 266 163 258 Q152 246 146 236 Z"/>` +
+      `<path fill="none" stroke-width="2.4" stroke-opacity=".45" d="M160 232 Q166 238 170 232"/></g>`
+    : '';
   const parts = [
-    `<path class="wk-shadow" fill="${G.ao}" stroke="none" d="${ell(100, 476, 70, 12)}"/>`,
+    `<path class="wk-shadow" fill="${G.ao}" stroke="none" d="${ell(100, 474, 72, 12)}"/>`,
     `<g class="wk-body" stroke="${INK}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">`,
     arm('l'),
     leg('l'), leg('r'),
     `<path fill="${shirt}" d="${torso}"/>`,
-    `<path fill="${celShade(shirt)}" stroke="none" d="M122 201 Q146 207 150 232 L146 346 Q134 350 120 351 Q132 290 122 201 Z"/>`,
+    `<path fill="${celShade(shirt)}" stroke="none" d="M122 203 Q148 209 148 236 L146 340 Q134 346 120 348 Q132 290 122 203 Z"/>`,
     // soft volume: the torso as a cylinder lit from the upper left
     `<path fill="url(#gkCylSoft)" stroke="none" d="${torso}"/>`,
+    // the hem band and two side folds at the waist
+    L.style === 'overall' ? '' : `<path fill="${celShade(shirt)}" fill-opacity=".55" stroke-width="3.4" d="${hemD}"/>`,
+    `<path fill="none" stroke-width="2.4" stroke-opacity=".45" d="M62 292 Q68 306 63 322 M138 292 Q132 306 137 322 M96 214 Q100 222 104 214"/>`,
     // a warm rim on the shoulders: the shop light in front of them
-    `<path fill="none" stroke="${WARM_RIM}" stroke-opacity=".55" stroke-width="5" d="M58 222 Q66 204 86 200"/>`,
+    `<path fill="none" stroke="${WARM_RIM}" stroke-opacity=".55" stroke-width="5" d="M60 220 Q68 204 86 202"/>`,
     cut(L, shirt, L.second),
+    bag,
     oke ? `<path fill="${LEMON}" stroke-width="3" d="M86 226 L98 214 L110 226 L104 246 H92 Z"/>` : '',
     `<path fill="${skin}" d="M88 182 H112 V204 Q100 212 88 204 Z"/>`,
     `<path fill="url(#gkShade)" stroke="none" d="${kEll(100, 192, 20, 9)}"/>`,
-    `<g class="wk-arm-rest">${arm('r')}</g>`,
+    c250 ? holdArm : `<g class="wk-arm-rest">${arm('r')}</g>`,
     `<g class="wk-phone"><path fill="${celShade(shirt)}" d="M138 206 Q166 196 170 164 L172 128 Q172 118 162 118 Q152 118 152 128 L150 162 Q146 182 136 192 Z"/>` +
       `<path fill="${skin}" d="${ell(162, 118, 11, 11)}"/><rect x="146" y="70" width="30" height="48" rx="5" fill="${NIGHT_700}"/><rect x="151" y="76" width="20" height="32" fill="#9EE3FF"/>` +
       `<path fill="${GUN}" stroke="none" d="${ell(161, 113, 2.6, 2.6)}"/></g>`,
     '</g>',
+    list,
     head,
     // soft volume on the face: cheek blush, a hair highlight from the key light (the cartoon face stays as it is)
     `<g class="wk-vol" stroke="none"><path fill="url(#gkBlush)" d="${kEll(66, 152, 14, 8)} ${kEll(134, 152, 14, 8)}"/>` +
@@ -455,10 +526,7 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
       `<path fill="${skin}" d="M86 192 Q100 200 114 192 V206 Q100 212 86 206 Z"/></g>`,
     SIGN,
     // far silhouette: the same shapes, flat cool colours, no outline, a cool rim on top
-    `<g class="wk-sil" stroke="none"><path fill="${mixColor(L.shirt, NIGHT_500, 0.5)}" d="${torso} M37 242 L35 312 H58 L62 246 Z M163 242 L165 312 H142 L138 246 Z"/>` +
-      `<path fill="${mixColor(L.pants, NIGHT_700, 0.45)}" d="M58 338 H142 L136 474 H52 Z"/>` +
-      `<path fill="${mixColor('#8A6A5A', NIGHT_500, 0.45)}" d="${ell(100, 108, 80, 90)} M88 182 H112 V206 H88 Z"/>` +
-      `<path fill="none" stroke="${RIM}" stroke-width="7" stroke-opacity=".85" stroke-linecap="round" d="M34 96 Q48 22 104 18 M50 236 Q54 206 84 198"/></g>`,
+    sil(''),
   ];
   return svg('walker-svg', '0 0 200 480', parts.join(''), ` data-cid="${cid}" data-style="${L.style}"`);
 }

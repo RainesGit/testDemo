@@ -302,8 +302,16 @@ export function teaTankSVG(kind = 'black', { fast = false } = {}) {
   const band = 'M16 52 A34 11 0 0 0 84 52 L84 76 A34 11 0 0 1 16 76 Z';
   const p = [
     cast(50, 146, 42, 8), ao(50, 146, 42, 8),
-    P(STEEL_LO, ell(50, 136, 28, 8)),
+    // a low steel stand, and a drip tray with a grate under the tap
+    P(G.steel, 'M18 132 H82 V139 A32 7 0 0 1 18 139 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`),
+    P(G.steelTop, ell(50, 132, 32, 7), ` stroke="${STEEL_LINE}" stroke-width="1"`),
+    P(dark(STEEL, 0.38), 'M37 137 H63 L66 146 H34 Z', ` stroke="${STEEL_LINE}" stroke-width="1" stroke-linejoin="round"`),
+    S(STEEL_HI, 0.9, 'M39 139.6 H61 M38 142.4 H62', ' stroke-opacity=".8"'),
     cylinder(16, 84, 34, 124, 11),
+    // welded seams with rivets, and cold condensation drops on the shaded side
+    S(STEEL_LINE, 0.8, 'M16 96 A34 11 0 0 0 84 96 M16 118 A34 11 0 0 0 84 118', ' stroke-opacity=".55"'),
+    P(dark(STEEL, 0.3), [[21, 101], [31, 105], [69, 105], [79, 101], [21, 123], [79, 123]].map(([x, y]) => ring(x, y, 1.1)).join(' ')),
+    P('#FFFFFF', [[70, 86], [77, 92], [66, 98], [74, 108], [80, 114], [68, 120]].map(([x, y]) => `M${x} ${y} q1.6 2.4 0 3.4 q-1.6 -1 0 -3.4 Z`).join(' '), ' fill-opacity=".75"'),
     // the label band wrapped round the tank
     P(t.label, band, ` stroke="${line(t.label, 0.4)}" stroke-width="1"`), over(band, G.cyl),
     label(long ? 48 : 49, long ? 70 : 72, t.name, long ? 11 : 16, PAPER, long ? ' textLength="44" lengthAdjust="spacingAndGlyphs"' : ''),
@@ -314,6 +322,7 @@ export function teaTankSVG(kind = 'black', { fast = false } = {}) {
     // the lid: we look onto it from above
     P(G.steelTop, ell(50, 34, 34, 11), ` stroke="${STEEL_LINE}" stroke-width="1.2"`),
     P(lit(STEEL, 0.4), ell(50, 32, 25, 7.6)), over(ell(50, 32, 25, 7.6), G.top),
+    P(G.chrome, 'M11 31 h6 v6 h-6 Z M83 31 h6 v6 h-6 Z', ` stroke="${STEEL_LINE}" stroke-width=".9"`),
     S('#FFFFFF', 1.6, 'M24 30 Q34 24 48 23.4', ' stroke-linecap="round" stroke-opacity=".9"'),
     P(G.chrome, 'M45 26 h10 v-5 a5 2 0 0 0 -10 0 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`), P(G.steelTop, ell(50, 21, 5, 2)),
     // the tap at the front: block, spout, red lever
@@ -486,6 +495,7 @@ export function sealerSVG(state = 'idle', { turbo = false } = {}) {
     // base: top face + front face, the cup platform
     P(G.steelTop, 'M10 122 H100 L106 138 H4 Z', ` stroke="${STEEL_LINE}" stroke-width="1.2" stroke-linejoin="round"`),
     P(G.steel, 'M4 138 H106 L104 146 H6 Z', ` stroke="${STEEL_LINE}" stroke-width="1"`),
+    P(INK_BG, 'M9 146 h12 v3 h-12 Z M89 146 h12 v3 h-12 Z'),
     P(dark(STEEL, 0.25), ell(55, 132, 27, 7.5)), P(STEEL_LO, ell(55, 132, 22, 6)), over(ell(55, 132, 22, 6), G.inner),
     // the column at the back
     cylinder(80, 94, 50, 126, 3),
@@ -500,6 +510,10 @@ export function sealerSVG(state = 'idle', { turbo = false } = {}) {
     P(G.steelTop, 'M20 36 H60 V54 H20 Z', ` stroke="${GUN_DEEP}" stroke-width="1"`),
     `<text x="40" y="50" ${FONT_NUM} font-size="13" text-anchor="middle" fill="${GUN}">250</text>`,
     P(busy ? TAKE : MINT, ring(74, 44, 4), ` stroke="${dark(busy ? TAKE : MINT, 0.4)}" stroke-width="1"`), P('#FFFFFF', ring(72.6, 42.6, 1.3), ' fill-opacity=".8"'),
+    // two push buttons, side vents, corner screws
+    P(PAPER, 'M67 52 h10 v6 h-10 Z', ` stroke="${GUN_DEEP}" stroke-width=".9"`), P(TAKE, 'M81 52 h10 v6 h-10 Z', ` stroke="${GUN_DEEP}" stroke-width=".9"`),
+    S(GUN_DEEP, 1.6, 'M84 36 H96 M84 40 H96 M84 44 H96', ' stroke-linecap="round"'),
+    P(dark(GUN, 0.35), `${ring(14, 34, 1.3)} ${ring(96, 34, 1.3)} ${ring(14, 62, 1.3)} ${ring(96, 62, 1.3)}`),
     S(PAPER, 3, 'M30 18 V30', ' stroke-opacity=".85"'),
     // the press head (moves down when busy) + the lever
     `<g class="as-sealer-head" transform="translate(0 ${dy})">` +
@@ -521,8 +535,12 @@ export function potSVG(opts = {}) {
   const cooking = pct < 1;
   const bodyD = 'M8 38 V82 A47 15 0 0 0 102 82 V38 Z';
   const p = [cast(55, 96, 54, 9), ao(55, 96, 54, 9)];
-  // handles (loops at the sides)
-  p.push(S(dark(COUNTER, 0.2), 6, 'M10 50 H2 M100 50 H108', ' stroke-linecap="round"') + S(lit(COUNTER, 0.3), 2, 'M10 48.6 H3 M100 48.6 H107', ' stroke-linecap="round"'));
+  // the gas ring it stands on: a dark burner with a three-leg grate
+  p.push(P(NIGHT_700, ell(55, 95, 42, 8), ` stroke="${INK_BG}" stroke-width="1.2"`) + S(dark(STEEL, 0.4), 3, 'M20 95 L10 101 M90 95 L100 101 M55 101 V104', ' stroke-linecap="round"'));
+  // handles: steel loops riveted to the sides
+  const loop = 'M10 44 Q-3 44 -3 52 Q-3 60 10 60 L10 56 Q2 56 2 52 Q2 48 10 48 Z';
+  p.push(P(G.steel, loop, ` stroke="${STEEL_LINE}" stroke-width="1"`) + `<g transform="matrix(-1 0 0 1 110 0)">${P(G.steel, loop, ` stroke="${STEEL_LINE}" stroke-width="1"`)}</g>`);
+  p.push(P(dark(STEEL, 0.3), `${ring(12, 46.5, 1.2)} ${ring(12, 57.5, 1.2)} ${ring(98, 46.5, 1.2)} ${ring(98, 57.5, 1.2)}`));
   p.push(P(G.steel, bodyD, ` stroke="${STEEL_LINE}" stroke-width="1.2"`));
   p.push(S('#FFFFFF', 3, 'M16 46 V84', ' stroke-opacity=".55" stroke-linecap="round"'));
   // the rim and the inside: we look into the pot
@@ -544,10 +562,26 @@ export function potSVG(opts = {}) {
       p.push(P('#FFFFFF', pts.map(([x, y]) => ring(r1(x - 1), r1(y - 1.1), 0.9)).join(' '), ` fill-opacity="${cooking ? 0.45 : 0.85}"`));
     }
     if (cooking) p.push(S('#F3E2CC', 1.1, `${ring(36, 40, 2.4)} ${ring(70, 45, 3)} ${ring(58, 38, 1.8)} ${ring(46, 46, 1.6)}`));
+    // the syrup's glossy surface
+    p.push(S('#FFFFFF', 1.4, 'M24 40 Q38 33 58 33.4', ' stroke-opacity=".35" stroke-linecap="round"'));
   }
   p.push(over(ell(55, 39, 42, 14.6), G.inner));
   p.push(S('#FFFFFF', 1.8, 'M18 33 Q34 24 54 22.6', ' stroke-linecap="round" stroke-opacity=".9"'));
+  // the ladle left in the pot (out of the way while it cooks)
+  if (!cooking) {
+    p.push(P(dark(STEEL_LO, 0.35), ell(70, 42, 9, 3.4)));
+    p.push(S(dark(STEEL, 0.45), 5, 'M74 40 L100 8 q4 -5 0 -8', ' stroke-linecap="round" stroke-linejoin="round"') + S(STEEL_HI, 2, 'M74 40 L100 8 q4 -5 0 -8', ' stroke-linecap="round" stroke-linejoin="round"'));
+  }
   if (cooking) {
+    // blue gas flames licking up under the pot
+    let fl = '';
+    let core = '';
+    for (let i = 0; i < 7; i++) {
+      const x = 28 + i * 9;
+      fl += `M${x - 3.6} 101 Q${x - 3} 96 ${x} 92 Q${x + 3} 96 ${x + 3.6} 101 Z `;
+      core += `M${x - 1.6} 101 Q${x - 1.2} 98 ${x} 96 Q${x + 1.2} 98 ${x + 1.6} 101 Z `;
+    }
+    p.push(`<g class="as-pot-flame">${P('#5FB8FF', fl, ' fill-opacity=".9"')}${P('#D8F1FF', core)}</g>`);
     p.push(`<path class="as-pot-steam" fill="none" stroke="${PAPER}" stroke-width="3" stroke-linecap="round" stroke-opacity=".75" d="M38 30 q-5 -7 0 -14 q5 -7 0 -14 M58 26 q-5 -7 0 -14 q5 -7 0 -14 M74 30 q-4 -6 0 -11"/>`);
     p.push(`<circle cx="94" cy="12" r="11" fill="${NIGHT_700}" stroke="${INK_BG}" stroke-width="1.4"/>`);
     p.push(`<circle class="as-pot-timer" cx="94" cy="12" r="7.6" fill="none" stroke="${TAKE}" stroke-width="3.4" pathLength="100" stroke-dasharray="${r1(pct * 100)} 100" transform="rotate(-90 94 12)"/>`);

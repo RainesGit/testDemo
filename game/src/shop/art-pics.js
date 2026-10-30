@@ -11,7 +11,7 @@
 import * as S from './art-shop.js';
 import * as B from './art-bar.js';
 import * as W from './art-street.js';
-import { CLERK_SVG as CLERK_DRAWN } from '../art.js';
+import { shopClerkSVG } from './art-clerk.js';
 import { pic as picture, picSet, hasPic, picSrc } from './pics.js';
 import { TEA_KINDS, TOPPING_KINDS } from './art-shop.js';
 
@@ -84,7 +84,7 @@ export const vehicleSVG = (kind = 'car', seed = 1) => {
 
 // ─── the clerk (the cut-in panel) ──────────────────────────────────────────────────────────────────────────
 // clerk = idle; clerk-hit (cursing), clerk-perfect (instantly polite again), clerk-polite; CSS shows the one for data-mood
-export const clerkSVG = () => picSet('clerk', CLERK_DRAWN, ['hit', 'perfect', 'polite']);
+export const clerkSVG = () => picSet('clerk', shopClerkSVG(), ['hit', 'perfect', 'polite']);
 
 /** A 奧客's head for the day card: the top of its picture (the importer puts the head at the top), else `drawn`. */
 export function okeHeadSVG(o, drawn) {
@@ -157,5 +157,5 @@ const PERSON = () => '<svg class="walker-svg" viewBox="0 0 200 480"></svg>';
   ['one', 'c250', 'taste', 'lessIce', 'cutIn', 'bucket', 'phone', 'live'].forEach((t) => add('people', `oke-${t}${m}`, PERSON, `奧客 ${t}`));
   for (let n = 1; n <= 12; n++) add('people', `reg-${n}${m}`, PERSON, `regular customer ${n}`);
 });
-['', '-hit', '-perfect', '-polite'].forEach((m) => add('people', `clerk${m}`, () => CLERK_DRAWN, 'the clerk, cut-in panel'));
+['', '-hit', '-perfect', '-polite'].forEach((m) => add('people', `clerk${m}`, shopClerkSVG, 'the clerk, cut-in panel'));
 export const PIC_LIST = L;

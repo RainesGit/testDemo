@@ -90,6 +90,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         250-cup customer); upgrades.js: the station upgrade tree (Lv1→Lv3/4, a bar tab, old-id map);
                         oke.js: the 8 奧客 (content ids, best answer, voiced lines); save.js: localStorage 250cups.shop.v1 (save v2: + hinted);
                         text.js: zh / en UI strings; oke-art.js: 奧客 request bubbles, stamp, star row
+  src/shop/art-clerk.js The shop's cut-in clerk: art.js CLERK_SVG (same moods / hooks) + detail layers (uniform volume, seams,
+                        placket, stitched apron pocket + pen, badge clip, blush, hair shine); the v2 game keeps CLERK_SVG
   src/shop/pics.js      Optional bitmap pictures over the drawn art: art/shop/manifest.json → pic(ids, svg) swaps a drawing for
                         its picture inside the drawing's own <svg> tag (state variants, fallbacks, cooking ring, contact shadow)
   src/shop/art-pics.js  The shop art with pictures (same names as art-shop / art-bar / art-street; ui.js imports from here),

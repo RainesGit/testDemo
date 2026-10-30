@@ -85,7 +85,7 @@
 :root {
   --wood-warm: #C98A4B; --wood-warm-hi: #E6B373; --wood-warm-lo: #8E5A2E;
   --mat: #9C5B45; --mat-lo: #6B3A2B; --tile: #F3E4C8;
-  --chip: linear-gradient(#2E3463, #1B2040); --chip-line: .28cqw;
+  --chip: linear-gradient(#7A4630, #4A2618); --chip-line: .28cqw; /* warm chocolate wood (art direction 14) */
   --panel-paper: linear-gradient(#FFF9EC, #F4E4C4);
   --ribbon: #D9392B; --ribbon-deep: #8E2218;
 }

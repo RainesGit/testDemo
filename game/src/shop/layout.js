@@ -48,11 +48,11 @@ const V = { x: -300, y: 122 };      // vanishing point (off the left edge, on th
 const DOOR = { x: 440, y: 280 };    // the head of the line, right in front of the counter's left end
 const DOOR_S = 0.56;
 const DEPTH = 1.0;                  // scale = DOOR_S / (1 + DEPTH × u): the far corner (u 1) is 0.28
-export const SEAT_S = 0.86;         // at the counter (chest up, big and close); the far corner is ≈ 33% of this
+export const SEAT_S = 0.76;         // at the counter (chest up, big and close; the big-head look, art direction 14); the far corner is ≈ 37% of this
 const SEAT_ZONE = [496, 1192];
 /** The shop window's right pillar: the shop props hang on it (air conditioner, speaker, megaphone, ticket machine). */
 export const PILLAR = { x: 1196, y: 34, w: 84, h: 234 };
-const SEAT_HEAD_TOP = 124;          // where a seated customer's head starts (the lip cuts them under the chin)
+const SEAT_HEAD_TOP = 116;          // the top of a seated customer's box (the head starts ≈ 9 px lower; the lip cuts them at the chest)
 const LINE_SPREAD = 1.8;            // lineU: how much the line is stretched at the door
 
 export function streetPoint(u, lane = 0) {

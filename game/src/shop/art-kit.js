@@ -18,6 +18,10 @@
 //   line(c, k = .55)             the thin outline colour of a fill c (c darkened)
 //   lit(c, k), dark(c, k)        lighter / darker versions of a colour (mixColor towards warm white / cool dark)
 //   r1(n)                        rounded to 0.1
+//   softLine(svg, { k })         the shop's character line style (art-direction-v2.md 14): every stroke width × k, black
+//                                ink → warm brown, and each filled shape without its own stroke outlined in a darker shade of
+//                                its fill (light fills such as eye whites keep the brown line; shapes under stroke="none" stay
+//                                unlined); WARM_INK is that brown, warmShade(c) the soft warm shadow tone of a fill
 import { mixColor } from '../art.js';
 
 export const r1 = (n) => Math.round(n * 10) / 10;
@@ -74,3 +78,26 @@ export const SHOP_DEFS = '<svg class="shop-defs" width="0" height="0" aria-hidde
   `<linearGradient id="gkRim" x1="0" y1="0" x2="0" y2="1">${stop(0, WARM, 0.7)}${stop(1, WARM, 0)}</linearGradient>` +
   `<radialGradient id="gkFoam" cx=".4" cy=".35" r=".7">${stop(0, '#FFFFFF')}${stop(0.6, '#FFF4DA')}${stop(1, '#EED9A8')}</radialGradient>` +
   '</defs></svg>';
+
+export const WARM_INK = '#3E2620';
+export const warmShade = (c) => mixColor(c, '#8A4436', 0.78);
+const lum = (hex) => {
+  const v = parseInt(hex.slice(1, 7), 16);
+  return (0.299 * ((v >> 16) & 255) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255;
+};
+const full = (hex) => (hex.length === 4 ? '#' + [...hex.slice(1)].map((h) => h + h).join('') : hex);
+export function softLine(svg, { k = 0.62 } = {}) {
+  const none = [false];
+  return svg.replace(/<(\/?)(g|svg|path|rect|circle|ellipse|polygon)\b([^>]*?)(\/?)>/g, (m, close, tag, attrs, self) => {
+    if (tag === 'g' || tag === 'svg') {
+      if (close) { if (none.length > 1) none.pop(); return m; }
+      if (!self) none.push(none[none.length - 1] || /\sstroke="none"/.test(attrs));
+    }
+    let a = attrs.replace(/stroke-width="([\d.]+)"/g, (_, w) => `stroke-width="${r1(Number(w) * k)}"`).replace(/stroke="#1B1311"/gi, `stroke="${WARM_INK}"`);
+    if (tag !== 'g' && tag !== 'svg' && !close && !/\sstroke=/.test(a) && !none[none.length - 1]) {
+      const f = /\sfill="(#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6})"/.exec(a);
+      if (f && lum(full(f[1])) < 0.9) a += ` stroke="${line(full(f[1]), 0.5)}"`;
+    }
+    return `<${close}${tag}${a}${self}>`;
+  });
+}

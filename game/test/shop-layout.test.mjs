@@ -48,9 +48,10 @@ test('counter spots: 4 or 5 columns between the line and the pillar; heads show 
       const c = seatColumn(i, n);
       const p = seatPoint(i, n);
       assert.ok(c.x >= 480 && c.x + c.w <= PILLAR.x, `spot ${i}/${n}`);
+      // the big head (art direction 14) is drawn from y 16 to y 238 of the 480-unit person box
+      const u = (PERSON.h * p.s) / 480;
       const top = p.y - PERSON.h * p.s;
-      const head = (200 / 480) * PERSON.h * p.s;
-      assert.ok(top > 120 && top + head < LIP_Y, 'the whole head is above the counter');
+      assert.ok(top + 16 * u > 120 && top + 238 * u < LIP_Y, 'the whole head is above the counter');
       assert.ok(PERSON.w * p.s <= c.w, 'customers do not overlap');
     }
   }

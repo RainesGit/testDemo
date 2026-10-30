@@ -1,11 +1,12 @@
 // art-clerk.js — the clerk for the shop's cut-in panel (gameplay v3): the v2 clerk (../art.js CLERK_SVG, same moods,
 // arms and CSS hooks) with the shop's extra detail laid over it: soft volume on the uniform, shoulder seams and folds,
 // the polo placket, a stitched apron pocket with a pen, a clip on the name badge, cheek blush and a second hair shine.
-// The v2 game keeps the plain CLERK_SVG. Pure strings; needs the shop's shared gradients (art-kit.js SHOP_DEFS).
+// Drawn in the shop's soft coloured line style (art-kit.js softLine). The v2 game keeps the plain CLERK_SVG. Pure strings; needs the shop's shared gradients (art-kit.js SHOP_DEFS).
 //
 //   shopClerkSVG() → svg string (class "clerk", data-mood like CLERK_SVG)
 
 import { CLERK_SVG, PALETTE, mixColor } from '../art.js';
+import { softLine } from './art-kit.js';
 
 const { INK, GUN, GUN_DEEP, PAPER, STEEL, LEMON } = PALETTE;
 const UNIFORM_LINE = mixColor(INK, '#3A2F63', 0.5);
@@ -42,6 +43,6 @@ export function shopClerkSVG() {
   if (bodyEnd > 0) s = s.slice(0, bodyEnd) + BODY + s.slice(bodyEnd);
   s = s.replace(/(<path class="c-skin-hi"[^>]*\/>)/, `$1${BLUSH}`);
   s = s.replace(/(<\/g>\s*<g class="a a-rest-l">)/, `${SHINE}$1`);
-  cached = s;
-  return s;
+  cached = softLine(s); // the shop's soft coloured line style (art-direction-v2.md 14)
+  return cached;
 }

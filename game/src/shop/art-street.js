@@ -27,7 +27,7 @@
 //   acSVG(), speakerSVG(), ticketMachineSVG(), rotateIconSVG()   shop props and the rotate-your-phone icon
 import { PALETTE, mixColor, celShade, ringPath, mulberry32, fnv1a, customerSVG, customerLook } from '../art.js';
 import { streetPoint, TABLE_Y } from './layout.js';
-import { G, ell as kEll } from './art-kit.js';
+import { G, ell as kEll, softLine, warmShade } from './art-kit.js';
 import { hasPic, picIds, picSet, picSrc } from './pics.js';
 
 const { INK, INK_BG, PAPER, PAPER_SH, GUN, GUN_DEEP, SHUT, TAKE, LEMON, GOLD_HI, RIM, NIGHT_900, NIGHT_700, NIGHT_500,
@@ -46,7 +46,7 @@ const HORIZON = 122;
 const KY = (TABLE_Y + 2 - HORIZON) / (H0 - V.y);
 const mapY = (y) => HORIZON + (y - V.y) * KY;
 const SQUASH = `translate(0 ${HORIZON}) scale(1 ${KY.toFixed(4)}) translate(0 ${-V.y})`;
-const HAZE = '#5C6596';
+const HAZE = '#C27A8E'; // a rose dusk haze (art direction 14: warm evening, was a blue night haze)
 
 // ─── The street ────────────────────────────────────────────────────────────────────────────────
 const SIGN_ICONS = [
@@ -59,7 +59,7 @@ const SIGN_ICONS = [
 ];
 function farBuildings() {
   const rnd = mulberry32(fnv1a('street'));
-  const fills = ['#2A2F5A', '#3A2E58', '#25305A', '#41325F', '#2D3466', '#33295A'];
+  const fills = ['#5A3A6A', '#6A3E5E', '#4E3A6E', '#734463', '#5C4270', '#66405E'];
   const signs = [GUN, SHUT, LEMON, RIM, PINK, TAKE];
   let out = '';
   let lit = '';
@@ -181,27 +181,29 @@ export function streetSVG({ neon = false, rail = false } = {}) {
     shafts += `M${xa} 342 L${xa + 54} 342 L${xa + 30} ${r1(roadNear(xa) + 6)} L${xa - 6} ${r1(roadNear(xa) + 6)} Z `;
   }
   const body = [
-    `<defs><linearGradient id="stSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${NIGHT_900}"/><stop offset=".7" stop-color="${NIGHT_700}"/><stop offset="1" stop-color="#3A3466"/></linearGradient>`,
+    `<defs><linearGradient id="stSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A3478"/><stop offset=".55" stop-color="#C2577E"/><stop offset="1" stop-color="#FFB36B"/></linearGradient>`,
     `<radialGradient id="stPool" cx="820" cy="390" r="660" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${WARM_RIM}" stop-opacity=".6"/><stop offset=".3" stop-color="#FFD07E" stop-opacity=".32"/><stop offset=".6" stop-color="#FFC66E" stop-opacity=".12"/><stop offset="1" stop-color="${WARM_RIM}" stop-opacity="0"/></radialGradient>`,
     `<radialGradient id="stLamp" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${GOLD_HI}" stop-opacity=".42"/><stop offset=".5" stop-color="${GOLD_HI}" stop-opacity=".16"/><stop offset="1" stop-color="${GOLD_HI}" stop-opacity="0"/></radialGradient>`,
     `<linearGradient id="stShaft" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFD98A" stop-opacity=".3"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient>`,
     `<linearGradient id="stHaze" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${HAZE}" stop-opacity=".62"/><stop offset=".45" stop-color="${HAZE}" stop-opacity=".22"/><stop offset="1" stop-color="${HAZE}" stop-opacity="0"/></linearGradient>`,
-    `<linearGradient id="stHorizon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C8FC8" stop-opacity="0"/><stop offset=".7" stop-color="#8C8FC8" stop-opacity=".28"/><stop offset="1" stop-color="#8C8FC8" stop-opacity="0"/></linearGradient>`,
-    `<linearGradient id="stSheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset=".55" stop-color="#C9D2FF" stop-opacity=".16"/><stop offset="1" stop-color="#FFE2A8" stop-opacity=".22"/></linearGradient>`,
+    `<linearGradient id="stHorizon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFC27A" stop-opacity="0"/><stop offset=".7" stop-color="#FFC27A" stop-opacity=".28"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></linearGradient>`,
+    `<linearGradient id="stSheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset=".55" stop-color="#FFD2B0" stop-opacity=".16"/><stop offset="1" stop-color="#FFE2A8" stop-opacity=".22"/></linearGradient>`,
     `<linearGradient id="stStreak" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD98A" stop-opacity=".5"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient></defs>`,
     `<g transform="${SQUASH}">`,
     `<rect x="0" y="0" width="1280" height="190" fill="url(#stSky)"/>`,
-    // a thin moon and a few stars
-    `<path fill="${GOLD_HI}" fill-opacity=".8" d="M612 40 a14 14 0 1 0 14 18 a11 11 0 1 1 -14 -18 Z"/>`,
-    `<path fill="${PAPER}" fill-opacity=".6" d="${[[180, 34], [330, 18], [520, 52], [700, 22], [860, 44], [1180, 30], [1050, 14]].map(([x, y]) => ell(x, y, 1.6, 1.6)).join(' ')}"/>`,
+    // dusk: the low sun glowing behind the buildings, a few first stars high up
+    `<radialGradient id="stSun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFF0B8"/><stop offset=".35" stop-color="#FFD27A" stop-opacity=".9"/><stop offset="1" stop-color="#FF9E6A" stop-opacity="0"/></radialGradient>`,
+    `<ellipse cx="930" cy="150" rx="190" ry="120" fill="url(#stSun)"/>`,
+    `<path fill="#FFF3D0" d="${ell(930, 150, 40, 40)}"/>`,
+    `<path fill="${PAPER}" fill-opacity=".55" d="${[[180, 22], [330, 12], [520, 30], [1180, 18], [1050, 10]].map(([x, y]) => ell(x, y, 1.5, 1.5)).join(' ')}"/>`,
     farBuildings(),
     // the haze: thick toward the vanishing point (left), a glow band along the horizon
     `<rect x="0" y="20" width="1280" height="150" fill="url(#stHaze)"/>`,
     `<rect x="0" y="110" width="1280" height="64" fill="url(#stHorizon)"/>`,
     neon ? neonSign() : '',
     // far sidewalk, road with a dashed centre line, a zebra crossing near the corner
-    `<path fill="#4A4568" d="M0 ${r1(persp(166, 0))} L1280 166 L1280 ${r1(roadFar(1280))} L0 ${r1(roadFar(0))} Z"/>`,
-    `<path fill="#232640" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadNear(1280))} L0 ${r1(roadNear(0))} Z"/>`,
+    `<path fill="#7A5A6E" d="M0 ${r1(persp(166, 0))} L1280 166 L1280 ${r1(roadFar(1280))} L0 ${r1(roadFar(0))} Z"/>`,
+    `<path fill="#3E3350" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadNear(1280))} L0 ${r1(roadNear(0))} Z"/>`,
     // the wet road: a sheen toward us, the far shops' light reflected in long streaks
     `<path fill="url(#stSheen)" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadNear(1280))} L0 ${r1(roadNear(0))} Z"/>`,
     `<path fill="${WINDOW}" fill-opacity=".1" d="M0 ${r1(roadFar(0))} L1280 ${r1(roadFar(1280))} L1280 ${r1(roadFar(1280) + 14)} L0 ${r1(roadFar(0) + 5)} Z"/>`,
@@ -229,10 +231,10 @@ export function streetSVG({ neon = false, rail = false } = {}) {
       return `<path fill="${PAPER}" fill-opacity=".35" d="${d}"/>`;
     })(),
     // our sidewalk: tiles in perspective, a curb, the warm spill from the shop (pool + window shafts), the corner lamp
-    `<path fill="#544D70" d="M0 ${r1(roadNear(0))} L1280 ${r1(roadNear(1280))} L1280 342 L0 342 Z"/>`,
+    `<path fill="#8E6E78" d="M0 ${r1(roadNear(0))} L1280 ${r1(roadNear(1280))} L1280 342 L0 342 Z"/>`,
     sidewalkLines(),
-    `<path fill="none" stroke="#9A92BC" stroke-width="3" d="M0 ${r1(roadNear(0))} L1280 ${r1(roadNear(1280))}"/>`,
-    `<path fill="none" stroke="#2A2742" stroke-width="2" d="M0 ${r1(roadNear(0) + 3)} L1280 ${r1(roadNear(1280) + 3)}"/>`,
+    `<path fill="none" stroke="#D6B3A6" stroke-width="3" d="M0 ${r1(roadNear(0))} L1280 ${r1(roadNear(1280))}"/>`,
+    `<path fill="none" stroke="#4A3242" stroke-width="2" d="M0 ${r1(roadNear(0) + 3)} L1280 ${r1(roadNear(1280) + 3)}"/>`,
     `<rect x="0" y="150" width="1280" height="192" fill="url(#stPool)"/>`,
     `<path fill="url(#stShaft)" d="${shafts}"/>`,
     `<ellipse cx="160" cy="276" rx="150" ry="62" fill="url(#stLamp)"/>`,
@@ -337,7 +339,8 @@ const SHIRTS = ['#E2453C', '#F08A2E', '#F2C230', '#2FA39A', '#3D8BD9', '#6C5CE0'
 const STYLES = ['tee', 'hoodie', 'jacket', 'collar', 'overall', 'sweater'];
 const PANTS = ['#2D3466', '#3B2F5E', '#4A3A30', '#1F2A44', '#6B6F7A', '#5A4A7A', '#355C8C'];
 const SHOES = [PAPER, INK, '#C9473E', '#E8D9BC', '#3D8BD9'];
-const cool = (c) => mixColor(c, NIGHT_500, 0.86); // backlit on the night street (art direction 5.2)
+// clothes keep their own warm, saturated colours (art direction 14: the shop's warm look; was backlit toward the night)
+const cool = (c) => mixColor(c, '#FFE9C8', 0.94);
 
 export function walkerLook({ cid = 1, visit = 0, oke = null, uid = null } = {}) {
   const rnd = mulberry32(fnv1a(`walker:${cid}:${visit}`));
@@ -369,10 +372,10 @@ const SIGN = `<g class="wk-sign" stroke="${INK}" stroke-width="4" stroke-linejoi
 function cut(L, shirt, second) {
   const s2 = cool(second);
   switch (L.style) {
-    case 'hoodie': return `<path fill="${celShade(shirt)}" d="M70 200 Q66 176 84 172 L100 186 L116 172 Q134 176 130 200 Q116 210 100 206 Q84 210 70 200 Z"/>` +
-      `<path fill="none" stroke-width="3" d="M92 208 V236 M108 208 V236"/><path fill="${celShade(shirt)}" stroke-width="3" d="M70 300 H130 L124 330 H76 Z"/>`;
+    case 'hoodie': return `<path fill="${warmShade(shirt)}" d="M70 200 Q66 176 84 172 L100 186 L116 172 Q134 176 130 200 Q116 210 100 206 Q84 210 70 200 Z"/>` +
+      `<path fill="none" stroke-width="3" d="M92 208 V236 M108 208 V236"/><path fill="${warmShade(shirt)}" stroke-width="3" d="M70 300 H130 L124 330 H76 Z"/>`;
     case 'jacket': return `<path fill="${s2}" stroke="none" d="M86 198 H114 L110 348 H90 Z"/><path fill="none" stroke-width="3.4" d="M86 198 L92 348 M114 198 L108 348"/>` +
-      `<path fill="${celShade(shirt)}" stroke-width="3" d="M84 198 L72 236 L88 232 Z M116 198 L128 236 L112 232 Z"/>`;
+      `<path fill="${warmShade(shirt)}" stroke-width="3" d="M84 198 L72 236 L88 232 Z M116 198 L128 236 L112 232 Z"/>`;
     case 'collar': return `<path fill="${PAPER}" stroke-width="3" d="M84 196 L100 214 L90 228 L78 206 Z M116 196 L100 214 L110 228 L122 206 Z"/>` +
       `<path fill="${INK}" stroke="none" d="${ell(100, 248, 3, 3)} ${ell(100, 274, 3, 3)} ${ell(100, 300, 3, 3)}"/>`;
     case 'overall': return `<path fill="${cool('#355C8C')}" stroke-width="3.4" d="M70 270 H130 L134 348 H66 Z"/><path fill="${cool('#355C8C')}" stroke-width="3" d="M74 200 L84 200 L84 270 L74 270 Z M116 200 L126 200 L126 270 L116 270 Z"/>` +
@@ -423,9 +426,9 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
   // legs: trousers tapering to a rolled cuff, a crease, chunky sneakers (sole band, toe cap, laces)
   const leg = (side) => {
     const l = side === 'l';
-    const fill = l ? pants : celShade(pants);
+    const fill = l ? pants : warmShade(pants);
     const cuff = mixColor(pants, '#FFFFFF', 0.16);
-    const sole = mixColor(PAPER, NIGHT_500, 0.2);
+    const sole = mixColor(PAPER, '#C9A88A', 0.82);
     const toe = mixColor(shoeC, '#FFFFFF', 0.35);
     const g = `<path fill="${fill}" d="M58 334 H100 L97 440 H64 Q59 392 58 334 Z"/>` +
       `<path fill="${cuff}" stroke-width="3.4" d="M63 428 H98 L97 444 H64 Z"/>` +
@@ -441,8 +444,8 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
   const sleeveC = shirt;
   const arm = (side) => {
     const l = side === 'l';
-    const sl = l ? sleeveC : celShade(sleeveC);
-    const sk = l ? skin : celShade(skin);
+    const sl = l ? sleeveC : warmShade(sleeveC);
+    const sk = l ? skin : warmShade(skin);
     const hand = `<path fill="${sk}" d="M38 318 Q33 338 46 343 Q59 345 61 330 L58 316 Z"/>` +
       `<path fill="${sk}" stroke-width="3.4" d="M56 321 Q65 318 66 327 Q65 335 57 334"/>`;
     const fore = `<path fill="${sk}" d="M36 256 L31 278 Q29 292 35 306 L39 320 Q48 325 59 319 L57 300 Q52 288 54 274 L58 260 Z"/>`;
@@ -464,15 +467,15 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
   const bag = c250 ? '' : L.bag === 'cross'
     ? `<path fill="none" stroke="${INK}" stroke-width="11" d="M66 206 L140 310"/><path fill="none" stroke="${bagC}" stroke-width="5.4" d="M66 206 L140 310"/>` +
       `<path fill="${bagC}" stroke-width="3.6" d="M122 302 H160 Q164 302 164 306 V330 Q164 336 158 336 H124 Q118 336 118 330 V306 Q118 302 122 302 Z"/>` +
-      `<path fill="${celShade(bagC)}" stroke-width="3" d="M118 306 Q118 300 124 300 H158 Q164 300 164 306 L162 318 H120 Z"/><path fill="${LEMON}" stroke-width="2" d="M138 314 H144 V322 H138 Z"/>`
+      `<path fill="${warmShade(bagC)}" stroke-width="3" d="M118 306 Q118 300 124 300 H158 Q164 300 164 306 L162 318 H120 Z"/><path fill="${LEMON}" stroke-width="2" d="M138 314 H144 V322 H138 Z"/>`
     : L.bag === 'pack'
       ? `<path fill="${bagC}" stroke-width="3.4" d="M68 206 L78 204 L76 300 L66 300 Z M132 206 L122 204 L124 300 L134 300 Z"/>` +
         `<path fill="${STEEL}" stroke-width="2.4" d="M66 276 H78 V284 H66 Z M122 276 H134 V284 H122 Z"/>`
       : '';
-  const sil = (c) => `<g class="wk-sil" stroke="none"><path fill="${mixColor(L.shirt, NIGHT_500, 0.5)}" d="${torso} M37 240 L31 304 Q40 326 59 318 L63 244 Z M163 240 L169 304 Q160 326 141 318 L137 244 Z"/>` +
-    `<path fill="${mixColor(L.pants, NIGHT_700, 0.45)}" d="M58 334 H142 L136 476 H48 Z"/>` +
-    `<path fill="${mixColor('#8A6A5A', NIGHT_500, 0.45)}" d="${ell(100, 108, 80, 90)} M88 182 H112 V206 H88 Z"/>` +
-    `<path fill="none" stroke="${RIM}" stroke-width="7" stroke-opacity=".85" stroke-linecap="round" d="M34 96 Q48 22 104 18 M52 234 Q56 206 84 200"/>${c}</g>`;
+  const sil = (c) => `<g class="wk-sil" stroke="none"><g transform="matrix(.88 0 0 .88 12 57.1)"><path fill="${mixColor(L.shirt, NIGHT_500, 0.5)}" d="${torso} M37 240 L31 304 Q40 326 59 318 L63 244 Z M163 240 L169 304 Q160 326 141 318 L137 244 Z"/>` +
+    `<path fill="${mixColor(L.pants, NIGHT_700, 0.45)}" d="M58 334 H142 L136 476 H48 Z M88 182 H112 V206 H88 Z"/></g>` +
+    `<g transform="matrix(1.12 0 0 1.12 -12 16)"><path fill="${mixColor('#8A6A5A', NIGHT_500, 0.45)}" d="${ell(100, 108, 80, 90)}"/>` +
+    `<path fill="none" stroke="${RIM}" stroke-width="7" stroke-opacity=".85" stroke-linecap="round" d="M34 96 Q48 22 104 18"/></g>${c}</g>`;
   // the 250-cup customer: an order list as long as she is, rolled at the top, held at the chest, curling on the floor
   const LIST_ROWS = Array.from({ length: 13 }, (_, i) => 288 + i * 13).map((y, i) => `M${i % 3 === 2 ? 140 : 138} ${y} H${i % 2 ? 166 : 172}`).join(' ');
   const list = c250
@@ -488,20 +491,23 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
     : '';
   // her right arm bends out to hold the list's roll; the other arm hangs as usual
   const holdArm = c250
-    ? `<g class="wk-arm wk-arm-r"><path fill="${celShade(shirt)}" d="M134 206 Q160 210 167 232 L172 242 Q178 248 184 246 L188 258 Q174 266 163 258 Q152 246 146 236 Z"/>` +
+    ? `<g class="wk-arm wk-arm-r"><path fill="${warmShade(shirt)}" d="M134 206 Q160 210 167 232 L172 242 Q178 248 184 246 L188 258 Q174 266 163 258 Q152 246 146 236 Z"/>` +
       `<path fill="none" stroke-width="2.4" stroke-opacity=".45" d="M160 232 Q166 238 170 232"/></g>`
     : '';
+  const BODY_T = 'matrix(.88 0 0 .88 12 57.1)';
+  const HEAD_T = 'matrix(1.12 0 0 1.12 -12 16)';
   const parts = [
     `<path class="wk-shadow" fill="${G.ao}" stroke="none" d="${ell(100, 474, 72, 12)}"/>`,
+    `<g transform="${BODY_T}">`,
     `<g class="wk-body" stroke="${INK}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">`,
     arm('l'),
     leg('l'), leg('r'),
     `<path fill="${shirt}" d="${torso}"/>`,
-    `<path fill="${celShade(shirt)}" stroke="none" d="M122 203 Q148 209 148 236 L146 340 Q134 346 120 348 Q132 290 122 203 Z"/>`,
+    `<path fill="${warmShade(shirt)}" fill-opacity=".7" stroke="none" d="M122 203 Q148 209 148 236 L146 340 Q134 346 120 348 Q132 290 122 203 Z"/>`,
     // soft volume: the torso as a cylinder lit from the upper left
     `<path fill="url(#gkCylSoft)" stroke="none" d="${torso}"/>`,
     // the hem band and two side folds at the waist
-    L.style === 'overall' ? '' : `<path fill="${celShade(shirt)}" fill-opacity=".55" stroke-width="3.4" d="${hemD}"/>`,
+    L.style === 'overall' ? '' : `<path fill="${warmShade(shirt)}" fill-opacity=".55" stroke-width="3.4" d="${hemD}"/>`,
     `<path fill="none" stroke-width="2.4" stroke-opacity=".45" d="M62 292 Q68 306 63 322 M138 292 Q132 306 137 322 M96 214 Q100 222 104 214"/>`,
     // a warm rim on the shoulders: the shop light in front of them
     `<path fill="none" stroke="${WARM_RIM}" stroke-opacity=".55" stroke-width="5" d="M60 220 Q68 204 86 202"/>`,
@@ -511,11 +517,13 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
     `<path fill="${skin}" d="M88 182 H112 V204 Q100 212 88 204 Z"/>`,
     `<path fill="url(#gkShade)" stroke="none" d="${kEll(100, 192, 20, 9)}"/>`,
     c250 ? holdArm : `<g class="wk-arm-rest">${arm('r')}</g>`,
-    `<g class="wk-phone"><path fill="${celShade(shirt)}" d="M138 206 Q166 196 170 164 L172 128 Q172 118 162 118 Q152 118 152 128 L150 162 Q146 182 136 192 Z"/>` +
+    `<g class="wk-phone"><path fill="${warmShade(shirt)}" d="M138 206 Q166 196 170 164 L172 128 Q172 118 162 118 Q152 118 152 128 L150 162 Q146 182 136 192 Z"/>` +
       `<path fill="${skin}" d="${ell(162, 118, 11, 11)}"/><rect x="146" y="70" width="30" height="48" rx="5" fill="${NIGHT_700}"/><rect x="151" y="76" width="20" height="32" fill="#9EE3FF"/>` +
       `<path fill="${GUN}" stroke="none" d="${ell(161, 113, 2.6, 2.6)}"/></g>`,
     '</g>',
     list,
+    '</g>',
+    `<g transform="${HEAD_T}">`,
     head,
     // soft volume on the face: cheek blush, a hair highlight from the key light (the cartoon face stays as it is)
     `<g class="wk-vol" stroke="none"><path fill="url(#gkBlush)" d="${kEll(66, 152, 14, 8)} ${kEll(134, 152, 14, 8)}"/>` +
@@ -524,11 +532,14 @@ export function walkerSVG({ cid = 1, visit = 0, fixed, oke = null, uid = null } 
     `<g class="wk-back" stroke="${INK}" stroke-width="5" stroke-linejoin="round"><path fill="${hairBack}" d="M38 120 Q36 46 100 40 Q164 46 162 120 Q160 178 128 194 Q100 204 72 194 Q40 178 38 120 Z"/>` +
       `<path fill="none" stroke="${mixColor(hairBack, '#FFFFFF', 0.75)}" stroke-width="4" stroke-linecap="round" d="M70 64 Q100 50 130 64"/>` +
       `<path fill="${skin}" d="M86 192 Q100 200 114 192 V206 Q100 212 86 206 Z"/></g>`,
+    '</g>',
     SIGN,
     // far silhouette: the same shapes, flat cool colours, no outline, a cool rim on top
     sil(''),
   ];
-  return svg('walker-svg', '0 0 200 480', parts.join(''), ` data-cid="${cid}" data-style="${L.style}"`);
+  const n = parts.length;
+  const drawn = softLine(parts.slice(1, n - 2).join('')); // not the contact shadow, the sign or the silhouette
+  return svg('walker-svg', '0 0 200 480', parts[0] + drawn + parts.slice(n - 2).join(''), ` data-cid="${cid}" data-style="${L.style}"`);
 }
 
 // ─── Staff and shop props ─────────────────────────────────────────────────────────────────────

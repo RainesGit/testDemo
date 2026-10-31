@@ -7,12 +7,11 @@ Instructions for coding agents (Codex and others) working in this repository.
 - The full game design (Simplified Chinese) is `docs/game-design.md`; the first-minute redesign
   (`docs/first-minute-spec.md`) overrides it where they conflict.
 
-## Current task for Codex: the OpenAI voice pack
+## Current task for Codex: voices that do not sound stiff
 
-The producer finds the Kokoro voices too stiff. **Do [`docs/codex-voice-task.md`](docs/codex-voice-task.md)**: render
-every line with the OpenAI speech API using `game/tools/voice/build_openai.py` (already written and tested against a
-local mock), run the checks, update the docs and push to `codex/openai-voice`. Needs `OPENAI_API_KEY` and network access
-to `api.openai.com`; never print or commit the key.
+The producer finds the current Kokoro voices too stiff. See [`docs/codex-voice-task.md`](docs/codex-voice-task.md):
+re-voice the game so it sounds acted, not read. Any tool, model, service or method is up to you (no restrictions);
+`game/tools/voice/build_openai.py` is an optional starting point.
 
 ## Acceptance testing
 

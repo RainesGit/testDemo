@@ -33,7 +33,7 @@ docs/
                         replaces first-minute-spec.md 2 (art)
   art-ai-brief.md       AI bitmap art brief for the v3 shop (producer 2026-10-27: commercial quality): tools + licensing,
                         the style anchor, prompts, every picture id with ratio, customers / clerk designs, import steps
-  codex-voice-task.md   Task for Codex: re-render the voice pack with the OpenAI speech API (steps, checks, report)
+  codex-voice-task.md   Task for Codex: re-voice the game so it sounds acted, not stiff (method left to Codex)
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
   localization-tw.md    Taiwan Traditional writing guide for zh text (wording, character choices, checks, HK notes, voice)

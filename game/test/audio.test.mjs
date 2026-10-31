@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { getContent } from '../src/content.js';
 import {
   splitForBleep, stripStage, styleParams, chuuniSplit, buildSpeechPlan,
   DEFAULT_BLEEP_WORDS, STYLE_VOICE, createAudio,
@@ -448,5 +449,44 @@ test('an acted voice pack (manifest expressive) drops the Kokoro crutches but ke
   assert.equal(p.punch.contour, null);
   assert.equal(p.setup.contour, null);
   assert.equal(p.punch.rate, 1);
+  const shout = voicePlan('調你媽！', { fx: 'mega', style: 'curse', voiceFx: fx });
+  assert.equal(shout.punch.saturation, EXPRESSIVE_FX.hotK);
+  assert.equal(shout.punch.makeupDb, EXPRESSIVE_FX.makeupDb);
+  assert.equal(shout.punch.echo, true); // retain the signature climax while keeping speech clear
+  assert.equal(voicePlan('調你媽！', { fx: 'mega', voiceFx: true }).punch.saturation, 'hot');
   assert.deepEqual(packVoiceFx({ impact: false }, { expressive: true }), { impact: false, ...EXPRESSIVE_FX });
+});
+
+test('voice jobs distinguish the acted hit from its cut-point position and restore professional service', async () => {
+  const { exportJobs, openingLines } = await import('../tools/voice/export-lines.mjs');
+  const jobs = exportJobs();
+  assert.ok(jobs.filter((j) => j.lang === 'en').every((j) => !/[，～~]/.test(j.text)));
+  for (const lang of ['zh', 'en']) {
+    const { system } = getContent(lang);
+    const find = (line) => jobs.find((j) => j.key === ck(lang, line));
+    for (const [line, , , , , reaction] of openingLines(system.opening)) {
+      for (const half of splitPunch(line).filter(Boolean)) {
+        assert.equal(find(half).scene, 'opening');
+        assert.equal(find(half).reaction, reaction);
+      }
+    }
+    const [setup, hit] = splitPunch(system.opening.r1);
+    assert.equal(find(setup).beat, 'setup');
+    assert.equal(find(hit).beat, 'hit');
+    assert.equal(find(system.opening.r4).beat, 'hit');
+    for (const value of Object.values(system.opening.timeout)) {
+      for (const line of Array.isArray(value) ? value : [value]) {
+        for (const half of splitPunch(line).filter(Boolean)) assert.equal(find(half).reaction, 'timeout');
+      }
+    }
+    for (const k of ['r1', 'r2', 'r3', 'r4']) {
+      for (const half of splitPunch(system.opening[k]).filter(Boolean)) assert.equal(find(half).reaction, undefined);
+    }
+    for (const k of ['r4b', 'r4c', 'r4d', 'r4e', 'r4f']) assert.equal(find(system.opening[k]).beat, 'resolve');
+    // Day 3 reuses the opening's curse-first signature; neither half changes voice or clip key.
+    const [curse, professional] = splitPunch(system.originalCustomer.reply2);
+    assert.equal(find(curse).beat, 'hit');
+    assert.equal(find(professional).beat, 'resolve');
+  }
+  assert.ok(jobs.some((j) => j.scene === undefined), 'free-play-only lines are not tempo processed');
 });

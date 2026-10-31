@@ -5,3 +5,4 @@ tools/voice/__pycache__/
 tools/fonts/.cache/
 art/_test/
 tools/voice/.cache-openai/
+tools/voice/.cache-acted/

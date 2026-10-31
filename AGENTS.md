@@ -54,3 +54,5 @@ pkill -f "m http.server 876[5]"
 ```
 
 Playwright and Chromium are expected to be preinstalled; do not run `playwright install`.
+Close every simulator, browser and local server started for acceptance when acceptance ends,
+including on failures or interruptions. Stop only the processes owned by that acceptance run.

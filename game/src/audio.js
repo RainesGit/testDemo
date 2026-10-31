@@ -235,11 +235,14 @@ export const VOICE_FX = {
 };
 
 /**
- * A voice pack that was acted (manifest `expressive: true`, tools/voice/build_openai.py) already carries the emotion
+ * A voice pack that was acted (manifest `expressive: true`, tools/voice/build_acted.py) already carries the emotion
  * the runtime chain fakes for Kokoro: no intonation contours, no faster hit, light drive. The impact and the polite /
  * hit level contrast stay.
  */
-export const EXPRESSIVE_FX = { intonation: false, punchRate: 1, driveDb: 2, liteDriveDb: 1, gentleK: 1.2 };
+export const EXPRESSIVE_FX = {
+  intonation: false, punchRate: 1, driveDb: 2, liteDriveDb: 1, makeupDb: 1.5,
+  gentleK: 1.2, hotK: 1.35, // preserve the actor's consonants even at the biggest shout
+};
 /** The voice punch config to use with a pack: voiceFx as given, softened by EXPRESSIVE_FX for an acted pack. */
 export function packVoiceFx(voiceFx, manifest) {
   if (!voiceFx || !manifest || manifest.expressive !== true) return voiceFx;
@@ -288,7 +291,7 @@ export function voicePlan(text, { fx = 'normal', style, voiceFx = false, lite = 
     fx,
     driveDb: lite ? cfg.liteDriveDb : cfg.driveDb + (hot ? 1 : 0),
     makeupDb: lite ? 0 : cfg.makeupDb,
-    saturation: lite ? 0 : hot ? 'hot' : cfg.gentleK,
+    saturation: lite ? 0 : hot ? (cfg.hotK ?? 'hot') : cfg.gentleK,
     compress: !lite,
     megaphone: !lite && !!cfg.megaphone && style === 'rage',
     echo: fx === 'mega',

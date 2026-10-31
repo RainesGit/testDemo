@@ -1,0 +1,650 @@
+[
+  {
+    "file": "01-zh-clerk.wav",
+    "key": "595c05f6",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "你要幾杯？",
+    "direction": "自然台灣華語，冷面疲倦，平靜乾脆。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "02-zh-customer.wav",
+    "key": "46f5bd3e",
+    "lang": "zh",
+    "role": "customer",
+    "text": "嗯……",
+    "direction": "自然台灣華語，面對面點餐，口語自然，節奏輕快。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "03-zh-clerk.wav",
+    "key": "571680af",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "還在想？",
+    "direction": "自然台灣華語，冷淡專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "04-zh-clerk.wav",
+    "key": "7dd2cd6c",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "滾！",
+    "direction": "自然台灣華語，突然短促爆罵，清楚有力，立刻收尾。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "05-zh-customer.wav",
+    "key": "71bb566b",
+    "lang": "zh",
+    "role": "customer",
+    "text": "十五杯！",
+    "direction": "自然台灣華語，面對面點餐，口語自然，節奏輕快。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "06-zh-clerk.wav",
+    "key": "7fbb6c75",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "十五杯？",
+    "direction": "自然台灣華語，冷淡專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "07-zh-clerk.wav",
+    "key": "f2bd85d5",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "太少，滾！",
+    "direction": "自然台灣華語，突然短促爆罵，清楚有力，立刻收尾。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "08-zh-customer.wav",
+    "key": "b945a600",
+    "lang": "zh",
+    "role": "customer",
+    "text": "二百五十杯！",
+    "direction": "自然台灣華語，面對面點餐，口語自然，節奏輕快。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "09-zh-clerk.wav",
+    "key": "b5dafa55",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "好，二百五十杯什麼？",
+    "direction": "自然台灣華語，低聲冷淡，短促乾脆。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "10-zh-customer.wav",
+    "key": "48361286",
+    "lang": "zh",
+    "role": "customer",
+    "text": "招牌翡翠檸檬！",
+    "direction": "自然台灣華語，面對面點餐，口語自然，節奏輕快。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "11-zh-clerk.wav",
+    "key": "dd3126e8",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "冰塊甜度要不要調？",
+    "direction": "自然台灣華語，冷面疲倦，平靜乾脆。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "12-zh-customer.wav",
+    "key": "72430e5c",
+    "lang": "zh",
+    "role": "customer",
+    "text": "少甜少冰！",
+    "direction": "自然台灣華語，面對面點餐，口語自然，節奏輕快。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "13-zh-clerk.wav",
+    "key": "761b5f30",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "調你媽！",
+    "direction": "自然台灣華語，突然短促爆罵，清楚有力，立刻收尾。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "14-zh-clerk.wav",
+    "key": "de74c00d",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "黃金比例最好喝！",
+    "direction": "自然台灣華語，立即恢復平靜專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "15-zh-clerk.wav",
+    "key": "ec973335",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "我們都是現點現做",
+    "direction": "自然台灣華語，立即恢復平靜專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "16-zh-clerk.wav",
+    "key": "c645ba77",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "二百五十杯",
+    "direction": "自然台灣華語，立即恢復平靜專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "17-zh-clerk.wav",
+    "key": "102ec454",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "兩個月後過來拿。",
+    "direction": "自然台灣華語，立即恢復平靜專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "18-zh-clerk.wav",
+    "key": "2fec18e6",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "這是你的取餐號碼牌。",
+    "direction": "自然台灣華語，立即恢復平靜專業，短促自然。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "19-zh-clerk.wav",
+    "key": "3a6955f4",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "下一位！",
+    "direction": "自然台灣華語，俐落叫下一位，短促有力。",
+    "processing": {
+      "tempo": 1.12,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "20-zh-clerk.wav",
+    "key": "73a81195",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "您好，慢慢想沒關係喔",
+    "direction": "自然台灣華語，甜膩過度客氣的服務腔，笑著說。",
+    "processing": {
+      "tempo": 1.85,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "21-zh-clerk.wav",
+    "key": "50a88009",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "十五杯嗎，好的",
+    "direction": "自然台灣華語，甜膩過度客氣的服務腔，笑著說。",
+    "processing": {
+      "tempo": 1.85,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "22-zh-clerk.wav",
+    "key": "89215440",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "喂——！",
+    "direction": "自然台灣華語，快速有力地喊單，咬字清楚，立刻收尾。",
+    "processing": {
+      "tempo": 1.72,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "23-zh-clerk.wav",
+    "key": "4300b280",
+    "lang": "zh",
+    "role": "clerk",
+    "text": "排隊——！",
+    "direction": "自然台灣華語，快速有力地喊單，咬字清楚，立刻收尾。",
+    "processing": {
+      "tempo": 1.72,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "24-zh-announcer.wav",
+    "key": "eda2f660",
+    "lang": "zh",
+    "role": "announcer",
+    "text": "排到門口了！你要幾杯？",
+    "direction": "自然台灣華語，興奮宣布好消息，明亮有精神。",
+    "processing": {
+      "tempo": 1.51,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "25-zh-announcer.wav",
+    "key": "b4651531",
+    "lang": "zh",
+    "role": "announcer",
+    "text": "排滿騎樓！這排什麼？排我。",
+    "direction": "自然台灣華語，興奮宣布好消息，明亮有精神。",
+    "processing": {
+      "tempo": 1.51,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "26-zh-crowd.wav",
+    "key": "9012f9ad",
+    "lang": "zh",
+    "role": "crowd",
+    "text": "噓——！",
+    "direction": "自然台灣華語，短促起鬨抱怨，立刻收尾。",
+    "processing": {
+      "tempo": 1.51,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "27-zh-crowd.wav",
+    "key": "1cd1114e",
+    "lang": "zh",
+    "role": "crowd",
+    "text": "退錢！",
+    "direction": "自然台灣華語，短促起鬨抱怨，立刻收尾。",
+    "processing": {
+      "tempo": 1.51,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "28-en-clerk.wav",
+    "key": "da5e5d45",
+    "lang": "en",
+    "role": "clerk",
+    "text": "How many cups?",
+    "direction": "Natural American English. Dry, tired, matter-of-fact and brisk.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "29-en-customer.wav",
+    "key": "aaa2a450",
+    "lang": "en",
+    "role": "customer",
+    "text": "Ummm…",
+    "direction": "Natural American English. Casual face-to-face ordering, lively and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "30-en-clerk.wav",
+    "key": "331874d1",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Still thinking?",
+    "direction": "Natural American English. Restrained professional service, brisk and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "31-en-clerk.wav",
+    "key": "d3207f2b",
+    "lang": "en",
+    "role": "clerk",
+    "text": "SCRAM!",
+    "direction": "Natural American English. Sudden sharp comic outburst, forceful consonants, then stop.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "32-en-customer.wav",
+    "key": "31c1bdc0",
+    "lang": "en",
+    "role": "customer",
+    "text": "fifteen cups!",
+    "direction": "Natural American English. Casual face-to-face ordering, lively and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "33-en-clerk.wav",
+    "key": "4fc1ecfa",
+    "lang": "en",
+    "role": "clerk",
+    "text": "fifteen cups?",
+    "direction": "Natural American English. Restrained professional service, brisk and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "34-en-clerk.wav",
+    "key": "5285005c",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Too small. SCRAM!",
+    "direction": "Natural American English. Sudden sharp comic outburst, forceful consonants, then stop.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "35-en-customer.wav",
+    "key": "9f413785",
+    "lang": "en",
+    "role": "customer",
+    "text": "two-fifty cups!",
+    "direction": "Natural American English. Casual face-to-face ordering, lively and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "36-en-clerk.wav",
+    "key": "b141aeee",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Okay. two-fifty. A quarter-wit— a quarter… of a thousand. Of what?",
+    "direction": "Natural American English. Curt, low and dismissive, falling cadence.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "37-en-customer.wav",
+    "key": "b385c30b",
+    "lang": "en",
+    "role": "customer",
+    "text": "The signature Jade Lemon!",
+    "direction": "Natural American English. Casual face-to-face ordering, lively and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "38-en-clerk.wav",
+    "key": "c7a80450",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Want me to adjust the sugar or ice?",
+    "direction": "Natural American English. Dry, tired, matter-of-fact and brisk.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "39-en-customer.wav",
+    "key": "1286cc32",
+    "lang": "en",
+    "role": "customer",
+    "text": "Yeah, adjust it! Less sugar, less ice!",
+    "direction": "Natural American English. Casual face-to-face ordering, lively and conversational.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "40-en-clerk.wav",
+    "key": "e1e014ca",
+    "lang": "en",
+    "role": "clerk",
+    "text": "ADJUST your MOM!",
+    "direction": "Natural American English. Sudden sharp comic outburst, forceful consonants, then stop.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "41-en-clerk.wav",
+    "key": "bb98d00d",
+    "lang": "en",
+    "role": "clerk",
+    "text": "The golden ratio is PERFECT!",
+    "direction": "Natural American English. Instantly calm professional service, brisk and neutral.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "42-en-clerk.wav",
+    "key": "d25d05a7",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Everything's made fresh to order.",
+    "direction": "Natural American English. Instantly calm professional service, brisk and neutral.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "43-en-clerk.wav",
+    "key": "a2413c3e",
+    "lang": "en",
+    "role": "clerk",
+    "text": "two-fifty cups",
+    "direction": "Natural American English. Instantly calm professional service, brisk and neutral.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "44-en-clerk.wav",
+    "key": "c17c3832",
+    "lang": "en",
+    "role": "clerk",
+    "text": "pick up in two months.",
+    "direction": "Natural American English. Instantly calm professional service, brisk and neutral.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "45-en-clerk.wav",
+    "key": "6f790c62",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Here's your pickup number.",
+    "direction": "Natural American English. Instantly calm professional service, brisk and neutral.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "46-en-clerk.wav",
+    "key": "d17c1dfa",
+    "lang": "en",
+    "role": "clerk",
+    "text": "NEXT!",
+    "direction": "Natural American English. Crisp forceful kitchen call, immediate finish.",
+    "processing": {
+      "tempo": 1.48,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "47-en-clerk.wav",
+    "key": "2bc9d022",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Hiii Take all the time you need",
+    "direction": "Natural American English. Exaggeratedly sweet customer-service smile, comically too polite.",
+    "processing": {
+      "tempo": 2.0,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "48-en-clerk.wav",
+    "key": "36eee8c6",
+    "lang": "en",
+    "role": "clerk",
+    "text": "fifteen cups? Coming right up",
+    "direction": "Natural American English. Exaggeratedly sweet customer-service smile, comically too polite.",
+    "processing": {
+      "tempo": 2.0,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "49-en-clerk.wav",
+    "key": "fc94488f",
+    "lang": "en",
+    "role": "clerk",
+    "text": "HEY—!",
+    "direction": "Natural American English. Rapid-fire kitchen calls, loud and rhythmic, clear words.",
+    "processing": {
+      "tempo": 1.64,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "50-en-clerk.wav",
+    "key": "b8d3c2fe",
+    "lang": "en",
+    "role": "clerk",
+    "text": "Line up—!",
+    "direction": "Natural American English. Rapid-fire kitchen calls, loud and rhythmic, clear words.",
+    "processing": {
+      "tempo": 1.64,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "51-en-announcer.wav",
+    "key": "97cb1009",
+    "lang": "en",
+    "role": "announcer",
+    "text": "Line's out the door! How many cups?",
+    "direction": "Natural American English. Bright excited announcer, clear and energetic.",
+    "processing": {
+      "tempo": 1.56,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "52-en-announcer.wav",
+    "key": "e9170998",
+    "lang": "en",
+    "role": "announcer",
+    "text": "What's this line for? Me.",
+    "direction": "Natural American English. Bright excited announcer, clear and energetic.",
+    "processing": {
+      "tempo": 1.56,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "53-en-crowd.wav",
+    "key": "99bb7db8",
+    "lang": "en",
+    "role": "crowd",
+    "text": "BOOOOO!",
+    "direction": "Natural American English. One short playful grumble, stop immediately.",
+    "processing": {
+      "tempo": 1.53,
+      "method": "ffmpeg-atempo"
+    }
+  },
+  {
+    "file": "54-en-crowd.wav",
+    "key": "00ade5a9",
+    "lang": "en",
+    "role": "crowd",
+    "text": "Customer service?! HERE?!",
+    "direction": "Natural American English. One short playful grumble, stop immediately.",
+    "processing": {
+      "tempo": 1.53,
+      "method": "ffmpeg-atempo"
+    }
+  }
+]

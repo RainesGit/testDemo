@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-10-31：本地演出配音
+
+为解决 Kokoro 台词过于平直的问题，增加 Qwen3-TTS 1.7B CustomVoice 的本地生成流程。
+使用模型内置声线，逐句指定角色、台湾华语 / 美式英语、铺垫 / 爆点 / 回归专业以及服务腔、连骂等语气。
+没有克隆真人、录制操作系统声线或调用收费语音接口。API 花费为 US$0；本地电力和硬件成本未估算。
+
+| 项目 | 来源与记录 |
+|---|---|
+| 原模型 | [Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)，模型页标注 Apache-2.0 |
+| 实际权重 | [MLX 8-bit 版本](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit)，固定 revision `41d3337e8b7f2843a75841595fc14e4b9a7a4b96`，同样标注 Apache-2.0 |
+| 推理代码 | [MLX Audio](https://github.com/Blaizzy/mlx-audio)，MIT；构建脚本固定版本见 `game/tools/voice/requirements-acted.txt` |
+| 生成方式 | `game/tools/voice/build_acted.py`；先核对下载记录和文件哈希，再生成 WAV 缓存，全部完成后发布 MP3 和 manifest |
+| 可追溯信息 | 每句的角色声线、原文、演出指令、时长、模型版本和运行库版本写入 `game/voice/synthesis.json` |
+| 试听 | `docs/voice/samples/index.html`，中英文各 27 句及合辑，明确标为 AI 合成语音 |
+
+模型支持语气指令不等于试听已通过；自然度、台湾口音和笑点仍需实际听取。
+下方 2026-10-02 的供应商调研为历史记录，其中“当前原型仅使用 Web Speech”的描述不再代表最新构建流程。
+
+---
+
 ## 0. 结论先行（TL;DR）
 
 1. **原型阶段（现在）：零素材文件。** 音效全部用 WebAudio 程序化合成（`src/audio.js` 已按此约定），语音用浏览器 Web Speech API 实时朗读。不分发任何第三方音频，版权风险约等于零。

@@ -124,13 +124,16 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   art-shop-demo.html    Art sheet of the v3 work area (phone-width composition, cup combinations, every station)
-  tools/voice/          AI voice-pack builders: build_voice.py (Kokoro-82M, Apache-2.0, offline) and build_openai.py (OpenAI
-                        speech API with a per-line acting direction; needs OPENAI_API_KEY; docs/codex-voice-task.md); see its README
+  tools/voice/          AI voice-pack builders: build_acted.py (Qwen3-TTS 1.7B, Apache-2.0, local MLX, per-line acting,
+                        pinned model + resumable cache + listening samples; requirements-acted.txt and test_acted.py),
+                        build_voice.py (legacy Kokoro-82M, offline), and build_openai.py (optional OpenAI speech API);
+                        see its README and docs/codex-voice-task.md
   tools/art/            pic-ids.mjs (writes art/shop/ids.json) and import-pics.py (art/raw → cut out, trimmed, fitted
                         webp + manifest; pip install pillow)
   tools/fonts/          subset.py: regenerates fonts/ from the characters in src/**/*.js, index.html, style.css, shop.html, shop.css
                         (pip install fonttools brotli; source fonts are downloaded into the gitignored tools/fonts/.cache/)
-  voice/                Generated voice pack: manifest.json + mp3 sprites per language
+  voice/                Generated voice pack: manifest.json + mp3 sprites per language; synthesis.json records acted
+                        clips' model revision, cast, directions, durations and generation cost
   README.md             Prototype details, module contracts, known limits
 ```
 
@@ -208,10 +211,11 @@ Run from `game/`:
   after adding text with new characters run `python3 tools/fonts/subset.py` (`tools/check-content.mjs` F1 fails until then).
 - Audio must be license-safe: SFX are synthesized in code; see `docs/audio-sourcing.md`
   before adding any audio file.
-- Voice lines come from `game/voice/` (Kokoro AI voices). After changing any line in
+- Voice lines come from `game/voice/` (Qwen3-TTS AI voices with per-line acting directions). After changing any line in
   `src/content.*.js`, rebuild the pack (`game/tools/voice/README.md`); `tools/check-content.mjs`
-  fails if a spoken line has no clip. Clip keys come from the Traditional text; `build_voice.py` converts zh lines to
-  Simplified (OpenCC t2s) only as the TTS input for Kokoro's G2P.
+  fails if a spoken line has no clip. Clip keys and the current builder's Chinese input stay Traditional.
+  `build_acted.py` renders both languages locally; model provenance is in `voice/synthesis.json` and listening
+  samples in `docs/voice/samples/`. The legacy `build_voice.py` alone converts input for Kokoro's G2P.
 - Languages: **Traditional Chinese (Taiwan wording) and English only; no Simplified Chinese anywhere a player can see**
   (producer: 只支持繁体中文和英文，别搞简体，不会上中国大陆). Target markets: Taiwan first, then HK/Macau/Malaysia/Singapore
   (same Traditional text), then English. Not mainland China or the EU. The zh text is Traditional at the source

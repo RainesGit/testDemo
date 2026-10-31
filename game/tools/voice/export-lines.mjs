@@ -1,7 +1,7 @@
 // export-lines.mjs — list every line the game speaks, as synthesis jobs for build_voice.py.
 // Run from game/:  node tools/voice/export-lines.mjs [--punchy] > /tmp/voice-jobs.json
 //
-// Each job: { lang, key, role, style, voice, speed, text, part?, post?, segments? }
+// Each job: { lang, key, role, style, voice, speed, text, scene?, reaction?, part?, beat?, post?, segments? }
 //   key       clipKey(lang, line) — the same key audio.js computes at runtime (from the DISPLAYED text)
 //   text      what the TTS reads: stage directions, emoji and decorative symbols removed, and numbers
 //             rewritten by audio.ttsText (zh "250杯" → "二百五十杯", en "250" → "two-fifty"; spec K1)
@@ -10,12 +10,18 @@
 //             whole line is not exported
 //   post      only with --punchy: post-processing for the hit, { gainDb, ceiling } (build_voice.py applies
 //             +gainDb then a peak limiter at ceiling after normalizing)
+//   beat      acting intent, independent of cut-point position: setup | hit | resolve
+//   scene     'opening' for the opening routine, including wrong-key and timeout reactions
+//   reaction  'timeout' for the opening's forced service voice and its follow-up aside
 //   segments  only for lines containing bleep words: [{type:'text'|'bleep', value}]
 //
 // Render profiles (per-segment settings, RENDER_PROFILES): 'spec' (default, docs/first-minute-spec.md 8.6 item 7:
 // quick setup 1.10, heavy punch 0.90) or 'punchy' (--punchy / --profile=punchy: relaxed setup 0.95, fast punch
 // 1.10 baked +6 dB into a limiter; rage lines get +4 dB). With 'punchy' the hit is the half audio.voicePlan()
 // picks (the punch, or the curse half when the curse comes first, e.g. "調你媽！|黃金比例最好喝！").
+//
+// Speed/post profiles remain for the legacy builders. build_acted.py uses role/style/beat
+// for directions and its own scene/reaction/role tempo calibration.
 //
 // Order matters when two lines share a key (same text): the first job wins, so the opening routine is
 // exported first, then customers, then system lines.
@@ -42,8 +48,8 @@ const SPEED = {
   real: 1.1, curse: 1.2, disdain: 1.0, cold: 0.88, deadpan: 1.0, chuuni: 0.95, math: 1.15,
   '250': 1.05, twist: 1.05, polite: 0.92, rage: 1.3, cust: 1.1, next: 1.15, boo: 1.2, announce: 1.1,
 };
-// Per-segment render settings. lead = the half before (or after) the hit; hit = the punch half, or the curse
-// half when the curse comes first. 'spec' is spec 8.6 item 7 (quick setup, heavy punch) and the shipped pack.
+// Legacy per-segment render settings. lead = the half before (or after) the hit; hit = the punch half,
+// or the curse half when the curse comes first. 'spec' is spec 8.6 item 7 (quick setup, heavy punch).
 export const RENDER_PROFILES = {
   spec: { lead: { speed: 1.10 }, hit: { speed: 0.90 }, rage: {} },
   punchy: {
@@ -65,13 +71,15 @@ const OPENING_STYLE = {
   ask: 'deadpan', r3: 'cold', r3b: 'deadpan', r4: 'curse', r4b: 'chuuni', r4c: 'deadpan', r4d: 'deadpan',
   r4e: 'deadpan', r4f: 'deadpan', next: 'next',
 };
+// The clerk snaps straight back to professional service after the opening's big curse.
+const OPENING_RESOLVE = new Set(['r4b', 'r4c', 'r4d', 'r4e', 'r4f']);
 // Display-only parts of SYSTEM.opening (spec 8.7 item 1).
 const OPENING_SILENT = new Set(['dayCard', 'signs', 'cue', 'hz', 'recap', 'plate', 'closing']);
 
 function speakable(line, lang) {
   return stripStage(ttsText(line, lang))
     .replace(/\p{Extended_Pictographic}|\u{FE0F}|\u{200D}/gu, '')
-    .replace(/[～~]+/g, '，')
+    .replace(/[～~]+/g, lang === 'zh' ? '，' : '')
     .replace(/[“”"「」]/g, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/^[，,\s]+|[，,\s]+$/g, '')
@@ -79,46 +87,49 @@ function speakable(line, lang) {
 }
 
 const jobs = new Map();
-function addOne(lang, line, role, style, voice, speed, part, post) {
+function addOne(lang, line, role, style, voice, speed, part, post, beat, reaction) {
   const text = speakable(line, lang);
   if (!text || !/[\p{L}\p{N}]/u.test(text)) return;
   const key = clipKey(lang, line);
   if (jobs.has(key)) return;
   const job = { lang, key, role, style, voice, speed, text };
   if (part) job.part = part;
+  if (beat) job.beat = beat;
+  if (reaction) job.reaction = reaction;
   if (post) job.post = post;
   const segs = splitForBleep(text, DEFAULT_BLEEP_WORDS);
   if (segs.some((x) => x.type === 'bleep')) job.segments = segs;
   jobs.set(key, job);
 }
-function add(lang, line, role, style, voice) {
+function add(lang, line, role, style, voice, beat, reaction) {
   if (line == null) return;
   if (String(line).includes('|')) {
     const [setup, punch] = splitPunch(line);
-    const curseFirst = !!profile.byHit && voicePlan(line, { voiceFx: true }).hit === 'setup';
+    const hitFirst = voicePlan(line, { voiceFx: true }).hit === 'setup';
+    const curseFirst = !!profile.byHit && hitFirst;
     const s = curseFirst ? profile.hit : profile.lead;
     const p = curseFirst ? profile.lead : profile.hit;
-    addOne(lang, setup, role, style, voice, s.speed, 'setup', s.post);
-    addOne(lang, punch, role, style, voice, p.speed, 'punch', p.post);
+    addOne(lang, setup, role, style, voice, s.speed, 'setup', s.post, hitFirst ? 'hit' : 'setup', reaction);
+    addOne(lang, punch, role, style, voice, p.speed, 'punch', p.post, hitFirst ? 'resolve' : 'hit', reaction);
     return;
   }
   const extra = style === 'rage' ? profile.rage : {};
-  addOne(lang, line, role, style, voice, extra.speed ?? SPEED[style] ?? 1, undefined, extra.post);
+  addOne(lang, line, role, style, voice, extra.speed ?? SPEED[style] ?? 1, undefined, extra.post, beat, reaction);
 }
 
-/** Every spoken line of SYSTEM.opening as [line, role, style, voiceKey]. Exported for check-content. */
+/** Spoken opening lines as [line, role, style, voiceKey, beat?, reaction?]. Exported for check-content. */
 export function openingLines(opening = {}) {
   const out = [];
   for (const [k, v] of Object.entries(opening)) {
     if (OPENING_SILENT.has(k)) continue;
     if (typeof v === 'string') {
       if (/^c\d/.test(k)) out.push([v, 'customer', 'cust', k]);
-      else out.push([v, 'clerk', OPENING_STYLE[k] || 'deadpan', null]);
+      else out.push([v, 'clerk', OPENING_STYLE[k] || 'deadpan', null, OPENING_RESOLVE.has(k) ? 'resolve' : undefined]);
     } else if (k === 'wrong' && v) {
       for (const [wk, wv] of Object.entries(v)) out.push([wv, 'clerk', /^w\d(gun|shut)$/.test(wk) && wk.startsWith('w3') ? 'curse' : 'real', null]);
     } else if (k === 'timeout' && v) {
       for (const [tk, tv] of Object.entries(v)) {
-        for (const line of Array.isArray(tv) ? tv : [tv]) out.push([line, 'clerk', /^notMe/.test(tk) ? 'cold' : 'polite', null]);
+        for (const line of Array.isArray(tv) ? tv : [tv]) out.push([line, 'clerk', /^notMe/.test(tk) ? 'cold' : 'polite', null, undefined, 'timeout']);
       }
     }
   }
@@ -130,12 +141,13 @@ function exportAll() {
     const { customers, system } = getContent(lang);
     const cast = CAST[lang];
     // Day 1 opening routine first (spec 8.7 item 1), so its voices win shared keys.
-    for (const [line, role, style, who] of openingLines(system.opening)) {
+    for (const [line, role, style, who, beat, reaction] of openingLines(system.opening)) {
       const voice = role === 'customer' ? OPENING_CUST[lang][who] || cast.customers[0] : cast.clerk;
       // "調你媽！" has no setup half but is the routine's biggest punch: punch speed.
-      if (line === system.opening.r4) addOne(lang, line, role, style, voice, profile.hit.speed, 'punch', profile.hit.post);
-      else add(lang, line, role, style, voice);
+      if (line === system.opening.r4) addOne(lang, line, role, style, voice, profile.hit.speed, 'punch', profile.hit.post, 'hit');
+      else add(lang, line, role, style, voice, beat, reaction);
     }
+    for (const job of jobs.values()) if (job.lang === lang) job.scene = 'opening';
     for (const c of customers) {
       add(lang, c.says, 'customer', 'cust', cast.customers[c.id % cast.customers.length]);
       add(lang, c.reply, 'clerk', c.style, cast.clerk);

@@ -4,3 +4,4 @@ tools/package-lock.json
 tools/voice/__pycache__/
 tools/fonts/.cache/
 art/_test/
+tools/voice/.cache-openai/

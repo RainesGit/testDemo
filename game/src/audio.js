@@ -234,6 +234,18 @@ export const VOICE_FX = {
   compressor: { threshold: -20, knee: 4, ratio: 5, attack: 0.001, release: 0.09 },
 };
 
+/**
+ * A voice pack that was acted (manifest `expressive: true`, tools/voice/build_openai.py) already carries the emotion
+ * the runtime chain fakes for Kokoro: no intonation contours, no faster hit, light drive. The impact and the polite /
+ * hit level contrast stay.
+ */
+export const EXPRESSIVE_FX = { intonation: false, punchRate: 1, driveDb: 2, liteDriveDb: 1, gentleK: 1.2 };
+/** The voice punch config to use with a pack: voiceFx as given, softened by EXPRESSIVE_FX for an acted pack. */
+export function packVoiceFx(voiceFx, manifest) {
+  if (!voiceFx || !manifest || manifest.expressive !== true) return voiceFx;
+  return { ...(voiceFx === true ? {} : voiceFx), ...EXPRESSIVE_FX };
+}
+
 const HOT_STYLES = new Set(['rage', 'curse']);
 /** True when the text contains a default bleep word (used to find which half of a line is the curse). */
 export const hasCurse = (text) => splitForBleep(stripStage(text), DEFAULT_BLEEP_WORDS).some((s) => s.type === 'bleep');
@@ -1411,9 +1423,9 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
   /** Clip-based timing of a line in the current language (sync; estimates when a clip is missing). */
   function voiceTimings(text, opts = {}) {
     if (opts.punchOnly) text = punchOnlyText(text);
-    return timingsFromManifest(pack, opts.lang || lang, text, { bleep: bleepOn, voiceFx: fxCfg, lite: liteOn, ...opts });
+    return timingsFromManifest(pack, opts.lang || lang, text, { bleep: bleepOn, voiceFx: packVoiceFx(fxCfg, pack), lite: liteOn, ...opts });
   }
-  const planFor = (text, opts) => voicePlan(text, { voiceFx: fxCfg, lite: liteOn, ...opts });
+  const planFor = (text, opts) => voicePlan(text, { voiceFx: packVoiceFx(fxCfg, pack), lite: liteOn, ...opts });
 
   const withTiming = (promise, timing) => Object.assign(promise, timing);
 
@@ -1492,7 +1504,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     const gen = speechGen;
     const clip = findClip(unpipe(text));
     const run = (async () => {
-      if (clip && ensureCtx()) await playClip(clip, { gen, rate, contour: fxConfig(fxCfg)?.intonation ? customerContour(text) : null });
+      if (clip && ensureCtx()) await playClip(clip, { gen, rate, contour: fxConfig(packVoiceFx(fxCfg, pack))?.intonation ? customerContour(text) : null });
       else await sayFallback(unpipe(text), { style: 'cust', rate: STYLE_VOICE.cust.rate * rate }, gen);
       return { ms };
     })().catch(() => ({ ms }));
@@ -1614,7 +1626,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     setVolume(v) { volume = clamp(Number(v) || 0, 0, 1); if (master) master.gain.value = volume; },
     /** Voice punch on/off (true / false) or tuning merged over VOICE_FX ({ punchRate: 1.04, impact: false }). */
     setVoiceFx(v) { fxCfg = v && typeof v === 'object' ? { ...(typeof fxCfg === 'object' ? fxCfg : {}), enabled: true, ...v } : !!v; },
-    get voiceFx() { return fxConfig(fxCfg); },
+    get voiceFx() { return fxConfig(packVoiceFx(fxCfg, pack)); },
     /** Lite mode (ui K4): the voice punch drops its compressor, shaper and megaphone filters. */
     setLite(on) { liteOn = !!on; },
     speak,

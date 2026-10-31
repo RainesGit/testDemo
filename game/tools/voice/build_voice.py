@@ -29,8 +29,9 @@ from multiprocessing import Pool
 
 import lameenc
 import numpy as np
-import onnxruntime as ort
-from kokoro_onnx import Kokoro
+
+# onnxruntime / kokoro_onnx are imported where they are used (Synth), so build_openai.py can reuse the packing helpers
+# below without Kokoro installed.
 
 try:
     import opencc
@@ -106,6 +107,8 @@ def bleep(chars):
 
 class Synth:
     def __init__(self, model, voices, threads=0):
+        import onnxruntime as ort
+        from kokoro_onnx import Kokoro
         if threads:
             opts = ort.SessionOptions()
             opts.intra_op_num_threads = threads

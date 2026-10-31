@@ -33,6 +33,7 @@ docs/
                         replaces first-minute-spec.md 2 (art)
   art-ai-brief.md       AI bitmap art brief for the v3 shop (producer 2026-10-27: commercial quality): tools + licensing,
                         the style anchor, prompts, every picture id with ratio, customers / clerk designs, import steps
+  codex-voice-task.md   Task for Codex: re-render the voice pack with the OpenAI speech API (steps, checks, report)
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)
   localization-tw.md    Taiwan Traditional writing guide for zh text (wording, character choices, checks, HK notes, voice)
@@ -123,7 +124,8 @@ game/                   Web prototype (plain HTML/CSS/ES modules, zero dependenc
                         (screenshots and node_modules are gitignored)
   art-demo.html         Art sheet of every clerk mood, customer, sign and monitor scene
   art-shop-demo.html    Art sheet of the v3 work area (phone-width composition, cup combinations, every station)
-  tools/voice/          Offline AI voice-pack builder (Kokoro-82M, Apache-2.0); see its README
+  tools/voice/          AI voice-pack builders: build_voice.py (Kokoro-82M, Apache-2.0, offline) and build_openai.py (OpenAI
+                        speech API with a per-line acting direction; needs OPENAI_API_KEY; docs/codex-voice-task.md); see its README
   tools/art/            pic-ids.mjs (writes art/shop/ids.json) and import-pics.py (art/raw → cut out, trimmed, fitted
                         webp + manifest; pip install pillow)
   tools/fonts/          subset.py: regenerates fonts/ from the characters in src/**/*.js, index.html, style.css, shop.html, shop.css

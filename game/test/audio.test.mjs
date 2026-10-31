@@ -251,7 +251,7 @@ test('createAudio: first-minute methods exist and degrade silently; playClerk ca
 });
 
 // ---- runtime voice punch (VOICE_FX / voicePlan) ----
-import { voicePlan, VOICE_FX, PUNCH_RATE, CLIP_RATE, hasCurse, dbToGain, CONTOURS, customerContour } from '../src/audio.js';
+import { voicePlan, VOICE_FX, PUNCH_RATE, CLIP_RATE, hasCurse, dbToGain, CONTOURS, customerContour, packVoiceFx, EXPRESSIVE_FX } from '../src/audio.js';
 
 test('voicePlan: off (legacy) keeps the spec 8.5 chain exactly', () => {
   const p = voicePlan('還在想？|滾！', { fx: 'curse' });
@@ -436,4 +436,17 @@ test('intonation: every contour averages about 1 (timings stay true); the mega c
   assert.equal(customerContour('可以少冰嗎？'), CONTOURS.ask);
   assert.equal(customerContour('Can I taste it first?'), CONTOURS.ask);
   assert.equal(customerContour('一杯就好喔。'), CONTOURS.tell);
+});
+
+test('an acted voice pack (manifest expressive) drops the Kokoro crutches but keeps the punch chain', () => {
+  assert.equal(packVoiceFx(true, { langs: {} }), true);
+  assert.equal(packVoiceFx(false, { expressive: true }), false);
+  const fx = packVoiceFx(true, { expressive: true });
+  assert.deepEqual(fx, EXPRESSIVE_FX);
+  const p = voicePlan('還在想？|滾！', { voiceFx: fx });
+  assert.equal(p.punch.chain, 'punch');
+  assert.equal(p.punch.contour, null);
+  assert.equal(p.setup.contour, null);
+  assert.equal(p.punch.rate, 1);
+  assert.deepEqual(packVoiceFx({ impact: false }, { expressive: true }), { impact: false, ...EXPRESSIVE_FX });
 });

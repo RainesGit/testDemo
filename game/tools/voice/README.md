@@ -1,5 +1,11 @@
 # AI voice pack
 
+> **Two builders.** `build_voice.py` renders with Kokoro (offline, free, flat delivery: the shipped pack until the
+> OpenAI pack lands). `build_openai.py` renders the same jobs with the OpenAI speech API and an acting direction per
+> line (role × style × setup/hit half), into the same manifest and sprites, marked `expressive: true` (then
+> `src/audio.js` uses `EXPRESSIVE_FX`). It needs `OPENAI_API_KEY` and network access; see its header and
+> `docs/codex-voice-task.md`.
+
 The game plays pre-rendered voice clips from `game/voice/` (`manifest.json` plus a few mp3
 sprites per language). Any line without a clip falls back to the browser's speech synthesis,
 so the game still works if the pack is missing or out of date.

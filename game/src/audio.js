@@ -11,6 +11,7 @@
 //   playClerk(text, { punchGapMs = 200, punchFx = 'normal'|'curse'|'mega', bedBackMs = 200, style, punchOnly })
 //       → Promise & { setupMs, gapMs, punchStartMs, punchMs, totalMs }   ('|' = setup | punch cut point)
 //       punchOnly (gameplay-v2 fast mouth): only the punch half plays (punchOnlyText); voiceTimings takes it too
+//       maxLateMs: if the sprites are not ready within this long (slow download), the line is skipped, not played late
 //   playCustomer(text, { rate = 1 }) → Promise & { ms }
 //   voiceTimings(text, { punchGapMs, punchFx, rate, lang }) → same timing object, sync (manifest or estimate)
 //   cut(ms = 40)              fade all voices out (W3 brake, interrupted customer)
@@ -23,6 +24,8 @@
 //   setVoiceFx(on | tuning) / voiceFx, setLite(on)   runtime voice punch (VOICE_FX, voicePlan); createAudio({ voiceFx })
 //   playUserClip(buffer, { gainDb = 6, rate = 1.06 })   voice mode: the player's own shout through the megaphone chain
 //   context                   the shared AudioContext (the microphone is analysed on it)
+//   fetchVoiceFiles(lang)     download every voice sprite of a language in the background (no decode)
+//   prefetchLine(text)        decode the sprites a line will need, so it plays without a fetch / decode delay
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -1240,19 +1243,47 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     return bleepOn && clip.b ? clip.b : clip;
   }
 
+  // the sprite's bytes (fetchVoiceFiles() downloads them ahead; chunk() decodes them when a line needs them)
+  const rawCache = new Map(); // "lang:index" -> Promise<ArrayBuffer|null>
+  function raw(l, index) {
+    const id = `${l}:${index}`;
+    if (!rawCache.has(id)) {
+      const name = pack?.langs?.[l]?.chunks?.[index];
+      rawCache.set(id, !name ? Promise.resolve(null) : fetch(packBase + name)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+        .catch(() => { rawCache.delete(id); return null; }));
+    }
+    return rawCache.get(id);
+  }
+
   function chunk(l, index) {
     const id = `${l}:${index}`;
     if (!chunkCache.has(id)) {
-      const name = pack?.langs?.[l]?.chunks?.[index];
-      const p = !name || !ensureCtx()
+      const p = !pack?.langs?.[l]?.chunks?.[index] || !ensureCtx()
         ? Promise.resolve(null)
-        : fetch(packBase + name)
-          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
-          .then((buf) => ctx.decodeAudioData(buf))
+        : raw(l, index)
+          .then((buf) => { rawCache.delete(id); return buf ? ctx.decodeAudioData(buf) : Promise.reject(new Error('no data')); })
           .catch(() => { chunkCache.delete(id); return null; });
       chunkCache.set(id, p);
     }
     return chunkCache.get(id);
+  }
+
+  /** Download (not decode) every sprite of a language in the background, one at a time: a few MB, so the first time a
+   *  line is needed only its decode is left. */
+  async function fetchVoiceFiles(l = lang) {
+    const n = pack?.langs?.[l]?.chunks?.length || 0;
+    for (let i = 0; i < n; i++) if (!chunkCache.has(`${l}:${i}`)) await raw(l, i);
+  }
+
+  /** Decode the sprites a line will need (both halves), so it plays the moment it is asked for. */
+  function prefetchLine(text, l = lang) {
+    const [setup, punch] = splitPunch(text);
+    for (const part of [setup, punch]) {
+      if (!stripStage(part)) continue;
+      const clip = findClip(part, l);
+      if (clip) chunk(l, clip.c);
+    }
   }
 
   /** Decode the current language's sprites in the background so the first lines play without delay. */
@@ -1441,7 +1472,8 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
    * Cuts any speech already playing. Returns a Promise (resolves when the line ends) that also carries
    * { setupMs, gapMs, punchStartMs, punchMs, totalMs } synchronously.
    */
-  function playClerk(text, { punchGapMs = 200, punchFx = 'normal', bedBackMs = 200, style, duckBed = true, punchOnly = false } = {}) {
+  function playClerk(text, { punchGapMs = 200, punchFx = 'normal', bedBackMs = 200, style, duckBed = true, punchOnly = false, maxLateMs = Infinity } = {}) {
+    const askedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (punchOnly) text = punchOnlyText(text);
     const timing = voiceTimings(text, { punchGapMs, punchFx, style });
     const plan = planFor(text, { fx: punchFx, style });
@@ -1460,6 +1492,8 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
         // Both halves pre-rendered: schedule sample-accurately on the AudioContext clock (K5).
         const [bs, bp] = await Promise.all([cs ? chunk(lang, cs.c) : null, cp ? chunk(lang, cp.c) : null]);
         if (gen !== speechGen) return timing;
+        // a line that would start long after its moment (a slow sprite download) is dropped, not played late
+        if ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - askedAt > maxLateMs) return timing;
         const t0 = now() + 0.02;
         const tp = t0 + timing.punchStartMs / 1000;
         if (hasSetup && duckBed && bedBus) {
@@ -1649,6 +1683,8 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     stopLoops,
     announce,
     loadVoicePack,
+    fetchVoiceFiles,
+    prefetchLine,
     preloadVoice,
     hasClip: (text) => !!findClip(text),
     get hasVoicePack() { return !!pack; },

@@ -41,7 +41,7 @@ let seed = Number(params.get('seed')) || (Date.now() % 100000);
 
 const audio = createAudio({});
 audio.setLang(lang);
-audio.loadVoicePack('voice/manifest.json');
+audio.loadVoicePack('voice/manifest.json').then(() => audio.fetchVoiceFiles()); // the sprites download in the background
 let muted = params.get('mute') === '1';
 if (muted) audio.setVolume(0);
 
@@ -114,15 +114,17 @@ function setLang(l) {
   content = getContent(lang);
   ui.setLang(lang);
   audio.setLang(lang);
+  audio.fetchVoiceFiles(lang);
 }
 
-// ---- the clerk's voice: a line is never cut by the next one ----
-// Cursing fast used to cut every line after a syllable. Now a line plays to the end; a curse that comes while the clerk
-// is still talking waits for it and then plays only its hit (the half after '|'), and only the newest waiting line is
-// kept: the ones in between are dropped (their subtitles too: the screen shows what is heard). Customers do not talk
-// over the clerk either.
+// ---- the clerk's voice: heard, and right away ----
+// Cursing fast used to cut every line after a syllable; making every curse wait for the line before it made the voice
+// lag behind the kick. Now a curse that comes while the clerk is still talking waits only if the line ends within
+// CLERK_MAX_WAIT_MS, then plays its hit (the half after '|'); otherwise it cuts the line and plays its hit at once. Only
+// the newest waiting line is kept (dropped ones take their subtitles with them: the screen shows what is heard).
+// Customers do not talk over the clerk.
 const CLERK_GAP_MS = 90;
-const CLERK_MAX_WAIT_MS = 1600;
+const CLERK_MAX_WAIT_MS = 600;
 let clerkFreeAt = 0;
 let clerkWaiting = null;
 const clerkTalking = () => performance.now() < clerkFreeAt;
@@ -136,7 +138,7 @@ function clerkSay(line, key, opts = {}, { voice = true } = {}) {
   const wait = clerkFreeAt - performance.now();
   if (wait <= 0 || !voice) { go(opts); return; }
   if (clerkWaiting) clearTimeout(clerkWaiting);
-  if (wait > CLERK_MAX_WAIT_MS) { clerkWaiting = null; return; }
+  if (wait > CLERK_MAX_WAIT_MS) { clerkWaiting = null; go({ ...opts, punchOnly: true }); return; } // playClerk cuts the old line
   clerkWaiting = setTimeout(() => { clerkWaiting = null; go({ ...opts, punchOnly: true }); }, wait);
 }
 function clerkHush() {
@@ -151,6 +153,9 @@ function handle(ev) {
   ui.onEvent(ev, { lang });
   switch (ev.type) {
     case 'arrive':
+      // decode now what the clerk may answer, so the voice comes with the kick (not after a sprite download)
+      if (ev.cust.kind === 'oke') for (const k of ['gun', 'shut', 'take']) audio.prefetchLine(okeLine(ev.cust.oke, k, content));
+      else audio.prefetchLine(normalLine(ev.cust.cid, content));
       if (ev.cust.kind === 'oke') {
         const says = customerSays(ev.cust.cid, content);
         if (!clerkTalking()) { ui.say(says, 'cust', okeOf(ev.cust.oke).best); audio.playCustomer(says, { rate: 1.05 }); }
@@ -168,7 +173,7 @@ function handle(ev) {
       const line = ev.oke ? okeLine(ev.oke, ev.key, content) : normalLine(ev.cid, content);
       // the fly-off sounds sit under the voice: softer while the clerk is still talking
       const quiet = clerkTalking() ? 0.6 : 1;
-      clerkSay(line, ev.key, { punchFx: 'curse' }, { voice: !voicedAnswer });
+      clerkSay(line, ev.key, { punchFx: 'curse', maxLateMs: 900 }, { voice: !voicedAnswer }); // late = silent, never behind the kick
       voicedAnswer = false;
       if (ev.key === 'gun') { audio.sfx('whoosh', { duration: 0.2, intensity: 0.9 * quiet }); audio.sfx('boom', { intensity: 0.5 * quiet * quiet, delay: 0.05 }); }
       if (ev.key === 'shut') audio.sfx('slap', { intensity: 0.8 });

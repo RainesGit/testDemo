@@ -18,7 +18,8 @@
 //   hush(ms = 20)             voices + loops + bed to silence (E1)
 //   duck(toDb = -60, ms = 30) / restore(ms = 200, delayMs = 0)   bed level
 //   bed(on = true, level)     crowd murmur + 110 BPM rhythm (-18 dB)
-//   loop(name, opts) → { stop(ms), detune(cents) }   'musicbox' | 'hum';  stopLoop(name, ms), stopLoops(ms)
+//   loop(name, opts) → { stop(ms), detune(cents) }   'musicbox' | 'hum' | 'shopbgm' (the shop's tune, on the bed bus);
+//                             stopLoop(name, ms), stopLoops(ms)
 //   sfx(name, opts)           + gate slam boom whoosh press pop card tick tap ding coin bell dingdong stamp slap clock
 //                               sigh scratch feedback sparkle drumroll crowdOh huh (all synthesized)
 //   setVoiceFx(on | tuning) / voiceFx, setLite(on)   runtime voice punch (VOICE_FX, voicePlan); createAudio({ voiceFx })
@@ -1037,6 +1038,62 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
         detune(c) { detune = c; live.forEach((s) => { try { s.detune.setValueAtTime(c, now()); } catch { /* ended */ } }); },
         dispose() { clearInterval(timer); },
       };
+    },
+    // The shop's background tune (gameplay v3): a bouncy 8-bar loop at 112 BPM in C major pentatonic over C – Am – F – G,
+    // all synthesized: a plucked triangle lead, a sine bass on beats 1 and 3, off-beat chord stabs, a soft kick, a clap on
+    // 2 and 4 and eighth-note hats. It plays on the bed bus, so the clerk's hit still lands in a hole (duck / restore).
+    shopbgm(o) {
+      const out = gain(ensureBed(), o.level ?? 0.16);
+      const E = 60 / 112 / 2; // an eighth note
+      const N = { G4: 392, A4: 440, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880, C6: 1046.5 };
+      const lead = [
+        'E5', 0, 'G5', 0, 'A5', 'G5', 'E5', 0, 'C5', 0, 'E5', 0, 'D5', 'C5', 'A4', 0,
+        'A4', 0, 'C5', 0, 'D5', 'C5', 'A4', 'C5', 'D5', 0, 0, 'D5', 'E5', 'D5', 'G4', 0,
+        'E5', 0, 'G5', 0, 'A5', 'G5', 'C6', 0, 'A5', 0, 'G5', 0, 'E5', 'D5', 'C5', 0,
+        'A4', 'C5', 'D5', 'C5', 'A4', 0, 'C5', 'D5', 'E5', 'D5', 0, 'G4', 0, 0, 'C5', 0,
+      ];
+      const chords = [[130.81, 329.63, 392], [110, 261.63, 329.63], [87.31, 220, 261.63], [98, 246.94, 293.66]]; // bass, two stab notes
+      let step = 0;
+      let next = now() + 0.06;
+      const pump = () => {
+        while (next < now() + 0.3) {
+          const i = step % 64;
+          const pos = i % 8;
+          const [bass, s1, s2] = chords[Math.floor(i / 8) % 4];
+          const n = lead[i];
+          if (n) {
+            const g1 = gain(out);
+            const e1 = env(g1, next, { a: 0.004, peak: 0.34, d: 0.2 });
+            osc('triangle', N[n], next, e1, g1);
+            const g2 = gain(out);
+            const e2 = env(g2, next, { a: 0.004, peak: 0.07, d: 0.12 });
+            osc('sine', N[n] * 2, next, e2, g2);
+          }
+          if (pos === 0 || pos === 4 || pos === 3) {
+            const gb = gain(out);
+            const eb = env(gb, next, { a: 0.006, peak: pos === 3 ? 0.3 : 0.5, d: 0.2 });
+            osc('sine', pos === 3 ? bass * 2 : bass, next, eb, gb);
+          }
+          if (pos % 2 === 1) { // off-beat stab
+            for (const f of [s1, s2]) { const gs = gain(out); const es = env(gs, next, { a: 0.003, peak: 0.1, d: 0.09 }); osc('triangle', f, next, es, gs); }
+          }
+          if (pos === 0 || pos === 4) { // soft kick
+            const gk = gain(out);
+            const ek = env(gk, next, { a: 0.002, peak: 0.5, d: 0.11 });
+            const k = osc('sine', 120, next, ek, gk);
+            k.frequency.exponentialRampToValueAtTime(48, next + 0.1);
+          }
+          if (pos === 2 || pos === 6) { const gc = gain(out); const ec = env(gc, next, { a: 0.001, peak: 0.16, d: 0.06 }); noise(next, ec, filter('bandpass', 1800, 0.8, gc)); }
+          const gh = gain(out);
+          const eh = env(gh, next, { a: 0.001, peak: pos % 2 ? 0.05 : 0.09, d: 0.025 });
+          noise(next, eh, filter('highpass', 7500, 0.7, gh));
+          step++;
+          next += E;
+        }
+      };
+      pump();
+      const timer = setInterval(pump, 90);
+      return { out, detune() {}, dispose() { clearInterval(timer); } };
     },
     // Air-conditioner hum, about -30 dB: low-passed noise + 60 Hz.
     hum(o) {

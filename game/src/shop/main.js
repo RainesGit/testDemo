@@ -49,7 +49,9 @@ const voiceLoad = audio.loadVoicePack('voice/manifest.json')
   .then(() => audio.fetchVoiceFiles(lang, (done, total) => ui.setLoad(done / total)))
   .catch(() => {})
   .then(() => { voiceLoaded = true; ui.setLoad(1); });
-let muted = params.get('mute') === '1';
+// the sound setting is remembered between visits (?mute=1 forces it off for tools)
+const MUTE_KEY = '250cups.shop.muted';
+let muted = params.get('mute') === '1' || (() => { try { return store.getItem(MUTE_KEY) === '1'; } catch { return false; } })();
 if (muted) audio.setVolume(0);
 
 let shop = null;
@@ -348,11 +350,23 @@ function pause() {
   ui.pauseSheet({ muted }, {
     resume: () => { phase = 'play'; lastT = 0; },
     lang: () => { setLang(lang === 'zh' ? 'en' : 'zh'); phase = 'play'; pause(); },
-    mute: () => { muted = !muted; audio.setVolume(muted ? 0 : 0.85); phase = 'play'; pause(); },
+    mute: () => { muted = !muted; audio.setVolume(muted ? 0 : 0.85); try { store.setItem(MUTE_KEY, muted ? '1' : '0'); } catch { /* private mode */ } phase = 'play'; pause(); },
     close: () => { phase = 'play'; shop.close(); pump(); },
     restart: () => { clearSave(store); save = freshSave(); beginDay(1); },
   });
 }
+
+// Leaving the app (another tab, the home screen, a call): the day pauses itself and the sound stops; coming back shows
+// the pause sheet, so nothing is lost while the player is away.
+document.addEventListener('visibilitychange', () => {
+  const ctx = audio.context;
+  if (document.hidden) {
+    pause();
+    try { if (ctx && ctx.state === 'running') ctx.suspend(); } catch { /* ignore */ }
+  } else {
+    try { if (ctx && ctx.state === 'suspended' && audio.unlocked) ctx.resume(); } catch { /* ignore */ }
+  }
+});
 
 // ---- voice mode (吼罵模式): a shout at a 奧客 = 滾 ----
 let mic = null;
@@ -384,6 +398,7 @@ function showStart() {
     if (going) return;
     going = true;
     audio.unlock();
+    audio.loop('shopbgm'); // the shop's tune runs from the first tap on
     if (voiceLoaded || muted) { fn(); return; }
     ui.setLoad(null, true);
     Promise.race([voiceLoad, new Promise((r) => setTimeout(r, START_WAIT_MS))]).then(fn);

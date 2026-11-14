@@ -33,6 +33,7 @@ docs/
                         replaces first-minute-spec.md 2 (art)
   art-ai-brief.md       AI bitmap art brief for the v3 shop (producer 2026-10-27: commercial quality): tools + licensing,
                         the style anchor, prompts, every picture id with ratio, customers / clerk designs, import steps
+  release-readiness.md  Launch-readiness audit of the v3 shop (2026-11-14): what was fixed, measurements, what is still missing
   codex-voice-task.md   Task for Codex: re-voice the game so it sounds acted, not stiff (method left to Codex)
   acceptance-checklist.md  Item-by-item acceptance checks with pass criteria and report format
   lines-zh.md           100 customer types with clerk lines (v3)

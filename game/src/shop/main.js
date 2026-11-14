@@ -9,7 +9,7 @@
 // window.__shop (tools): { state, phase, save, where(name), shop }. Keys J / K / L answer the leftmost 奧客 (engine.keyTarget).
 import { createShop, keyTarget, HINT_IDS } from './engine.js';
 import { dayDef, MAX_DAY } from './days.js';
-import { okeLine, normalLine, customerSays, okeOf, OKE } from './oke.js';
+import { okeLine, normalLine, customerSays, okeOf, okePool, OKE } from './oke.js';
 import { loadSave, writeSave, clearSave, afterDay, buyUpgrade, freshSave } from './save.js';
 import { createShopUI } from './ui.js';
 import { loadPics } from './pics.js';
@@ -41,7 +41,14 @@ let seed = Number(params.get('seed')) || (Date.now() % 100000);
 
 const audio = createAudio({});
 audio.setLang(lang);
-audio.loadVoicePack('voice/manifest.json').then(() => audio.fetchVoiceFiles()); // the sprites download in the background
+// The voice sprites download while the start card is up (its bar shows how far); Start waits for them (a few MB), at
+// most START_WAIT_MS, so the first curse of the day already has its voice.
+const START_WAIT_MS = 7000;
+let voiceLoaded = false;
+const voiceLoad = audio.loadVoicePack('voice/manifest.json')
+  .then(() => audio.fetchVoiceFiles(lang, (done, total) => ui.setLoad(done / total)))
+  .catch(() => {})
+  .then(() => { voiceLoaded = true; ui.setLoad(1); });
 let muted = params.get('mute') === '1';
 if (muted) audio.setVolume(0);
 
@@ -128,18 +135,35 @@ const CLERK_MAX_WAIT_MS = 600;
 let clerkFreeAt = 0;
 let clerkWaiting = null;
 const clerkTalking = () => performance.now() < clerkFreeAt;
-function clerkSay(line, key, opts = {}, { voice = true } = {}) {
+// How a curse line will be voiced if asked for now (pure look-ahead, used for the kick's timing and by clerkSay):
+//   { wait, punchOnly, hitMs }  wait: ms until it starts; punchOnly: only the hit half plays; hitMs: ms from now until
+//   the hit (the half after '|') lands, or 0 when the voice cannot be on time (its sprites are not decoded yet).
+// A line whose set-up half is longer than HIT_HOLD_MAX_MS plays its hit only, so the kick never waits long.
+const HIT_HOLD_MAX_MS = 950;
+function clerkPlan(line, opts = {}) {
+  const w = clerkFreeAt - performance.now();
+  const busy = w > 0;
+  const wait = busy && w <= CLERK_MAX_WAIT_MS ? w : 0;
+  const t = audio.voiceTimings(line, opts);
+  const punchOnly = busy || t.punchStartMs > HIT_HOLD_MAX_MS;
+  const lead = punchOnly ? audio.voiceTimings(line, { ...opts, punchOnly: true }).punchStartMs : t.punchStartMs;
+  return { wait, punchOnly, hitMs: audio.unlocked && !muted && audio.lineReady(line) ? Math.min(HIT_HOLD_MAX_MS, wait + lead) : 0 };
+}
+function clerkSay(line, key, opts = {}, { voice = true, plan = null } = {}) {
   const go = (o) => {
     ui.say(line, 'clerk', key);
     if (!voice) return;
     const p = audio.playClerk(line, o);
     clerkFreeAt = performance.now() + (p.totalMs || 0) + CLERK_GAP_MS;
   };
-  const wait = clerkFreeAt - performance.now();
-  if (wait <= 0 || !voice) { go(opts); return; }
+  if (!voice) { go(opts); return; }
+  const pl = plan || clerkPlan(line, opts);
   if (clerkWaiting) clearTimeout(clerkWaiting);
-  if (wait > CLERK_MAX_WAIT_MS) { clerkWaiting = null; go({ ...opts, punchOnly: true }); return; } // playClerk cuts the old line
-  clerkWaiting = setTimeout(() => { clerkWaiting = null; go({ ...opts, punchOnly: true }); }, wait);
+  clerkWaiting = null;
+  const o = pl.punchOnly ? { ...opts, punchOnly: true } : opts;
+  if (pl.wait <= 0) { go(o); return; } // playClerk cuts a line that is still playing
+  clerkFreeAt = Math.max(clerkFreeAt, performance.now() + pl.wait); // the slot is taken: the next curse plans after it
+  clerkWaiting = setTimeout(() => { clerkWaiting = null; go(o); }, pl.wait);
 }
 function clerkHush() {
   if (clerkWaiting) clearTimeout(clerkWaiting);
@@ -148,9 +172,15 @@ function clerkHush() {
 }
 
 // ---- audio + subtitles per event ----
+let kickPlan = null; // the plan made when a 滾 sends someone flying, used by the 'answer' that follows in the same batch
+const curseLine = (ev) => (ev.cust && ev.cust.kind === 'oke' && !ev.normal ? okeLine(ev.cust.oke, 'gun', content) : normalLine(ev.cust.cid, content));
 function handle(ev) {
   const s = shop.state;
-  ui.onEvent(ev, { lang });
+  // 滾: the customer flies when the clerk's hit lands, not before it (they brace, wide-eyed, through the set-up half)
+  if (ev.type === 'leave' && ev.reason === 'gun' && ev.cust) {
+    kickPlan = voicedAnswer ? null : clerkPlan(curseLine(ev), { punchFx: 'curse' });
+    ui.onEvent(ev, { lang, hitMs: kickPlan ? kickPlan.hitMs : 0 });
+  } else ui.onEvent(ev, { lang });
   switch (ev.type) {
     case 'arrive':
       // decode now what the clerk may answer, so the voice comes with the kick (not after a sprite download)
@@ -173,7 +203,8 @@ function handle(ev) {
       const line = ev.oke ? okeLine(ev.oke, ev.key, content) : normalLine(ev.cid, content);
       // the fly-off sounds sit under the voice: softer while the clerk is still talking
       const quiet = clerkTalking() ? 0.6 : 1;
-      clerkSay(line, ev.key, { punchFx: 'curse', maxLateMs: 900 }, { voice: !voicedAnswer }); // late = silent, never behind the kick
+      clerkSay(line, ev.key, { punchFx: 'curse', maxLateMs: 900 }, { voice: !voicedAnswer, plan: ev.key === 'gun' ? kickPlan : null }); // late = silent, never behind the kick
+      kickPlan = null;
       voicedAnswer = false;
       if (ev.key === 'gun') { audio.sfx('whoosh', { duration: 0.2, intensity: 0.9 * quiet }); audio.sfx('boom', { intensity: 0.5 * quiet * quiet, delay: 0.05 }); }
       if (ev.key === 'shut') audio.sfx('slap', { intensity: 0.8 });
@@ -254,6 +285,8 @@ requestAnimationFrame(frame);
 
 // ---- days ----
 function beginDay(n) {
+  // decode what today's 奧客 can be answered with while the day card is up
+  for (const t of okePool(n)) for (const k of ['gun', 'shut', 'take']) audio.prefetchLine(okeLine(t, k, content));
   const def = { ...dayDef(n) };
   if (lenOverride) {
     const k = lenOverride / def.lengthMs;
@@ -345,11 +378,21 @@ function startVoice() {
 
 function showStart() {
   phase = 'start';
-  ui.startCard({ day: save.day, hasSave: save.day > 1 || save.wallet > 0, voice: voiceMode }, () => {
+  let going = false;
+  // unlock inside the tap, then wait for the voice (not when muted), then go
+  const ready = (fn) => () => {
+    if (going) return;
+    going = true;
     audio.unlock();
+    if (voiceLoaded || muted) { fn(); return; }
+    ui.setLoad(null, true);
+    Promise.race([voiceLoad, new Promise((r) => setTimeout(r, START_WAIT_MS))]).then(fn);
+  };
+  ui.startCard({ day: save.day, hasSave: save.day > 1 || save.wallet > 0, voice: voiceMode }, ready(() => {
     if (voiceMode) ui.voicePrompt(() => { startVoice().then(() => beginDay(save.day)); }, () => beginDay(save.day));
     else beginDay(save.day);
-  }, () => { clearSave(store); save = freshSave(); beginDay(1); });
+  }), ready(() => { clearSave(store); save = freshSave(); beginDay(1); }));
+  if (voiceLoaded) ui.setLoad(1);
 }
 showStart();
 

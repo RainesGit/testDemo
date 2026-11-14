@@ -218,6 +218,9 @@ button { font: inherit; color: inherit; border: 0; }
 .walker.m-counter .wk-tag, .walker.leaving .wk-tag, .walker.fly .wk-tag, .walker.back .wk-tag { display: none; }
 @keyframes tagBob { to { transform: translateY(-6%) rotate(4deg); } }
 /* 滾: a recoil (anticipation), a stretched launch, then a spinning flight off the screen toward --fd (1 = right, -1 = left) */
+/* bracing: the clerk is still winding up (the set-up half of the line); they tremble, wide-eyed, until the hit lands */
+.walker.brace .wk-inner { animation: brace 80ms linear infinite alternate; }
+@keyframes brace { from { transform: translateX(-1.6%) rotate(-1.2deg) scale(.98, 1.03); } to { transform: translateX(1.6%) rotate(1.2deg) scale(.98, 1.03); } }
 .walker.fly .wk-inner { animation: flyGun 720ms linear forwards; }
 @keyframes flyGun { 0% { transform: none; animation-timing-function: ease-out; }
   14% { transform: translate(calc(var(--fd, -1) * -7%), 2%) rotate(calc(var(--fd, -1) * -9deg)) scale(1.14, .84); animation-timing-function: cubic-bezier(.2, .9, .4, 1); }
@@ -613,6 +616,13 @@ button { font: inherit; color: inherit; border: 0; }
 .start-card .logo { animation: logoDrop 420ms cubic-bezier(.3, 1.5, .5, 1) both; }
 @keyframes logoDrop { from { transform: translateY(-14cqw) rotate(-8deg); } }
 .start-btns { display: flex; gap: 2cqw; align-items: center; }
+/* loading bar under the buttons (voice sprites); Start tapped early: the buttons dim and the bar pulses until it is full */
+.start-card .load { display: block; width: 26cqw; height: 1.1cqw; border-radius: 1cqw; background: rgb(0 0 0 / .45); border: .2cqw solid var(--ink); overflow: hidden; transition: opacity 300ms; }
+.start-card .load > i { display: block; height: 100%; width: 0; background: linear-gradient(var(--gold-hi), var(--take) 55%, var(--take-deep)); transition: width 200ms; }
+.start-card .load.done { opacity: 0; }
+.start-card.waiting .start-btns { opacity: .55; pointer-events: none; }
+.start-card.waiting .load { animation: loadPulse 600ms ease-in-out infinite alternate; }
+@keyframes loadPulse { to { transform: scale(1.06); } }
 .tog.lang { position: absolute; top: 1.2cqw; right: 1.6cqw; width: 4.4cqw; height: 4.4cqw; border-radius: 50%; background: var(--chip); border: .28cqw solid var(--ink); box-shadow: 0 .35cqw 0 rgb(0 0 0 / .4); font: 800 1.6cqw/1 var(--font-num); cursor: pointer; }
 .pause-card .tog.lang { position: static; width: auto; height: auto; border-radius: 1.4cqw; font: 400 1.7cqw/1.2 var(--font-ui); }
 /* day card */

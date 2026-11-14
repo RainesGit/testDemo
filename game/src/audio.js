@@ -26,6 +26,7 @@
 //   context                   the shared AudioContext (the microphone is analysed on it)
 //   fetchVoiceFiles(lang)     download every voice sprite of a language in the background (no decode)
 //   prefetchLine(text)        decode the sprites a line will need, so it plays without a fetch / decode delay
+//   lineReady(text)           true when playClerk(text) would start at once (its sprites are decoded)
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -1256,24 +1257,52 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     return rawCache.get(id);
   }
 
+  // Decoded sprites are big (a 60 s sprite is ~11 MB of samples), so only the MAX_DECODED most recently used stay
+  // decoded; the compressed bytes (a few hundred kB each) are kept, so decoding again needs no download.
+  const MAX_DECODED = 6;
+  const decoded = new Set(); // ids whose decode has finished (lineReady)
   function chunk(l, index) {
     const id = `${l}:${index}`;
-    if (!chunkCache.has(id)) {
-      const p = !pack?.langs?.[l]?.chunks?.[index] || !ensureCtx()
-        ? Promise.resolve(null)
-        : raw(l, index)
-          .then((buf) => { rawCache.delete(id); return buf ? ctx.decodeAudioData(buf) : Promise.reject(new Error('no data')); })
-          .catch(() => { chunkCache.delete(id); return null; });
+    if (chunkCache.has(id)) {
+      const p = chunkCache.get(id); // refresh its place in the LRU order
+      chunkCache.delete(id);
       chunkCache.set(id, p);
+      return p;
     }
-    return chunkCache.get(id);
+    const p = !pack?.langs?.[l]?.chunks?.[index] || !ensureCtx()
+      ? Promise.resolve(null)
+      : raw(l, index)
+        .then((buf) => (buf ? ctx.decodeAudioData(buf.slice(0)) : Promise.reject(new Error('no data'))))
+        .then((b) => { decoded.add(id); return b; })
+        .catch(() => { chunkCache.delete(id); decoded.delete(id); return null; });
+    chunkCache.set(id, p);
+    for (const old of chunkCache.keys()) {
+      if (chunkCache.size <= MAX_DECODED) break;
+      chunkCache.delete(old);
+      decoded.delete(old);
+    }
+    return p;
   }
 
   /** Download (not decode) every sprite of a language in the background, one at a time: a few MB, so the first time a
-   *  line is needed only its decode is left. */
-  async function fetchVoiceFiles(l = lang) {
+   *  line is needed only its decode is left. onProgress(done, total) after each file. */
+  async function fetchVoiceFiles(l = lang, onProgress) {
     const n = pack?.langs?.[l]?.chunks?.length || 0;
-    for (let i = 0; i < n; i++) if (!chunkCache.has(`${l}:${i}`)) await raw(l, i);
+    for (let i = 0; i < n; i++) {
+      await raw(l, i);
+      if (onProgress) { try { onProgress(i + 1, n); } catch { /* ignore */ } }
+    }
+    return n;
+  }
+
+  /** True when every clip of the line is decoded: playClerk(text) would start at once. */
+  function lineReady(text, l = lang) {
+    const [setup, punch] = splitPunch(text);
+    return [setup, punch].every((part) => {
+      if (!stripStage(part)) return true;
+      const clip = findClip(part, l);
+      return !!clip && decoded.has(`${l}:${clip.c}`);
+    });
   }
 
   /** Decode the sprites a line will need (both halves), so it plays the moment it is asked for. */
@@ -1685,6 +1714,7 @@ export function createAudio({ bleepWords = DEFAULT_BLEEP_WORDS, volume = 0.85, v
     loadVoicePack,
     fetchVoiceFiles,
     prefetchLine,
+    lineReady,
     preloadVoice,
     hasClip: (text) => !!findClip(text),
     get hasVoicePack() { return !!pack; },

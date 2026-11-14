@@ -416,10 +416,11 @@ export function createShopUI(root, h = {}) {
       w.el.style.zIndex = String(Math.round(p.y) - 400);
     }
   }
-  function startLeave(w, kind, reason) {
+  function startLeave(w, kind, reason, holdMs = 0) {
     const happy = reason === 'served' || reason === 'take';
-    // a paying customer stays for the whole happy jump (anticipation → jump → landing, 540 ms) before turning round
-    w.leaving = { kind, t0: performance.now(), from: w.pos || streetPoint(0), hold: happy && kind === 'walk' ? 560 : 0 };
+    // a paying customer stays for the whole happy jump (anticipation → jump → landing, 540 ms) before turning round;
+    // a kicked one braces for holdMs (until the clerk's hit lands) before flying
+    w.leaving = { kind, t0: performance.now(), from: w.pos || streetPoint(0), hold: happy && kind === 'walk' ? 560 : holdMs };
     w.el.classList.remove('oke-live');
     if (reason) w.el.dataset.exit = reason;
     if (happy && kind === 'walk') oneShot(w.el, 'happy', 2000);
@@ -1052,12 +1053,19 @@ export function createShopUI(root, h = {}) {
           const now = performance.now();
           const fd = lastSwipe && lastSwipe.slot === ev.slot && now - lastSwipe.t < 800 ? (lastSwipe.x >= 0 ? 1 : -1) : -1;
           const a = fd > 0 ? -0.5 : Math.PI + 0.5;
-          shake(10, fd, -0.4, 90);
-          burst(r.cx, r.cy, 'ice', 3, a);
-          stars(r.cx, r.cy, 4, { a0: a, spread: Math.PI * 0.9, d0: 60, d1: 110 });
-          dust(r.cx - fd * r.w * 0.2, LIP_Y * K - 6 * K, 1.4, -fd * 30, -12, 1, 60);
-          dust(r.cx + fd * r.w * 0.1, LIP_Y * K - 2 * K, 1.1, -fd * 12, -18, 1, 110);
-          if (w) { w.el.style.setProperty('--fd', String(fd)); startLeave(w, 'fly', 'gun'); w.el.classList.add('fly'); }
+          // ctx.hitMs: when the clerk's hit lands (main.js). The launch (≈ 110 ms into the fly animation) is timed to it;
+          // until then the customer braces, wide-eyed
+          const hold = Math.max(0, Math.min(1000, (ctx.hitMs || 0) - 110));
+          const launch = () => {
+            shake(10, fd, -0.4, 90);
+            burst(r.cx, r.cy, 'ice', 3, a);
+            stars(r.cx, r.cy, 4, { a0: a, spread: Math.PI * 0.9, d0: 60, d1: 110 });
+            dust(r.cx - fd * r.w * 0.2, LIP_Y * K - 6 * K, 1.4, -fd * 30, -12, 1, 60);
+            dust(r.cx + fd * r.w * 0.1, LIP_Y * K - 2 * K, 1.1, -fd * 12, -18, 1, 110);
+            if (w) { w.el.classList.remove('brace'); w.el.classList.add('fly'); }
+          };
+          if (w) { w.el.style.setProperty('--fd', String(fd)); startLeave(w, 'fly', 'gun', hold); if (hold > 0) w.el.classList.add('brace'); }
+          if (hold > 0) setTimeout(launch, hold); else launch();
         } else if (w) {
           if (ev.reason === 'take') { stampOn(ev.slot); w.el.classList.add('has-ticket'); oneShot(w.el, 'thump', 600); }
           if (ev.reason === 'timeout') w.el.classList.add('sad');
@@ -1562,12 +1570,25 @@ export function createShopUI(root, h = {}) {
     const c = card('start-card', `<div class="rays"></div><div class="logo">${logoSVG(lang)}</div><div class="start-btns">` +
       `<button class="btn-gold big go">${ICON.play}<span>${esc(hasSave && day > 1 ? fmt(T.cont, { n: day }) : T.start)}</span></button>` +
       (hasSave && day > 1 ? `<button class="btn-2 fresh">${ICON.restart}<span>${esc(T.fresh)}</span></button>` : '') + '</div>' +
+      '<i class="load"><i></i></i>' +
       `<button class="tog lang" aria-label="language">${lang === 'zh' ? 'EN' : '中'}</button>`);
     c.querySelector('.go').addEventListener('click', () => onStart());
     const f = c.querySelector('.fresh');
     if (f) f.addEventListener('click', () => onFresh());
     c.querySelector('.lang').addEventListener('click', () => call('onToggleLang'));
     c.dataset.voice = voice ? '1' : '';
+    setLoad(null);
+  }
+
+  // the start card's loading bar (the voice sprites): p 0..1 (1 hides it); waiting = Start was tapped before it finished
+  let loadP = 0;
+  function setLoad(p, waiting) {
+    if (p != null) loadP = p;
+    const c = cards.querySelector('.start-card');
+    if (!c) return;
+    const bar = c.querySelector('.load');
+    if (bar) { bar.firstChild.style.width = `${Math.round(loadP * 100)}%`; bar.classList.toggle('done', loadP >= 1); }
+    if (waiting) c.classList.add('waiting');
   }
 
   function newIcon(k) {
@@ -1747,7 +1768,7 @@ export function createShopUI(root, h = {}) {
     guide,
     teach,
     hint,
-    startCard, dayCard, receipt, upgradeShop, endCard, pauseSheet, voicePrompt, hideCards,
+    startCard, setLoad, dayCard, receipt, upgradeShop, endCard, pauseSheet, voicePrompt, hideCards,
     setLang(l) {
       lang = l === 'en' ? 'en' : 'zh';
       T = shopText(lang);
